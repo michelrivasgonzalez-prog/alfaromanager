@@ -1,19 +1,22 @@
 import { useNavigate } from "react-router-dom";
-import { Coffee, Play, ArrowRight, Store } from "lucide-react";
+import { Coffee, Play, ArrowRight, Store, X } from "lucide-react";
 import coffeeHero from "@/assets/coffee-hero.jpg";
 import { Button } from "@/components/ui/button";
 import { useCuadreStore, PUNTOS, PuntoVenta } from "@/store/cuadreStore";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 export default function Index() {
   const nav = useNavigate();
-  const { currents, activePunto, setActivePunto, startCuadre, history } = useCuadreStore();
+  const { currents, activePunto, setActivePunto, startCuadre, history, lastStep, cancelar } =
+    useCuadreStore();
   const current = currents[activePunto];
 
   const onStart = (punto: PuntoVenta) => {
     setActivePunto(punto);
     if (!currents[punto]) startCuadre(punto);
-    nav("/cuadre/1");
+    const step = currents[punto] ? lastStep[punto] || 1 : 1;
+    nav(`/cuadre/${step}`);
   };
 
   return (
@@ -49,17 +52,19 @@ export default function Index() {
           const c = currents[p];
           const Icon = p === "Cafetería" ? Coffee : Store;
           return (
-            <button
+            <div
               key={p}
-              onClick={() => onStart(p)}
               className={cn(
-                "group relative w-full overflow-hidden rounded-3xl p-5 text-left shadow-emerald transition-smooth hover:scale-[1.01] active:scale-[0.99]",
+                "group relative w-full overflow-hidden rounded-3xl p-5 text-left shadow-emerald transition-smooth",
                 p === "Cafetería"
                   ? "gradient-emerald text-secondary-foreground"
                   : "gradient-primary text-primary-foreground"
               )}
             >
-              <div className="flex items-center justify-between">
+              <button
+                onClick={() => onStart(p)}
+                className="flex w-full items-center justify-between text-left"
+              >
                 <div>
                   <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider opacity-80">
                     <Icon className="h-3.5 w-3.5" /> {p}
@@ -68,16 +73,29 @@ export default function Index() {
                     {c ? "Continuar cuadre" : "Iniciar cuadre"}
                   </div>
                   <div className="mt-1 text-sm opacity-80">
-                    {c
-                      ? `Dependiente: ${c.dependiente || "—"}`
-                      : "Nuevo turno"}
+                    {c ? `Dependiente: ${c.dependiente || "—"} · Paso ${lastStep[p] || 1}` : "Nuevo turno"}
                   </div>
                 </div>
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 backdrop-blur">
                   <Play className="h-5 w-5 fill-current" />
                 </div>
-              </div>
-            </button>
+              </button>
+              {c && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (confirm(`¿Eliminar el cuadre en curso de ${p}? Esta acción no se puede deshacer.`)) {
+                      cancelar(p);
+                      toast.success(`Cuadre de ${p} eliminado`);
+                    }
+                  }}
+                  className="absolute right-3 top-3 rounded-full bg-white/20 p-1.5 text-current backdrop-blur hover:bg-white/30"
+                  aria-label={`Eliminar cuadre de ${p}`}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
           );
         })}
       </div>
