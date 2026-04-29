@@ -62,8 +62,8 @@ export default function Cuadre() {
   switch (idx) {
     case 1: return <Step1 />;
     case 2: return <StepInventario field="inicio" title="Inventario inicial" />;
-    case 3: return <StepInventario field="final" title="Inventario final" />;
-    case 4: return <Step4 />;
+    case 3: return <Step4 />;
+    case 4: return <StepInventario field="final" title="Inventario final" />;
     case 5: return <Step5 />;
     case 6: return <Step6 />;
     case 7: return <Step7 />;
