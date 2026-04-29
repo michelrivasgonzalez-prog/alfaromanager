@@ -13,6 +13,8 @@ import {
   Wallet,
   TrendingUp,
   TrendingDown,
+  Coffee,
+  Store,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -33,10 +35,12 @@ import {
 } from "@/components/ui/popover";
 import { toast } from "sonner";
 import StepShell from "@/components/cuadre/StepShell";
+import { NumberInput } from "@/components/NumberInput";
 import {
   DENOMINACIONES,
   Gasto,
-  Producto,
+  PUNTOS,
+  PuntoVenta,
   calcCuadre,
   calcProducto,
   sugerirPagoSalario,
@@ -50,11 +54,12 @@ const fmt = (n: number) =>
 export default function Cuadre() {
   const { step } = useParams();
   const nav = useNavigate();
-  const { current, startCuadre } = useCuadreStore();
+  const { activePunto, currents, startCuadre } = useCuadreStore();
+  const current = currents[activePunto];
 
   useEffect(() => {
-    if (!current) startCuadre();
-  }, [current, startCuadre]);
+    if (!current) startCuadre(activePunto);
+  }, [current, activePunto, startCuadre]);
 
   if (!current) return null;
   const idx = Math.max(1, Math.min(10, Number(step) || 1));
@@ -74,28 +79,102 @@ export default function Cuadre() {
   return null;
 }
 
-/* ================== Step 1: datos del turno ================== */
+/* ================== Step 1 ================== */
 function Step1() {
-  const { current, updateCurrent, role } = useCuadreStore();
+  const {
+    currents,
+    activePunto,
+    setActivePunto,
+    startCuadre,
+    updateCurrent,
+    dependientes,
+    role,
+  } = useCuadreStore();
+  const current = currents[activePunto];
   if (!current) return null;
   const days = current.diasTrabajados.map((d) => new Date(d));
+  const otherPunto: PuntoVenta = activePunto === "Cafetería" ? "Mipyme" : "Cafetería";
+  const otherActive = !!currents[otherPunto];
 
   return (
     <StepShell onNextDisabled={!current.dependiente.trim() || days.length === 0}>
+      {/* Selector de punto de venta */}
+      <div className="rounded-2xl border border-border bg-card p-3 shadow-soft">
+        <Label className="text-xs uppercase tracking-widest text-muted-foreground">
+          Punto de venta
+        </Label>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          {PUNTOS.map((p) => {
+            const active = p === activePunto;
+            const hasCuadre = !!currents[p];
+            const Icon = p === "Cafetería" ? Coffee : Store;
+            return (
+              <button
+                key={p}
+                onClick={() => {
+                  setActivePunto(p);
+                  if (!currents[p]) startCuadre(p);
+                }}
+                className={cn(
+                  "relative flex items-center justify-center gap-2 rounded-xl border p-3 text-sm font-semibold transition-smooth",
+                  active
+                    ? "gradient-primary border-0 text-primary-foreground shadow-soft"
+                    : "border-border bg-card text-foreground"
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                {p}
+                {hasCuadre && !active && (
+                  <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-secondary ring-2 ring-card" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+        {otherActive && (
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            Tienes un cuadre abierto también en <strong>{otherPunto}</strong>. Puedes alternar
+            entre ambos sin perder datos.
+          </p>
+        )}
+      </div>
+
       <div className="rounded-2xl border border-border bg-card p-5 shadow-soft space-y-4">
         <div className="space-y-2">
           <Label>Nombre del dependiente</Label>
-          <Input
-            value={current.dependiente}
-            onChange={(e) => updateCurrent({ dependiente: e.target.value })}
-            placeholder="Ej. María Pérez"
-            className="h-12 rounded-xl"
-            readOnly={role === "dependiente"}
-            disabled={role === "dependiente"}
-          />
+          {role === "dependiente" ? (
+            <Input
+              value={current.dependiente}
+              readOnly
+              disabled
+              placeholder="Selecciona un dependiente"
+              className="h-12 rounded-xl"
+            />
+          ) : (
+            <Select
+              value={current.dependiente}
+              onValueChange={(v) => updateCurrent({ dependiente: v })}
+            >
+              <SelectTrigger className="h-12 rounded-xl">
+                <SelectValue placeholder="Selecciona un dependiente" />
+              </SelectTrigger>
+              <SelectContent>
+                {dependientes.length === 0 && (
+                  <div className="px-3 py-2 text-xs text-muted-foreground">
+                    Agrega dependientes en la sección Usuarios
+                  </div>
+                )}
+                {dependientes.map((d) => (
+                  <SelectItem key={d} value={d}>
+                    {d}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           {role === "dependiente" && (
             <p className="text-[11px] text-muted-foreground">
-              Solo el administrador puede editar el nombre del dependiente.
+              Solo el administrador puede asignar el dependiente del turno.
             </p>
           )}
         </div>
@@ -149,7 +228,7 @@ function Step1() {
   );
 }
 
-/* ================== Step 2/3: inventario inline edit ================== */
+/* ================== Step 2/4: inventario ================== */
 function StepInventario({
   field,
   title,
@@ -157,7 +236,8 @@ function StepInventario({
   field: "inicio" | "final";
   title: string;
 }) {
-  const { current, updateProducto } = useCuadreStore();
+  const { currents, activePunto, updateProducto } = useCuadreStore();
+  const current = currents[activePunto];
   const [editing, setEditing] = useState<string | null>(null);
   if (!current) return null;
 
@@ -182,13 +262,10 @@ function StepInventario({
                 <td className="px-3 py-3 font-medium">{p.nombre}</td>
                 <td className="px-3 py-2 text-right">
                   {editing === p.id ? (
-                    <Input
-                      type="number"
+                    <NumberInput
                       autoFocus
                       value={p[field]}
-                      onChange={(e) =>
-                        updateProducto(p.id, { [field]: Number(e.target.value) || 0 } as any)
-                      }
+                      onChange={(v) => updateProducto(p.id, { [field]: v } as any)}
                       onBlur={() => setEditing(null)}
                       className="ml-auto h-9 w-24 rounded-lg text-right"
                     />
@@ -218,22 +295,22 @@ function StepInventario({
   );
 }
 
-/* ================== Step 4: entradas y traslados ================== */
+/* ================== Step 3: entradas y traslados ================== */
 function Step4() {
-  const { current, updateProducto, addProducto, role } = useCuadreStore();
+  const { currents, activePunto, updateProducto, addProducto, role } = useCuadreStore();
+  const current = currents[activePunto];
   const [productoId, setProductoId] = useState("");
   const [tipo, setTipo] = useState<"entrada" | "traslado">("entrada");
-  const [cantidad, setCantidad] = useState("");
+  const [cantidad, setCantidad] = useState(0);
   if (!current) return null;
 
   const aplicar = () => {
     if (!productoId || !cantidad) return;
     const p = current.productos.find((x) => x.id === productoId);
     if (!p) return;
-    const n = Number(cantidad);
-    if (tipo === "entrada") updateProducto(p.id, { entradas: p.entradas + n });
-    else updateProducto(p.id, { traslados: p.traslados + n });
-    setCantidad("");
+    if (tipo === "entrada") updateProducto(p.id, { entradas: p.entradas + cantidad });
+    else updateProducto(p.id, { traslados: p.traslados + cantidad });
+    setCantidad(0);
     toast.success(`${tipo === "entrada" ? "Entrada" : "Traslado"} registrado`);
   };
 
@@ -255,7 +332,7 @@ function Step4() {
               precio: 0,
               costo: 0,
             });
-            toast.success("Producto agregado");
+            toast.success("Producto agregado a este cuadre");
           }}
         >
           <Plus className="mr-2 h-4 w-4" /> Agregar producto
@@ -301,11 +378,9 @@ function Step4() {
         </div>
         <div className="space-y-2">
           <Label>Cantidad</Label>
-          <Input
-            type="number"
+          <NumberInput
             value={cantidad}
-            onChange={(e) => setCantidad(e.target.value)}
-            placeholder="0"
+            onChange={setCantidad}
             className="h-12 rounded-xl"
           />
         </div>
@@ -347,7 +422,8 @@ function Step4() {
 
 /* ================== Step 5: Resultados ================== */
 function Step5() {
-  const { current, updateProducto, role } = useCuadreStore();
+  const { currents, activePunto, updateProducto, role } = useCuadreStore();
+  const current = currents[activePunto];
   if (!current) return null;
   const isAdmin = role === "admin";
   const totalImporte = current.productos.reduce(
@@ -366,9 +442,13 @@ function Step5() {
         {isAdmin ? (
           <SummaryTile label="Ganancia" value={fmt(totalGanancia)} accent="primary" />
         ) : (
-          <SummaryTile label="Unidades vendidas" value={String(
-            current.productos.reduce((s, p) => s + calcProducto(p).venta, 0)
-          )} accent="primary" />
+          <SummaryTile
+            label="Unidades vendidas"
+            value={String(
+              current.productos.reduce((s, p) => s + calcProducto(p).venta, 0)
+            )}
+            accent="primary"
+          />
         )}
       </div>
 
@@ -407,9 +487,10 @@ function Step5() {
                   </td>
                   {isAdmin && (
                     <td className="px-2 py-2 text-right tabular-nums">
-                      <InlineNum
+                      <NumberInput
                         value={p.precio}
                         onChange={(v) => updateProducto(p.id, { precio: v })}
+                        className="ml-auto h-7 w-16 rounded-md text-right text-xs"
                       />
                     </td>
                   )}
@@ -418,9 +499,10 @@ function Step5() {
                   </td>
                   {isAdmin && (
                     <td className="px-2 py-2 text-right tabular-nums">
-                      <InlineNum
+                      <NumberInput
                         value={p.costo}
                         onChange={(v) => updateProducto(p.id, { costo: v })}
+                        className="ml-auto h-7 w-16 rounded-md text-right text-xs"
                       />
                     </td>
                   )}
@@ -436,23 +518,6 @@ function Step5() {
         </table>
       </div>
     </StepShell>
-  );
-}
-
-function InlineNum({
-  value,
-  onChange,
-}: {
-  value: number;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <Input
-      type="number"
-      value={value}
-      onChange={(e) => onChange(Number(e.target.value) || 0)}
-      className="ml-auto h-7 w-16 rounded-md text-right text-xs"
-    />
   );
 }
 
@@ -491,55 +556,138 @@ const CATEGORIAS: Gasto["categoria"][] = [
 ];
 
 function Step6() {
-  const { current, addGasto, removeGasto } = useCuadreStore();
+  const { currents, activePunto, addGasto, removeGasto } = useCuadreStore();
+  const current = currents[activePunto];
   const [cat, setCat] = useState<Gasto["categoria"]>("Local");
+  const [tipo, setTipo] = useState<"Efectivo" | "Producto">("Efectivo");
+  const [nombre, setNombre] = useState("");
   const [desc, setDesc] = useState("");
-  const [monto, setMonto] = useState("");
+  const [monto, setMonto] = useState(0);
+  const [cantidad, setCantidad] = useState(0);
+  const [precio, setPrecio] = useState(0);
   if (!current) return null;
 
+  const importeProducto = cantidad * precio;
   const total = current.gastos.reduce((s, g) => s + g.monto, 0);
+
+  const limpiar = () => {
+    setNombre("");
+    setDesc("");
+    setMonto(0);
+    setCantidad(0);
+    setPrecio(0);
+  };
+
+  const guardar = () => {
+    if (tipo === "Efectivo" && !monto) return;
+    if (tipo === "Producto" && (!cantidad || !precio)) return;
+    addGasto({
+      categoria: cat,
+      nombre: nombre || "—",
+      tipo,
+      descripcion: desc || (tipo === "Producto" ? `Producto x${cantidad}` : cat),
+      cantidad: tipo === "Producto" ? cantidad : undefined,
+      precio: tipo === "Producto" ? precio : undefined,
+      monto: tipo === "Producto" ? importeProducto : monto,
+    });
+    limpiar();
+    toast.success("Gasto agregado");
+  };
 
   return (
     <StepShell>
       <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3">
         <div className="grid grid-cols-2 gap-2">
-          <Select value={cat} onValueChange={(v) => setCat(v as any)}>
-            <SelectTrigger className="h-11 rounded-xl">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {CATEGORIAS.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div>
+            <Label className="text-xs">Categoría</Label>
+            <Select value={cat} onValueChange={(v) => setCat(v as any)}>
+              <SelectTrigger className="mt-1 h-11 rounded-xl">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CATEGORIAS.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">Tipo</Label>
+            <Select value={tipo} onValueChange={(v) => setTipo(v as any)}>
+              <SelectTrigger className="mt-1 h-11 rounded-xl">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Efectivo">Efectivo</SelectItem>
+                <SelectItem value="Producto">Producto</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div>
+          <Label className="text-xs">Nombre (quién recibe)</Label>
           <Input
-            type="number"
-            placeholder="Monto"
-            value={monto}
-            onChange={(e) => setMonto(e.target.value)}
-            className="h-11 rounded-xl"
+            placeholder="Nombre"
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            className="mt-1 h-11 rounded-xl"
           />
         </div>
-        <Input
-          placeholder="Descripción"
-          value={desc}
-          onChange={(e) => setDesc(e.target.value)}
-          className="h-11 rounded-xl"
-        />
+
+        <div>
+          <Label className="text-xs">Descripción</Label>
+          <Input
+            placeholder="Descripción"
+            value={desc}
+            onChange={(e) => setDesc(e.target.value)}
+            className="mt-1 h-11 rounded-xl"
+          />
+        </div>
+
+        {tipo === "Efectivo" ? (
+          <div>
+            <Label className="text-xs">Monto</Label>
+            <NumberInput
+              value={monto}
+              onChange={setMonto}
+              className="mt-1 h-11 rounded-xl"
+            />
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <Label className="text-xs">Cantidad</Label>
+              <NumberInput
+                value={cantidad}
+                onChange={setCantidad}
+                className="mt-1 h-11 rounded-xl"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Precio</Label>
+              <NumberInput
+                value={precio}
+                onChange={setPrecio}
+                className="mt-1 h-11 rounded-xl"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Importe</Label>
+              <Input
+                value={fmt(importeProducto)}
+                readOnly
+                disabled
+                className="mt-1 h-11 rounded-xl bg-muted text-right font-mono"
+              />
+            </div>
+          </div>
+        )}
+
         <Button
-          onClick={() => {
-            if (!monto) return;
-            addGasto({
-              categoria: cat,
-              descripcion: desc || cat,
-              monto: Number(monto),
-            });
-            setDesc("");
-            setMonto("");
-          }}
+          onClick={guardar}
           className="h-11 w-full rounded-xl bg-primary text-primary-foreground"
         >
           <Plus className="mr-2 h-4 w-4" /> Agregar gasto
@@ -551,7 +699,8 @@ function Step6() {
           <thead className="bg-muted/60 text-[10px] uppercase tracking-wider text-muted-foreground">
             <tr>
               <th className="px-3 py-2 text-left">Categoría</th>
-              <th className="px-3 py-2 text-left">Descripción</th>
+              <th className="px-3 py-2 text-left">Nombre</th>
+              <th className="px-3 py-2 text-left">Detalle</th>
               <th className="px-3 py-2 text-right">Monto</th>
               <th className="w-8"></th>
             </tr>
@@ -560,7 +709,7 @@ function Step6() {
             {current.gastos.length === 0 && (
               <tr>
                 <td
-                  colSpan={4}
+                  colSpan={5}
                   className="px-3 py-6 text-center text-muted-foreground"
                 >
                   Sin gastos registrados
@@ -568,13 +717,22 @@ function Step6() {
               </tr>
             )}
             {current.gastos.map((g) => (
-              <tr key={g.id} className="border-t border-border">
+              <tr key={g.id} className="border-t border-border align-top">
                 <td className="px-3 py-2 text-xs">
                   <span className="rounded-full bg-muted px-2 py-0.5 font-medium">
                     {g.categoria}
                   </span>
+                  <div className="mt-0.5 text-[10px] text-muted-foreground">{g.tipo}</div>
                 </td>
-                <td className="px-3 py-2">{g.descripcion}</td>
+                <td className="px-3 py-2 text-xs font-medium">{g.nombre}</td>
+                <td className="px-3 py-2 text-xs">
+                  <div>{g.descripcion}</div>
+                  {g.tipo === "Producto" && (
+                    <div className="text-[10px] text-muted-foreground">
+                      {g.cantidad} × {fmt(g.precio || 0)}
+                    </div>
+                  )}
+                </td>
                 <td className="px-3 py-2 text-right font-mono font-semibold tabular-nums">
                   {fmt(g.monto)}
                 </td>
@@ -593,7 +751,7 @@ function Step6() {
           </tbody>
           <tfoot className="bg-muted/40 font-bold">
             <tr>
-              <td colSpan={2} className="px-3 py-3">
+              <td colSpan={3} className="px-3 py-3">
                 Total
               </td>
               <td className="px-3 py-3 text-right font-mono tabular-nums text-destructive">
@@ -610,7 +768,8 @@ function Step6() {
 
 /* ================== Step 7: Cuadre de efectivo ================== */
 function Step7() {
-  const { current, setDenominacion } = useCuadreStore();
+  const { currents, activePunto, setDenominacion } = useCuadreStore();
+  const current = currents[activePunto];
   if (!current) return null;
   const total = Object.entries(current.denominaciones).reduce(
     (s, [b, n]) => s + Number(b) * n,
@@ -638,12 +797,9 @@ function Step7() {
                 ${d}
               </div>
               <div className="flex-1">
-                <Input
-                  type="number"
+                <NumberInput
                   value={n}
-                  onChange={(e) =>
-                    setDenominacion(String(d), Number(e.target.value) || 0)
-                  }
+                  onChange={(v) => setDenominacion(String(d), v)}
                   className="h-11 rounded-xl"
                   placeholder="Cantidad de billetes"
                 />
@@ -661,23 +817,12 @@ function Step7() {
 
 /* ================== Step 8: Diferencia ================== */
 function Step8() {
-  const { current, updateCurrent } = useCuadreStore();
+  const { currents, activePunto } = useCuadreStore();
+  const current = currents[activePunto];
   if (!current) return null;
   const c = calcCuadre(current);
   const falta = c.diferencia < 0;
   const sobra = c.diferencia > 0;
-  const [depositadoStr, setDepositadoStr] = useState<string>(
-    current.efectivoDepositado ? String(current.efectivoDepositado) : ""
-  );
-
-  // Si todavía no se ha tocado y hay efectivo en caja, sugerirlo automáticamente
-  useEffect(() => {
-    if (!current.efectivoDepositado && c.efectivoEnCaja > 0) {
-      updateCurrent({ efectivoDepositado: c.efectivoEnCaja });
-      setDepositadoStr(String(c.efectivoEnCaja));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   return (
     <StepShell>
@@ -686,46 +831,27 @@ function Step8() {
         <SummaryTile label="En caja" value={fmt(c.efectivoEnCaja)} accent="emerald" />
       </div>
 
-      <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
-        <Label className="text-xs uppercase tracking-widest text-muted-foreground">
-          Efectivo depositado
-        </Label>
-        <Input
-          type="number"
-          inputMode="decimal"
-          value={depositadoStr}
-          placeholder="0"
-          onChange={(e) => {
-            setDepositadoStr(e.target.value);
-            updateCurrent({ efectivoDepositado: Number(e.target.value) || 0 });
-          }}
-          className="mt-1 h-12 rounded-xl text-2xl font-bold"
-        />
-        <div className="mt-2 flex gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="rounded-lg text-xs"
-            onClick={() => {
-              setDepositadoStr(String(c.efectivoEnCaja));
-              updateCurrent({ efectivoDepositado: c.efectivoEnCaja });
-            }}
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-soft text-sm">
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">En caja</span>
+          <span className="font-mono tabular-nums">{fmt(c.efectivoEnCaja)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">A depositar</span>
+          <span className="font-mono tabular-nums">− {fmt(c.efectivoADepositar)}</span>
+        </div>
+        <div className="my-2 border-t border-border" />
+        <div className="flex justify-between font-semibold">
+          <span>Diferencia</span>
+          <span
+            className={cn(
+              "font-mono tabular-nums",
+              falta && "text-destructive",
+              sobra && "text-secondary"
+            )}
           >
-            Usar efectivo en caja ({fmt(c.efectivoEnCaja)})
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="rounded-lg text-xs"
-            onClick={() => {
-              setDepositadoStr(String(c.efectivoADepositar));
-              updateCurrent({ efectivoDepositado: c.efectivoADepositar });
-            }}
-          >
-            Usar a depositar
-          </Button>
+            {fmt(c.diferencia)}
+          </span>
         </div>
       </div>
 
@@ -747,7 +873,7 @@ function Step8() {
           )}
           <div className="flex-1">
             <div className="text-xs font-semibold uppercase tracking-widest opacity-80">
-              {falta ? "Falta dinero" : sobra ? "Sobra (propina)" : "Caja cuadrada"}
+              {falta ? "Falta dinero" : sobra ? "Sobrante (propina)" : "Caja cuadrada"}
             </div>
             <div className="text-3xl font-bold">{fmt(Math.abs(c.diferencia))}</div>
           </div>
@@ -759,7 +885,8 @@ function Step8() {
 
 /* ================== Step 9: Salario ================== */
 function Step9() {
-  const { current, updateCurrent, setSalarioDen } = useCuadreStore();
+  const { currents, activePunto, updateCurrent, setSalarioDen } = useCuadreStore();
+  const current = currents[activePunto];
   if (!current) return null;
   const c = calcCuadre(current);
   const sugerencia = useMemo(
@@ -767,7 +894,6 @@ function Step9() {
     [c.salarioReal, current.denominaciones]
   );
 
-  // initialize suggestion if salary denominations are all zero
   useEffect(() => {
     const totalSet = Object.values(current.salarioDenominaciones).reduce(
       (s, n) => s + n,
@@ -784,6 +910,11 @@ function Step9() {
     0
   );
 
+  // Lista compacta del pago sugerido (solo billetes con cantidad > 0)
+  const sugerenciaCompacta = Object.entries(sugerencia)
+    .filter(([, n]) => n > 0)
+    .sort(([a], [b]) => Number(b) - Number(a));
+
   return (
     <StepShell>
       <div className="rounded-2xl border border-border bg-card p-5 shadow-soft space-y-3">
@@ -799,12 +930,9 @@ function Step9() {
           </div>
           <div>
             <Label>Salario base/día</Label>
-            <Input
-              type="number"
+            <NumberInput
               value={current.salarioBase}
-              onChange={(e) =>
-                updateCurrent({ salarioBase: Number(e.target.value) || 0 })
-              }
+              onChange={(v) => updateCurrent({ salarioBase: v })}
               className="mt-1 h-11 rounded-xl"
             />
           </div>
@@ -813,31 +941,60 @@ function Step9() {
 
       <div className="grid grid-cols-3 gap-2">
         <SummaryTile label="Bruto" value={fmt(c.salarioBruto)} accent="primary" />
-        <div className="rounded-2xl bg-destructive p-3 text-destructive-foreground shadow-soft">
-          <div className="text-[10px] font-semibold uppercase opacity-80">Descuento</div>
-          <div className="text-lg font-bold">{fmt(c.descuentoFalta)}</div>
-        </div>
+        {c.descuentoFalta > 0 ? (
+          <div className="rounded-2xl bg-destructive p-3 text-destructive-foreground shadow-soft">
+            <div className="text-[10px] font-semibold uppercase opacity-80">Descuento</div>
+            <div className="text-lg font-bold">{fmt(c.descuentoFalta)}</div>
+          </div>
+        ) : (
+          <div className="rounded-2xl gradient-emerald p-3 text-secondary-foreground shadow-soft">
+            <div className="text-[10px] font-semibold uppercase opacity-80">Propina</div>
+            <div className="text-lg font-bold">{fmt(c.propina)}</div>
+          </div>
+        )}
         <SummaryTile label="A pagar" value={fmt(c.salarioReal)} accent="emerald" />
       </div>
 
       <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
-        <div className="mb-2 flex items-center justify-between">
+        <div className="mb-3 flex items-center justify-between">
           <div>
             <div className="font-semibold">Pago sugerido</div>
             <div className="text-xs text-muted-foreground">
-              Billetes de menor denominación primero
+              Total: {fmt(c.salarioReal)}
             </div>
           </div>
-          <div className="text-right">
-            <div className="text-[10px] uppercase text-muted-foreground">Pagado</div>
-            <div
-              className={cn(
-                "font-mono font-bold tabular-nums",
-                totalPagado === c.salarioReal ? "text-secondary" : "text-destructive"
-              )}
-            >
-              {fmt(totalPagado)}
-            </div>
+        </div>
+        {sugerenciaCompacta.length === 0 ? (
+          <div className="rounded-xl bg-muted/60 px-3 py-4 text-center text-xs text-muted-foreground">
+            Sin sugerencia
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {sugerenciaCompacta.map(([b, n]) => (
+              <span
+                key={b}
+                className="rounded-full bg-secondary/10 px-3 py-1.5 text-sm font-semibold text-secondary"
+              >
+                ${b} × {n}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <details className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+        <summary className="cursor-pointer text-sm font-semibold">
+          Ajustar denominaciones manualmente
+        </summary>
+        <div className="mt-3 mb-2 flex items-center justify-between">
+          <div className="text-xs text-muted-foreground">Pagado</div>
+          <div
+            className={cn(
+              "font-mono font-bold tabular-nums",
+              totalPagado === c.salarioReal ? "text-secondary" : "text-destructive"
+            )}
+          >
+            {fmt(totalPagado)}
           </div>
         </div>
         <div className="space-y-2">
@@ -846,12 +1003,9 @@ function Step9() {
               <div className="flex h-9 w-14 items-center justify-center rounded-lg bg-muted text-xs font-bold">
                 ${d}
               </div>
-              <Input
-                type="number"
+              <NumberInput
                 value={current.salarioDenominaciones[String(d)] || 0}
-                onChange={(e) =>
-                  setSalarioDen(String(d), Number(e.target.value) || 0)
-                }
+                onChange={(v) => setSalarioDen(String(d), v)}
                 className="h-9 flex-1 rounded-lg"
               />
               <div className="w-20 text-right font-mono text-xs tabular-nums">
@@ -860,14 +1014,15 @@ function Step9() {
             </div>
           ))}
         </div>
-      </div>
+      </details>
     </StepShell>
   );
 }
 
 /* ================== Step 10: Resumen ================== */
 function Step10({ onClose }: { onClose: () => void }) {
-  const { current, finalizar, role } = useCuadreStore();
+  const { currents, activePunto, finalizar, role } = useCuadreStore();
+  const current = currents[activePunto];
   if (!current) return null;
   const isAdmin = role === "admin";
   const c = calcCuadre(current);
@@ -882,7 +1037,8 @@ function Step10({ onClose }: { onClose: () => void }) {
     <StepShell hideNext>
       <div className="rounded-2xl gradient-primary p-5 text-primary-foreground shadow-elegant">
         <div className="text-xs font-semibold uppercase tracking-widest opacity-80">
-          {current.dependiente} · {format(new Date(current.fecha), "dd MMM yyyy", { locale: es })}
+          {current.puntoVenta} · {current.dependiente} ·{" "}
+          {format(new Date(current.fecha), "dd MMM yyyy", { locale: es })}
         </div>
         <div className="mt-2 text-4xl font-bold">
           {isAdmin ? fmt(c.gananciaNeta) : fmt(c.totalVenta)}
@@ -919,7 +1075,7 @@ function Step10({ onClose }: { onClose: () => void }) {
 
       <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-1.5 text-sm">
         <Row label="Efectivo a depositar" value={fmt(c.efectivoADepositar)} />
-        <Row label="Efectivo depositado" value={fmt(current.efectivoDepositado)} />
+        <Row label="Efectivo en caja" value={fmt(c.efectivoEnCaja)} />
         <Row
           label="Diferencia"
           value={fmt(c.diferencia)}
@@ -927,8 +1083,15 @@ function Step10({ onClose }: { onClose: () => void }) {
           icon={c.diferencia < 0 ? TrendingDown : c.diferencia > 0 ? TrendingUp : undefined}
         />
         <Row label="Salario bruto" value={fmt(c.salarioBruto)} />
-        <Row label="Salario real" value={fmt(c.salarioReal)} highlight="emerald" />
-        {c.propina > 0 && <Row label="Propina" value={fmt(c.propina)} highlight="emerald" />}
+        {c.propina > 0 && <Row label="+ Propina" value={fmt(c.propina)} highlight="emerald" />}
+        {c.descuentoFalta > 0 && (
+          <Row
+            label="− Descuento por faltante"
+            value={fmt(c.descuentoFalta)}
+            highlight="destructive"
+          />
+        )}
+        <Row label="Salario real (pagado)" value={fmt(c.salarioReal)} highlight="emerald" />
       </div>
 
       <div className="grid grid-cols-2 gap-2">
