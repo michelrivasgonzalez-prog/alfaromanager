@@ -76,7 +76,7 @@ export default function Cuadre() {
 
 /* ================== Step 1: datos del turno ================== */
 function Step1() {
-  const { current, updateCurrent } = useCuadreStore();
+  const { current, updateCurrent, role } = useCuadreStore();
   if (!current) return null;
   const days = current.diasTrabajados.map((d) => new Date(d));
 
@@ -90,7 +90,14 @@ function Step1() {
             onChange={(e) => updateCurrent({ dependiente: e.target.value })}
             placeholder="Ej. María Pérez"
             className="h-12 rounded-xl"
+            readOnly={role === "dependiente"}
+            disabled={role === "dependiente"}
           />
+          {role === "dependiente" && (
+            <p className="text-[11px] text-muted-foreground">
+              Solo el administrador puede editar el nombre del dependiente.
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -150,7 +157,7 @@ function StepInventario({
   field: "inicio" | "final";
   title: string;
 }) {
-  const { current, updateProducto, addProducto, removeProducto } = useCuadreStore();
+  const { current, updateProducto } = useCuadreStore();
   const [editing, setEditing] = useState<string | null>(null);
   if (!current) return null;
 
@@ -204,33 +211,16 @@ function StepInventario({
           </tbody>
         </table>
       </div>
-
-      <Button
-        variant="outline"
-        className="h-11 w-full rounded-xl"
-        onClick={() => {
-          const nombre = prompt("Nombre del producto:");
-          if (!nombre) return;
-          addProducto({
-            nombre,
-            inicio: 0,
-            entradas: 0,
-            traslados: 0,
-            final: 0,
-            precio: 0,
-            costo: 0,
-          });
-        }}
-      >
-        <Plus className="mr-2 h-4 w-4" /> Agregar producto
-      </Button>
+      <p className="text-center text-xs text-muted-foreground">
+        Para agregar productos nuevos, ve al paso de Entradas y traslados.
+      </p>
     </StepShell>
   );
 }
 
 /* ================== Step 4: entradas y traslados ================== */
 function Step4() {
-  const { current, updateProducto } = useCuadreStore();
+  const { current, updateProducto, addProducto, role } = useCuadreStore();
   const [productoId, setProductoId] = useState("");
   const [tipo, setTipo] = useState<"entrada" | "traslado">("entrada");
   const [cantidad, setCantidad] = useState("");
@@ -249,6 +239,28 @@ function Step4() {
 
   return (
     <StepShell>
+      {role === "admin" && (
+        <Button
+          variant="outline"
+          className="h-11 w-full rounded-xl"
+          onClick={() => {
+            const nombre = prompt("Nombre del nuevo producto:");
+            if (!nombre) return;
+            addProducto({
+              nombre,
+              inicio: 0,
+              entradas: 0,
+              traslados: 0,
+              final: 0,
+              precio: 0,
+              costo: 0,
+            });
+            toast.success("Producto agregado");
+          }}
+        >
+          <Plus className="mr-2 h-4 w-4" /> Agregar producto
+        </Button>
+      )}
       <div className="rounded-2xl border border-border bg-card p-5 shadow-soft space-y-3">
         <div className="grid grid-cols-2 gap-2">
           <Button
