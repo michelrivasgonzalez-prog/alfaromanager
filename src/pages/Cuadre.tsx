@@ -1,0 +1,898 @@
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import {
+  Pencil,
+  Plus,
+  Trash2,
+  CalendarIcon,
+  AlertTriangle,
+  CheckCircle2,
+  FileDown,
+  Wallet,
+  TrendingUp,
+  TrendingDown,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { toast } from "sonner";
+import StepShell from "@/components/cuadre/StepShell";
+import {
+  DENOMINACIONES,
+  Gasto,
+  Producto,
+  calcCuadre,
+  calcProducto,
+  sugerirPagoSalario,
+  useCuadreStore,
+} from "@/store/cuadreStore";
+import { generarPDF } from "@/lib/pdf";
+
+const fmt = (n: number) =>
+  `$${n.toLocaleString("es-ES", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+
+export default function Cuadre() {
+  const { step } = useParams();
+  const nav = useNavigate();
+  const { current, startCuadre } = useCuadreStore();
+
+  useEffect(() => {
+    if (!current) startCuadre();
+  }, [current, startCuadre]);
+
+  if (!current) return null;
+  const idx = Math.max(1, Math.min(10, Number(step) || 1));
+
+  switch (idx) {
+    case 1: return <Step1 />;
+    case 2: return <StepInventario field="inicio" title="Inventario inicial" />;
+    case 3: return <StepInventario field="final" title="Inventario final" />;
+    case 4: return <Step4 />;
+    case 5: return <Step5 />;
+    case 6: return <Step6 />;
+    case 7: return <Step7 />;
+    case 8: return <Step8 />;
+    case 9: return <Step9 />;
+    case 10: return <Step10 onClose={() => nav("/")} />;
+  }
+  return null;
+}
+
+/* ================== Step 1: datos del turno ================== */
+function Step1() {
+  const { current, updateCurrent } = useCuadreStore();
+  if (!current) return null;
+  const days = current.diasTrabajados.map((d) => new Date(d));
+
+  return (
+    <StepShell onNextDisabled={!current.dependiente.trim() || days.length === 0}>
+      <div className="rounded-2xl border border-border bg-card p-5 shadow-soft space-y-4">
+        <div className="space-y-2">
+          <Label>Nombre del dependiente</Label>
+          <Input
+            value={current.dependiente}
+            onChange={(e) => updateCurrent({ dependiente: e.target.value })}
+            placeholder="Ej. María Pérez"
+            className="h-12 rounded-xl"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Días trabajados</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "h-12 w-full justify-start rounded-xl text-left font-normal",
+                  days.length === 0 && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {days.length > 0
+                  ? `${days.length} día(s) seleccionados`
+                  : "Selecciona días"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="multiple"
+                selected={days}
+                onSelect={(d) =>
+                  updateCurrent({
+                    diasTrabajados: (d ?? []).map((x) => x.toISOString()),
+                  })
+                }
+                className={cn("p-3 pointer-events-auto")}
+                locale={es}
+              />
+            </PopoverContent>
+          </Popover>
+          {days.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {days.map((d) => (
+                <span
+                  key={d.toISOString()}
+                  className="rounded-full bg-secondary/10 px-2.5 py-1 text-xs font-medium text-secondary"
+                >
+                  {format(d, "dd MMM", { locale: es })}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </StepShell>
+  );
+}
+
+/* ================== Step 2/3: inventario inline edit ================== */
+function StepInventario({
+  field,
+  title,
+}: {
+  field: "inicio" | "final";
+  title: string;
+}) {
+  const { current, updateProducto, addProducto, removeProducto } = useCuadreStore();
+  const [editing, setEditing] = useState<string | null>(null);
+  if (!current) return null;
+
+  return (
+    <StepShell title={title}>
+      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/60">
+            <tr className="text-left">
+              <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Producto
+              </th>
+              <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Cantidad
+              </th>
+              <th className="px-2 py-2 w-10"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {current.productos.map((p) => (
+              <tr key={p.id} className="border-t border-border">
+                <td className="px-3 py-3 font-medium">{p.nombre}</td>
+                <td className="px-3 py-2 text-right">
+                  {editing === p.id ? (
+                    <Input
+                      type="number"
+                      autoFocus
+                      value={p[field]}
+                      onChange={(e) =>
+                        updateProducto(p.id, { [field]: Number(e.target.value) || 0 } as any)
+                      }
+                      onBlur={() => setEditing(null)}
+                      className="ml-auto h-9 w-24 rounded-lg text-right"
+                    />
+                  ) : (
+                    <span className="font-mono tabular-nums">{p[field]}</span>
+                  )}
+                </td>
+                <td className="px-2 py-2 text-right">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-lg"
+                    onClick={() => setEditing(editing === p.id ? null : p.id)}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <Button
+        variant="outline"
+        className="h-11 w-full rounded-xl"
+        onClick={() => {
+          const nombre = prompt("Nombre del producto:");
+          if (!nombre) return;
+          addProducto({
+            nombre,
+            inicio: 0,
+            entradas: 0,
+            traslados: 0,
+            final: 0,
+            precio: 0,
+            costo: 0,
+          });
+        }}
+      >
+        <Plus className="mr-2 h-4 w-4" /> Agregar producto
+      </Button>
+    </StepShell>
+  );
+}
+
+/* ================== Step 4: entradas y traslados ================== */
+function Step4() {
+  const { current, updateProducto } = useCuadreStore();
+  const [productoId, setProductoId] = useState("");
+  const [tipo, setTipo] = useState<"entrada" | "traslado">("entrada");
+  const [cantidad, setCantidad] = useState("");
+  if (!current) return null;
+
+  const aplicar = () => {
+    if (!productoId || !cantidad) return;
+    const p = current.productos.find((x) => x.id === productoId);
+    if (!p) return;
+    const n = Number(cantidad);
+    if (tipo === "entrada") updateProducto(p.id, { entradas: p.entradas + n });
+    else updateProducto(p.id, { traslados: p.traslados + n });
+    setCantidad("");
+    toast.success(`${tipo === "entrada" ? "Entrada" : "Traslado"} registrado`);
+  };
+
+  return (
+    <StepShell>
+      <div className="rounded-2xl border border-border bg-card p-5 shadow-soft space-y-3">
+        <div className="grid grid-cols-2 gap-2">
+          <Button
+            variant={tipo === "entrada" ? "default" : "outline"}
+            onClick={() => setTipo("entrada")}
+            className={cn(
+              "h-11 rounded-xl",
+              tipo === "entrada" && "gradient-emerald text-secondary-foreground border-0"
+            )}
+          >
+            Entrada
+          </Button>
+          <Button
+            variant={tipo === "traslado" ? "default" : "outline"}
+            onClick={() => setTipo("traslado")}
+            className={cn(
+              "h-11 rounded-xl",
+              tipo === "traslado" && "gradient-primary text-primary-foreground border-0"
+            )}
+          >
+            Traslado
+          </Button>
+        </div>
+        <div className="space-y-2">
+          <Label>Producto</Label>
+          <Select value={productoId} onValueChange={setProductoId}>
+            <SelectTrigger className="h-12 rounded-xl">
+              <SelectValue placeholder="Selecciona producto" />
+            </SelectTrigger>
+            <SelectContent>
+              {current.productos.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.nombre}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Cantidad</Label>
+          <Input
+            type="number"
+            value={cantidad}
+            onChange={(e) => setCantidad(e.target.value)}
+            placeholder="0"
+            className="h-12 rounded-xl"
+          />
+        </div>
+        <Button
+          onClick={aplicar}
+          className="h-11 w-full rounded-xl gradient-emerald text-secondary-foreground"
+        >
+          <Plus className="mr-2 h-4 w-4" /> Registrar movimiento
+        </Button>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
+        <table className="w-full text-xs">
+          <thead className="bg-muted/60">
+            <tr>
+              <th className="px-3 py-2 text-left font-semibold">Producto</th>
+              <th className="px-2 py-2 text-right font-semibold">Entr.</th>
+              <th className="px-2 py-2 text-right font-semibold">Trasl.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {current.productos.map((p) => (
+              <tr key={p.id} className="border-t border-border">
+                <td className="px-3 py-2">{p.nombre}</td>
+                <td className="px-2 py-2 text-right font-mono tabular-nums text-secondary">
+                  +{p.entradas}
+                </td>
+                <td className="px-2 py-2 text-right font-mono tabular-nums text-primary">
+                  -{p.traslados}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </StepShell>
+  );
+}
+
+/* ================== Step 5: Resultados ================== */
+function Step5() {
+  const { current, updateProducto } = useCuadreStore();
+  if (!current) return null;
+  const totalImporte = current.productos.reduce(
+    (s, p) => s + calcProducto(p).importe,
+    0
+  );
+  const totalGanancia = current.productos.reduce(
+    (s, p) => s + calcProducto(p).ganancia,
+    0
+  );
+
+  return (
+    <StepShell>
+      <div className="grid grid-cols-2 gap-3">
+        <SummaryTile label="Venta total" value={fmt(totalImporte)} accent="emerald" />
+        <SummaryTile label="Ganancia" value={fmt(totalGanancia)} accent="primary" />
+      </div>
+
+      <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-soft">
+        <table className="w-full min-w-[640px] text-xs">
+          <thead className="bg-muted/60 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <tr>
+              <th className="px-2 py-2 text-left">Producto</th>
+              <th className="px-2 py-2 text-right">Inicio</th>
+              <th className="px-2 py-2 text-right">Entr.</th>
+              <th className="px-2 py-2 text-right">Trasl.</th>
+              <th className="px-2 py-2 text-right">Total</th>
+              <th className="px-2 py-2 text-right">Final</th>
+              <th className="px-2 py-2 text-right">Precio</th>
+              <th className="px-2 py-2 text-right">Importe</th>
+              <th className="px-2 py-2 text-right">Costo</th>
+              <th className="px-2 py-2 text-right">Ganancia</th>
+            </tr>
+          </thead>
+          <tbody>
+            {current.productos.map((p) => {
+              const c = calcProducto(p);
+              return (
+                <tr key={p.id} className="border-t border-border">
+                  <td className="px-2 py-2 font-medium">{p.nombre}</td>
+                  <td className="px-2 py-2 text-right tabular-nums">{p.inicio}</td>
+                  <td className="px-2 py-2 text-right tabular-nums">{p.entradas}</td>
+                  <td className="px-2 py-2 text-right tabular-nums">{p.traslados}</td>
+                  <td className="px-2 py-2 text-right tabular-nums font-semibold">
+                    {c.total}
+                  </td>
+                  <td className="px-2 py-2 text-right tabular-nums">{p.final}</td>
+                  <td className="px-2 py-2 text-right tabular-nums">
+                    <InlineNum
+                      value={p.precio}
+                      onChange={(v) => updateProducto(p.id, { precio: v })}
+                    />
+                  </td>
+                  <td className="px-2 py-2 text-right tabular-nums font-semibold text-secondary">
+                    {fmt(c.importe)}
+                  </td>
+                  <td className="px-2 py-2 text-right tabular-nums">
+                    <InlineNum
+                      value={p.costo}
+                      onChange={(v) => updateProducto(p.id, { costo: v })}
+                    />
+                  </td>
+                  <td className="px-2 py-2 text-right tabular-nums font-semibold text-primary">
+                    {fmt(c.ganancia)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </StepShell>
+  );
+}
+
+function InlineNum({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <Input
+      type="number"
+      value={value}
+      onChange={(e) => onChange(Number(e.target.value) || 0)}
+      className="ml-auto h-7 w-16 rounded-md text-right text-xs"
+    />
+  );
+}
+
+function SummaryTile({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent: "emerald" | "primary" | "destructive";
+}) {
+  const cls =
+    accent === "emerald"
+      ? "gradient-emerald text-secondary-foreground"
+      : accent === "destructive"
+      ? "bg-destructive text-destructive-foreground"
+      : "gradient-primary text-primary-foreground";
+  return (
+    <div className={`rounded-2xl p-4 shadow-soft ${cls}`}>
+      <div className="text-[10px] font-semibold uppercase tracking-widest opacity-80">
+        {label}
+      </div>
+      <div className="mt-1 text-2xl font-bold">{value}</div>
+    </div>
+  );
+}
+
+/* ================== Step 6: Gastos ================== */
+const CATEGORIAS: Gasto["categoria"][] = [
+  "Local",
+  "Yanitza",
+  "Compras",
+  "Cuentas por Cobrar",
+  "Transferencia",
+];
+
+function Step6() {
+  const { current, addGasto, removeGasto } = useCuadreStore();
+  const [cat, setCat] = useState<Gasto["categoria"]>("Local");
+  const [desc, setDesc] = useState("");
+  const [monto, setMonto] = useState("");
+  if (!current) return null;
+
+  const total = current.gastos.reduce((s, g) => s + g.monto, 0);
+
+  return (
+    <StepShell>
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3">
+        <div className="grid grid-cols-2 gap-2">
+          <Select value={cat} onValueChange={(v) => setCat(v as any)}>
+            <SelectTrigger className="h-11 rounded-xl">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CATEGORIAS.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            type="number"
+            placeholder="Monto"
+            value={monto}
+            onChange={(e) => setMonto(e.target.value)}
+            className="h-11 rounded-xl"
+          />
+        </div>
+        <Input
+          placeholder="Descripción"
+          value={desc}
+          onChange={(e) => setDesc(e.target.value)}
+          className="h-11 rounded-xl"
+        />
+        <Button
+          onClick={() => {
+            if (!monto) return;
+            addGasto({
+              categoria: cat,
+              descripcion: desc || cat,
+              monto: Number(monto),
+            });
+            setDesc("");
+            setMonto("");
+          }}
+          className="h-11 w-full rounded-xl bg-primary text-primary-foreground"
+        >
+          <Plus className="mr-2 h-4 w-4" /> Agregar gasto
+        </Button>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/60 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <tr>
+              <th className="px-3 py-2 text-left">Categoría</th>
+              <th className="px-3 py-2 text-left">Descripción</th>
+              <th className="px-3 py-2 text-right">Monto</th>
+              <th className="w-8"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {current.gastos.length === 0 && (
+              <tr>
+                <td
+                  colSpan={4}
+                  className="px-3 py-6 text-center text-muted-foreground"
+                >
+                  Sin gastos registrados
+                </td>
+              </tr>
+            )}
+            {current.gastos.map((g) => (
+              <tr key={g.id} className="border-t border-border">
+                <td className="px-3 py-2 text-xs">
+                  <span className="rounded-full bg-muted px-2 py-0.5 font-medium">
+                    {g.categoria}
+                  </span>
+                </td>
+                <td className="px-3 py-2">{g.descripcion}</td>
+                <td className="px-3 py-2 text-right font-mono font-semibold tabular-nums">
+                  {fmt(g.monto)}
+                </td>
+                <td className="px-2 py-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-destructive"
+                    onClick={() => removeGasto(g.id)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot className="bg-muted/40 font-bold">
+            <tr>
+              <td colSpan={2} className="px-3 py-3">
+                Total
+              </td>
+              <td className="px-3 py-3 text-right font-mono tabular-nums text-destructive">
+                {fmt(total)}
+              </td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </StepShell>
+  );
+}
+
+/* ================== Step 7: Cuadre de efectivo ================== */
+function Step7() {
+  const { current, setDenominacion } = useCuadreStore();
+  if (!current) return null;
+  const total = Object.entries(current.denominaciones).reduce(
+    (s, [b, n]) => s + Number(b) * n,
+    0
+  );
+
+  return (
+    <StepShell>
+      <div className="rounded-2xl gradient-primary p-5 text-primary-foreground shadow-elegant">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest opacity-80">
+          <Wallet className="h-3.5 w-3.5" /> Efectivo en caja
+        </div>
+        <div className="mt-1 text-4xl font-bold">{fmt(total)}</div>
+      </div>
+
+      <div className="space-y-2">
+        {DENOMINACIONES.map((d) => {
+          const n = current.denominaciones[String(d)] || 0;
+          return (
+            <div
+              key={d}
+              className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3 shadow-soft"
+            >
+              <div className="flex h-12 w-16 items-center justify-center rounded-xl gradient-emerald text-sm font-bold text-secondary-foreground">
+                ${d}
+              </div>
+              <div className="flex-1">
+                <Input
+                  type="number"
+                  value={n}
+                  onChange={(e) =>
+                    setDenominacion(String(d), Number(e.target.value) || 0)
+                  }
+                  className="h-11 rounded-xl"
+                  placeholder="Cantidad de billetes"
+                />
+              </div>
+              <div className="w-20 text-right font-mono text-sm font-semibold tabular-nums">
+                {fmt(d * n)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </StepShell>
+  );
+}
+
+/* ================== Step 8: Diferencia ================== */
+function Step8() {
+  const { current, updateCurrent } = useCuadreStore();
+  if (!current) return null;
+  const c = calcCuadre(current);
+  const falta = c.diferencia < 0;
+  const sobra = c.diferencia > 0;
+
+  return (
+    <StepShell>
+      <div className="grid grid-cols-2 gap-3">
+        <SummaryTile label="A depositar" value={fmt(c.efectivoADepositar)} accent="primary" />
+        <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+          <Label className="text-xs uppercase tracking-widest text-muted-foreground">
+            Depositado
+          </Label>
+          <Input
+            type="number"
+            value={current.efectivoDepositado}
+            onChange={(e) =>
+              updateCurrent({ efectivoDepositado: Number(e.target.value) || 0 })
+            }
+            className="mt-1 h-11 rounded-xl text-2xl font-bold"
+          />
+        </div>
+      </div>
+
+      <div
+        className={cn(
+          "rounded-2xl p-5 shadow-elegant",
+          falta && "bg-destructive text-destructive-foreground",
+          sobra && "gradient-emerald text-secondary-foreground",
+          !falta && !sobra && "bg-card border border-border"
+        )}
+      >
+        <div className="flex items-center gap-3">
+          {falta ? (
+            <AlertTriangle className="h-7 w-7" />
+          ) : sobra ? (
+            <CheckCircle2 className="h-7 w-7" />
+          ) : (
+            <CheckCircle2 className="h-7 w-7 text-muted-foreground" />
+          )}
+          <div className="flex-1">
+            <div className="text-xs font-semibold uppercase tracking-widest opacity-80">
+              {falta ? "Falta dinero" : sobra ? "Sobra (propina)" : "Caja cuadrada"}
+            </div>
+            <div className="text-3xl font-bold">{fmt(Math.abs(c.diferencia))}</div>
+          </div>
+        </div>
+      </div>
+    </StepShell>
+  );
+}
+
+/* ================== Step 9: Salario ================== */
+function Step9() {
+  const { current, updateCurrent, setSalarioDen } = useCuadreStore();
+  if (!current) return null;
+  const c = calcCuadre(current);
+  const sugerencia = useMemo(
+    () => sugerirPagoSalario(c.salarioReal, current.denominaciones),
+    [c.salarioReal, current.denominaciones]
+  );
+
+  // initialize suggestion if salary denominations are all zero
+  useEffect(() => {
+    const totalSet = Object.values(current.salarioDenominaciones).reduce(
+      (s, n) => s + n,
+      0
+    );
+    if (totalSet === 0 && c.salarioReal > 0) {
+      Object.entries(sugerencia).forEach(([b, n]) => setSalarioDen(b, n));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const totalPagado = Object.entries(current.salarioDenominaciones).reduce(
+    (s, [b, n]) => s + Number(b) * n,
+    0
+  );
+
+  return (
+    <StepShell>
+      <div className="rounded-2xl border border-border bg-card p-5 shadow-soft space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>Días trabajados</Label>
+            <Input
+              type="number"
+              value={c.diasCount}
+              readOnly
+              className="mt-1 h-11 rounded-xl bg-muted"
+            />
+          </div>
+          <div>
+            <Label>Salario base/día</Label>
+            <Input
+              type="number"
+              value={current.salarioBase}
+              onChange={(e) =>
+                updateCurrent({ salarioBase: Number(e.target.value) || 0 })
+              }
+              className="mt-1 h-11 rounded-xl"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <SummaryTile label="Bruto" value={fmt(c.salarioBruto)} accent="primary" />
+        <div className="rounded-2xl bg-destructive p-3 text-destructive-foreground shadow-soft">
+          <div className="text-[10px] font-semibold uppercase opacity-80">Descuento</div>
+          <div className="text-lg font-bold">{fmt(c.descuentoFalta)}</div>
+        </div>
+        <SummaryTile label="A pagar" value={fmt(c.salarioReal)} accent="emerald" />
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+        <div className="mb-2 flex items-center justify-between">
+          <div>
+            <div className="font-semibold">Pago sugerido</div>
+            <div className="text-xs text-muted-foreground">
+              Billetes de menor denominación primero
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-[10px] uppercase text-muted-foreground">Pagado</div>
+            <div
+              className={cn(
+                "font-mono font-bold tabular-nums",
+                totalPagado === c.salarioReal ? "text-secondary" : "text-destructive"
+              )}
+            >
+              {fmt(totalPagado)}
+            </div>
+          </div>
+        </div>
+        <div className="space-y-2">
+          {DENOMINACIONES.map((d) => (
+            <div key={d} className="flex items-center gap-3">
+              <div className="flex h-9 w-14 items-center justify-center rounded-lg bg-muted text-xs font-bold">
+                ${d}
+              </div>
+              <Input
+                type="number"
+                value={current.salarioDenominaciones[String(d)] || 0}
+                onChange={(e) =>
+                  setSalarioDen(String(d), Number(e.target.value) || 0)
+                }
+                className="h-9 flex-1 rounded-lg"
+              />
+              <div className="w-20 text-right font-mono text-xs tabular-nums">
+                {fmt(d * (current.salarioDenominaciones[String(d)] || 0))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </StepShell>
+  );
+}
+
+/* ================== Step 10: Resumen ================== */
+function Step10({ onClose }: { onClose: () => void }) {
+  const { current, finalizar } = useCuadreStore();
+  if (!current) return null;
+  const c = calcCuadre(current);
+
+  const finalizarTurno = () => {
+    finalizar();
+    toast.success("Cuadre guardado en historial");
+    onClose();
+  };
+
+  return (
+    <StepShell hideNext>
+      <div className="rounded-2xl gradient-primary p-5 text-primary-foreground shadow-elegant">
+        <div className="text-xs font-semibold uppercase tracking-widest opacity-80">
+          {current.dependiente} · {format(new Date(current.fecha), "dd MMM yyyy", { locale: es })}
+        </div>
+        <div className="mt-2 text-4xl font-bold">{fmt(c.gananciaNeta)}</div>
+        <div className="mt-1 text-sm opacity-90">Ganancia neta del turno</div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <SummaryTile label="Venta total" value={fmt(c.totalVenta)} accent="emerald" />
+        <SummaryTile label="Costo total" value={fmt(c.totalCosto)} accent="primary" />
+        <SummaryTile label="Ganancia bruta" value={fmt(c.gananciaTotal)} accent="emerald" />
+        <SummaryTile label="Total gastos" value={fmt(c.totalGastos)} accent="destructive" />
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+        <div className="mb-2 text-sm font-semibold">Gastos por categoría</div>
+        <div className="space-y-1.5 text-sm">
+          {CATEGORIAS.map((cat) => (
+            <div key={cat} className="flex justify-between">
+              <span className="text-muted-foreground">{cat}</span>
+              <span className="font-mono tabular-nums">
+                {fmt(c.gastosPorCategoria[cat] || 0)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-1.5 text-sm">
+        <Row label="Efectivo a depositar" value={fmt(c.efectivoADepositar)} />
+        <Row label="Efectivo depositado" value={fmt(current.efectivoDepositado)} />
+        <Row
+          label="Diferencia"
+          value={fmt(c.diferencia)}
+          highlight={c.diferencia < 0 ? "destructive" : c.diferencia > 0 ? "emerald" : undefined}
+          icon={c.diferencia < 0 ? TrendingDown : c.diferencia > 0 ? TrendingUp : undefined}
+        />
+        <Row label="Salario bruto" value={fmt(c.salarioBruto)} />
+        <Row label="Salario real" value={fmt(c.salarioReal)} highlight="emerald" />
+        {c.propina > 0 && <Row label="Propina" value={fmt(c.propina)} highlight="emerald" />}
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <Button
+          variant="outline"
+          className="h-12 rounded-xl"
+          onClick={() => generarPDF(current)}
+        >
+          <FileDown className="mr-2 h-4 w-4" /> Generar PDF
+        </Button>
+        <Button
+          onClick={finalizarTurno}
+          className="h-12 rounded-xl gradient-emerald text-secondary-foreground shadow-emerald"
+        >
+          <CheckCircle2 className="mr-2 h-4 w-4" /> Finalizar turno
+        </Button>
+      </div>
+    </StepShell>
+  );
+}
+
+function Row({
+  label,
+  value,
+  highlight,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  highlight?: "emerald" | "destructive";
+  icon?: React.ComponentType<{ className?: string }>;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-muted-foreground">{label}</span>
+      <span
+        className={cn(
+          "flex items-center gap-1 font-mono font-semibold tabular-nums",
+          highlight === "emerald" && "text-secondary",
+          highlight === "destructive" && "text-destructive"
+        )}
+      >
+        {Icon && <Icon className="h-3.5 w-3.5" />}
+        {value}
+      </span>
+    </div>
+  );
+}
