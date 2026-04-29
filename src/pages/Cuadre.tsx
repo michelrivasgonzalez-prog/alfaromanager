@@ -56,18 +56,17 @@ export default function Cuadre() {
   const nav = useNavigate();
   const { activePunto, currents, startCuadre, setLastStep } = useCuadreStore();
   const current = currents[activePunto];
+  const idx = Math.max(1, Math.min(10, Number(step) || 1));
 
   useEffect(() => {
     if (!current) startCuadre(activePunto);
   }, [current, activePunto, startCuadre]);
 
-  if (!current) return null;
-  const idx = Math.max(1, Math.min(10, Number(step) || 1));
-  // Persist current step to allow resuming
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     setLastStep(activePunto, idx);
   }, [idx, activePunto, setLastStep]);
+
+  if (!current) return null;
 
   switch (idx) {
     case 1: return <Step1 />;
