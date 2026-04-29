@@ -1,15 +1,18 @@
 import { useNavigate } from "react-router-dom";
-import { Coffee, Play, ArrowRight } from "lucide-react";
+import { Coffee, Play, ArrowRight, Store } from "lucide-react";
 import coffeeHero from "@/assets/coffee-hero.jpg";
 import { Button } from "@/components/ui/button";
-import { useCuadreStore } from "@/store/cuadreStore";
+import { useCuadreStore, PUNTOS, PuntoVenta } from "@/store/cuadreStore";
+import { cn } from "@/lib/utils";
 
 export default function Index() {
   const nav = useNavigate();
-  const { current, startCuadre, history } = useCuadreStore();
+  const { currents, activePunto, setActivePunto, startCuadre, history } = useCuadreStore();
+  const current = currents[activePunto];
 
-  const onStart = () => {
-    if (!current) startCuadre();
+  const onStart = (punto: PuntoVenta) => {
+    setActivePunto(punto);
+    if (!currents[punto]) startCuadre(punto);
     nav("/cuadre/1");
   };
 
@@ -41,29 +44,43 @@ export default function Index() {
         </div>
       </div>
 
-      <button
-        onClick={onStart}
-        className="group relative w-full overflow-hidden rounded-3xl gradient-emerald p-6 text-left text-secondary-foreground shadow-emerald transition-smooth hover:scale-[1.01] active:scale-[0.99]"
-      >
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="mb-1 text-xs font-semibold uppercase tracking-wider opacity-80">
-              {current ? "Cuadre en curso" : "Nuevo turno"}
-            </div>
-            <div className="text-2xl font-bold">
-              {current ? "Continuar cuadre" : "Iniciar cuadre"}
-            </div>
-            <div className="mt-1 text-sm opacity-80">
-              {current
-                ? `Dependiente: ${current.dependiente || "—"}`
-                : "Selecciona días y dependiente"}
-            </div>
-          </div>
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 backdrop-blur">
-            <Play className="h-6 w-6 fill-current" />
-          </div>
-        </div>
-      </button>
+      <div className="grid grid-cols-1 gap-3">
+        {PUNTOS.map((p) => {
+          const c = currents[p];
+          const Icon = p === "Cafetería" ? Coffee : Store;
+          return (
+            <button
+              key={p}
+              onClick={() => onStart(p)}
+              className={cn(
+                "group relative w-full overflow-hidden rounded-3xl p-5 text-left shadow-emerald transition-smooth hover:scale-[1.01] active:scale-[0.99]",
+                p === "Cafetería"
+                  ? "gradient-emerald text-secondary-foreground"
+                  : "gradient-primary text-primary-foreground"
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider opacity-80">
+                    <Icon className="h-3.5 w-3.5" /> {p}
+                  </div>
+                  <div className="text-2xl font-bold">
+                    {c ? "Continuar cuadre" : "Iniciar cuadre"}
+                  </div>
+                  <div className="mt-1 text-sm opacity-80">
+                    {c
+                      ? `Dependiente: ${c.dependiente || "—"}`
+                      : "Nuevo turno"}
+                  </div>
+                </div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 backdrop-blur">
+                  <Play className="h-5 w-5 fill-current" />
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
 
       <div className="grid grid-cols-2 gap-3">
         <StatCard label="Cuadres realizados" value={history.length} />
