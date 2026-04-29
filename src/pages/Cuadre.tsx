@@ -569,10 +569,12 @@ function Step6() {
   const [monto, setMonto] = useState(0);
   const [cantidad, setCantidad] = useState(0);
   const [precio, setPrecio] = useState(0);
+  const [productoId, setProductoId] = useState<string>("");
   if (!current) return null;
 
   const importeProducto = cantidad * precio;
   const total = current.gastos.reduce((s, g) => s + g.monto, 0);
+  const productoSel = current.productos.find((p) => p.id === productoId);
 
   const limpiar = () => {
     setNombre("");
@@ -580,16 +582,23 @@ function Step6() {
     setMonto(0);
     setCantidad(0);
     setPrecio(0);
+    setProductoId("");
   };
 
   const guardar = () => {
     if (tipo === "Efectivo" && !monto) return;
-    if (tipo === "Producto" && (!cantidad || !precio)) return;
+    if (tipo === "Producto" && (!productoId || !cantidad || !precio)) return;
     addGasto({
       categoria: cat,
       nombre: nombre || "—",
       tipo,
-      descripcion: desc || (tipo === "Producto" ? `Producto x${cantidad}` : cat),
+      descripcion:
+        desc ||
+        (tipo === "Producto"
+          ? `${productoSel?.nombre ?? "Producto"} x${cantidad}`
+          : cat),
+      productoId: tipo === "Producto" ? productoId : undefined,
+      productoNombre: tipo === "Producto" ? productoSel?.nombre : undefined,
       cantidad: tipo === "Producto" ? cantidad : undefined,
       precio: tipo === "Producto" ? precio : undefined,
       monto: tipo === "Producto" ? importeProducto : monto,
@@ -661,6 +670,29 @@ function Step6() {
             />
           </div>
         ) : (
+          <>
+            <div>
+              <Label className="text-xs">Producto</Label>
+              <Select
+                value={productoId}
+                onValueChange={(v) => {
+                  setProductoId(v);
+                  const p = current.productos.find((x) => x.id === v);
+                  if (p) setPrecio(p.precio);
+                }}
+              >
+                <SelectTrigger className="mt-1 h-11 rounded-xl">
+                  <SelectValue placeholder="Buscar producto…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {current.productos.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.nombre} · {fmt(p.precio)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           <div className="grid grid-cols-3 gap-2">
             <div>
               <Label className="text-xs">Cantidad</Label>
@@ -688,6 +720,7 @@ function Step6() {
               />
             </div>
           </div>
+          </>
         )}
 
         <Button
