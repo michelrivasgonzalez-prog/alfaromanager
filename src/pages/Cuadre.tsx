@@ -347,8 +347,9 @@ function Step4() {
 
 /* ================== Step 5: Resultados ================== */
 function Step5() {
-  const { current, updateProducto } = useCuadreStore();
+  const { current, updateProducto, role } = useCuadreStore();
   if (!current) return null;
+  const isAdmin = role === "admin";
   const totalImporte = current.productos.reduce(
     (s, p) => s + calcProducto(p).importe,
     0
@@ -362,7 +363,13 @@ function Step5() {
     <StepShell>
       <div className="grid grid-cols-2 gap-3">
         <SummaryTile label="Venta total" value={fmt(totalImporte)} accent="emerald" />
-        <SummaryTile label="Ganancia" value={fmt(totalGanancia)} accent="primary" />
+        {isAdmin ? (
+          <SummaryTile label="Ganancia" value={fmt(totalGanancia)} accent="primary" />
+        ) : (
+          <SummaryTile label="Unidades vendidas" value={String(
+            current.productos.reduce((s, p) => s + calcProducto(p).venta, 0)
+          )} accent="primary" />
+        )}
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-soft">
@@ -375,10 +382,11 @@ function Step5() {
               <th className="px-2 py-2 text-right">Trasl.</th>
               <th className="px-2 py-2 text-right">Total</th>
               <th className="px-2 py-2 text-right">Final</th>
-              <th className="px-2 py-2 text-right">Precio</th>
+              <th className="px-2 py-2 text-right">Vendidos</th>
+              {isAdmin && <th className="px-2 py-2 text-right">Precio</th>}
               <th className="px-2 py-2 text-right">Importe</th>
-              <th className="px-2 py-2 text-right">Costo</th>
-              <th className="px-2 py-2 text-right">Ganancia</th>
+              {isAdmin && <th className="px-2 py-2 text-right">Costo</th>}
+              {isAdmin && <th className="px-2 py-2 text-right">Ganancia</th>}
             </tr>
           </thead>
           <tbody>
@@ -394,24 +402,33 @@ function Step5() {
                     {c.total}
                   </td>
                   <td className="px-2 py-2 text-right tabular-nums">{p.final}</td>
-                  <td className="px-2 py-2 text-right tabular-nums">
-                    <InlineNum
-                      value={p.precio}
-                      onChange={(v) => updateProducto(p.id, { precio: v })}
-                    />
+                  <td className="px-2 py-2 text-right tabular-nums font-semibold">
+                    {c.venta}
                   </td>
+                  {isAdmin && (
+                    <td className="px-2 py-2 text-right tabular-nums">
+                      <InlineNum
+                        value={p.precio}
+                        onChange={(v) => updateProducto(p.id, { precio: v })}
+                      />
+                    </td>
+                  )}
                   <td className="px-2 py-2 text-right tabular-nums font-semibold text-secondary">
                     {fmt(c.importe)}
                   </td>
-                  <td className="px-2 py-2 text-right tabular-nums">
-                    <InlineNum
-                      value={p.costo}
-                      onChange={(v) => updateProducto(p.id, { costo: v })}
-                    />
-                  </td>
-                  <td className="px-2 py-2 text-right tabular-nums font-semibold text-primary">
-                    {fmt(c.ganancia)}
-                  </td>
+                  {isAdmin && (
+                    <td className="px-2 py-2 text-right tabular-nums">
+                      <InlineNum
+                        value={p.costo}
+                        onChange={(v) => updateProducto(p.id, { costo: v })}
+                      />
+                    </td>
+                  )}
+                  {isAdmin && (
+                    <td className="px-2 py-2 text-right tabular-nums font-semibold text-primary">
+                      {fmt(c.ganancia)}
+                    </td>
+                  )}
                 </tr>
               );
             })}
