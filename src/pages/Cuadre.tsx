@@ -838,7 +838,7 @@ function Step7() {
                   value={n}
                   onChange={(v) => setDenominacion(String(d), v)}
                   className="h-11 rounded-xl"
-                  placeholder="Cantidad de billetes"
+                  placeholder="0"
                 />
               </div>
               <div className="w-20 text-right font-mono text-sm font-semibold tabular-nums">
