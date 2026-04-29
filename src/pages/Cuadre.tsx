@@ -867,8 +867,9 @@ function Step9() {
 
 /* ================== Step 10: Resumen ================== */
 function Step10({ onClose }: { onClose: () => void }) {
-  const { current, finalizar } = useCuadreStore();
+  const { current, finalizar, role } = useCuadreStore();
   if (!current) return null;
+  const isAdmin = role === "admin";
   const c = calcCuadre(current);
 
   const finalizarTurno = () => {
@@ -883,14 +884,22 @@ function Step10({ onClose }: { onClose: () => void }) {
         <div className="text-xs font-semibold uppercase tracking-widest opacity-80">
           {current.dependiente} · {format(new Date(current.fecha), "dd MMM yyyy", { locale: es })}
         </div>
-        <div className="mt-2 text-4xl font-bold">{fmt(c.gananciaNeta)}</div>
-        <div className="mt-1 text-sm opacity-90">Ganancia neta del turno</div>
+        <div className="mt-2 text-4xl font-bold">
+          {isAdmin ? fmt(c.gananciaNeta) : fmt(c.totalVenta)}
+        </div>
+        <div className="mt-1 text-sm opacity-90">
+          {isAdmin ? "Ganancia neta del turno" : "Venta total del turno"}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <SummaryTile label="Venta total" value={fmt(c.totalVenta)} accent="emerald" />
-        <SummaryTile label="Costo total" value={fmt(c.totalCosto)} accent="primary" />
-        <SummaryTile label="Ganancia bruta" value={fmt(c.gananciaTotal)} accent="emerald" />
+        {isAdmin && (
+          <SummaryTile label="Costo total" value={fmt(c.totalCosto)} accent="primary" />
+        )}
+        {isAdmin && (
+          <SummaryTile label="Ganancia bruta" value={fmt(c.gananciaTotal)} accent="emerald" />
+        )}
         <SummaryTile label="Total gastos" value={fmt(c.totalGastos)} accent="destructive" />
       </div>
 
@@ -923,13 +932,17 @@ function Step10({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <Button
-          variant="outline"
-          className="h-12 rounded-xl"
-          onClick={() => generarPDF(current)}
-        >
-          <FileDown className="mr-2 h-4 w-4" /> Generar PDF
-        </Button>
+        {isAdmin ? (
+          <Button
+            variant="outline"
+            className="h-12 rounded-xl"
+            onClick={() => generarPDF(current)}
+          >
+            <FileDown className="mr-2 h-4 w-4" /> Generar PDF
+          </Button>
+        ) : (
+          <div />
+        )}
         <Button
           onClick={finalizarTurno}
           className="h-12 rounded-xl gradient-emerald text-secondary-foreground shadow-emerald"
