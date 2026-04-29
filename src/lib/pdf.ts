@@ -59,9 +59,11 @@ export function generarPDF(c: Cuadre) {
     ["Ganancia bruta", fmt(r.gananciaTotal)],
     ["Total gastos", fmt(r.totalGastos)],
     ["Efectivo a depositar", fmt(r.efectivoADepositar)],
-    ["Efectivo depositado", fmt(c.efectivoDepositado)],
+    ["Efectivo en caja", fmt(r.efectivoEnCaja)],
     ["Diferencia", fmt(r.diferencia)],
     ["Salario bruto", fmt(r.salarioBruto)],
+    ["Propina", fmt(r.propina)],
+    ["Descuento por faltante", fmt(r.descuentoFalta)],
     ["Salario real", fmt(r.salarioReal)],
     ["Ganancia neta", fmt(r.gananciaNeta)],
   ];

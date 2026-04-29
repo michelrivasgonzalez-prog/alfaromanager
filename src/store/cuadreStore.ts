@@ -12,19 +12,38 @@ export type Producto = {
   costo: number;
 };
 
+export type CatalogoItem = {
+  id: string;
+  nombre: string;
+  precio: number;
+  costo: number;
+};
+
+export type GastoTipo = "Efectivo" | "Producto";
+
 export type Gasto = {
   id: string;
   categoria: "Local" | "Yanitza" | "Compras" | "Cuentas por Cobrar" | "Transferencia";
+  nombre: string; // quién recibe
+  tipo: GastoTipo;
   descripcion: string;
+  // Para tipo Producto:
+  cantidad?: number;
+  precio?: number;
+  // Importe final
   monto: number;
 };
 
-export type Denominaciones = Record<string, number>; // billete -> cantidad
+export type Denominaciones = Record<string, number>;
+
+export type PuntoVenta = "Cafetería" | "Mipyme";
+export const PUNTOS: PuntoVenta[] = ["Cafetería", "Mipyme"];
 
 export type Cuadre = {
   id: string;
-  fecha: string; // ISO
-  diasTrabajados: string[]; // ISO dates
+  puntoVenta: PuntoVenta;
+  fecha: string;
+  diasTrabajados: string[];
   dependiente: string;
   productos: Producto[];
   gastos: Gasto[];
@@ -35,11 +54,11 @@ export type Cuadre = {
   finalizado: boolean;
 };
 
-const DEFAULT_PRODUCTS: Producto[] = [
-  { id: "p1", nombre: "Café", inicio: 0, entradas: 0, traslados: 0, final: 0, precio: 50, costo: 20 },
-  { id: "p2", nombre: "Azúcar", inicio: 0, entradas: 0, traslados: 0, final: 0, precio: 5, costo: 2 },
-  { id: "p3", nombre: "Leche", inicio: 0, entradas: 0, traslados: 0, final: 0, precio: 30, costo: 15 },
-  { id: "p4", nombre: "Vasos", inicio: 0, entradas: 0, traslados: 0, final: 0, precio: 5, costo: 2 },
+const DEFAULT_CATALOG: CatalogoItem[] = [
+  { id: "p1", nombre: "Café", precio: 50, costo: 20 },
+  { id: "p2", nombre: "Azúcar", precio: 5, costo: 2 },
+  { id: "p3", nombre: "Leche", precio: 30, costo: 15 },
+  { id: "p4", nombre: "Vasos", precio: 5, costo: 2 },
 ];
 
 export const DENOMINACIONES = [1000, 500, 200, 100, 50, 20, 10, 5];
@@ -47,12 +66,26 @@ export const DENOMINACIONES = [1000, 500, 200, 100, 50, 20, 10, 5];
 const emptyDen = (): Denominaciones =>
   Object.fromEntries(DENOMINACIONES.map((d) => [String(d), 0]));
 
-export const newCuadre = (): Cuadre => ({
+export const newCuadre = (
+  punto: PuntoVenta,
+  catalogo: CatalogoItem[]
+): Cuadre => ({
   id: crypto.randomUUID(),
+  puntoVenta: punto,
   fecha: new Date().toISOString(),
   diasTrabajados: [new Date().toISOString()],
   dependiente: "",
-  productos: DEFAULT_PRODUCTS.map((p) => ({ ...p })),
+  // Snapshot del catálogo: cambios futuros NO afectan este cuadre
+  productos: catalogo.map((c) => ({
+    id: crypto.randomUUID(),
+    nombre: c.nombre,
+    inicio: 0,
+    entradas: 0,
+    traslados: 0,
+    final: 0,
+    precio: c.precio,
+    costo: c.costo,
+  })),
   gastos: [],
   denominaciones: emptyDen(),
   efectivoDepositado: 0,
@@ -62,11 +95,29 @@ export const newCuadre = (): Cuadre => ({
 });
 
 interface State {
-  current: Cuadre | null;
+  // Cuadres en curso por punto de venta
+  currents: Record<PuntoVenta, Cuadre | null>;
+  activePunto: PuntoVenta;
   history: Cuadre[];
+  catalogo: CatalogoItem[];
+  dependientes: string[];
   role: "admin" | "dependiente";
+
   setRole: (r: "admin" | "dependiente") => void;
-  startCuadre: () => void;
+  setActivePunto: (p: PuntoVenta) => void;
+
+  // Catálogo (master)
+  addCatalogItem: (item: Omit<CatalogoItem, "id">) => void;
+  updateCatalogItem: (id: string, patch: Partial<CatalogoItem>) => void;
+  removeCatalogItem: (id: string) => void;
+
+  // Dependientes
+  addDependiente: (nombre: string) => void;
+  updateDependiente: (oldName: string, newName: string) => void;
+  removeDependiente: (nombre: string) => void;
+
+  // Cuadres
+  startCuadre: (punto?: PuntoVenta) => void;
   updateCurrent: (patch: Partial<Cuadre>) => void;
   updateProducto: (id: string, patch: Partial<Producto>) => void;
   addProducto: (p: Omit<Producto, "id">) => void;
@@ -77,122 +128,150 @@ interface State {
   setDenominacion: (billete: string, cantidad: number) => void;
   setSalarioDen: (billete: string, cantidad: number) => void;
   finalizar: () => void;
-  cancelar: () => void;
+  cancelar: (punto?: PuntoVenta) => void;
   deleteHistory: (id: string) => void;
 }
+
+const updateActive = (
+  s: State,
+  fn: (c: Cuadre) => Cuadre
+): Partial<State> => {
+  const c = s.currents[s.activePunto];
+  if (!c) return {};
+  return {
+    currents: { ...s.currents, [s.activePunto]: fn(c) },
+  };
+};
 
 export const useCuadreStore = create<State>()(
   persist(
     (set, get) => ({
-      current: null,
+      currents: { "Cafetería": null, "Mipyme": null },
+      activePunto: "Cafetería",
       history: [],
+      catalogo: DEFAULT_CATALOG,
+      dependientes: [],
       role: "admin",
+
       setRole: (r) => set({ role: r }),
-      startCuadre: () => set({ current: newCuadre() }),
-      updateCurrent: (patch) =>
-        set((s) => (s.current ? { current: { ...s.current, ...patch } } : s)),
+      setActivePunto: (p) => set({ activePunto: p }),
+
+      addCatalogItem: (item) =>
+        set((s) => ({
+          catalogo: [...s.catalogo, { ...item, id: crypto.randomUUID() }],
+        })),
+      updateCatalogItem: (id, patch) =>
+        set((s) => ({
+          catalogo: s.catalogo.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+        })),
+      removeCatalogItem: (id) =>
+        set((s) => ({ catalogo: s.catalogo.filter((c) => c.id !== id) })),
+
+      addDependiente: (nombre) =>
+        set((s) =>
+          s.dependientes.includes(nombre)
+            ? s
+            : { dependientes: [...s.dependientes, nombre] }
+        ),
+      updateDependiente: (oldName, newName) =>
+        set((s) => ({
+          dependientes: s.dependientes.map((d) => (d === oldName ? newName : d)),
+        })),
+      removeDependiente: (nombre) =>
+        set((s) => ({ dependientes: s.dependientes.filter((d) => d !== nombre) })),
+
+      startCuadre: (punto) =>
+        set((s) => {
+          const p = punto ?? s.activePunto;
+          return {
+            activePunto: p,
+            currents: { ...s.currents, [p]: newCuadre(p, s.catalogo) },
+          };
+        }),
+
+      updateCurrent: (patch) => set((s) => updateActive(s, (c) => ({ ...c, ...patch }))),
       updateProducto: (id, patch) =>
         set((s) =>
-          s.current
-            ? {
-                current: {
-                  ...s.current,
-                  productos: s.current.productos.map((p) =>
-                    p.id === id ? { ...p, ...patch } : p
-                  ),
-                },
-              }
-            : s
+          updateActive(s, (c) => ({
+            ...c,
+            productos: c.productos.map((p) => (p.id === id ? { ...p, ...patch } : p)),
+          }))
         ),
       addProducto: (p) =>
         set((s) =>
-          s.current
-            ? {
-                current: {
-                  ...s.current,
-                  productos: [...s.current.productos, { ...p, id: crypto.randomUUID() }],
-                },
-              }
-            : s
+          updateActive(s, (c) => ({
+            ...c,
+            productos: [...c.productos, { ...p, id: crypto.randomUUID() }],
+          }))
         ),
       removeProducto: (id) =>
         set((s) =>
-          s.current
-            ? {
-                current: {
-                  ...s.current,
-                  productos: s.current.productos.filter((p) => p.id !== id),
-                },
-              }
-            : s
+          updateActive(s, (c) => ({
+            ...c,
+            productos: c.productos.filter((p) => p.id !== id),
+          }))
         ),
       addGasto: (g) =>
         set((s) =>
-          s.current
-            ? {
-                current: {
-                  ...s.current,
-                  gastos: [...s.current.gastos, { ...g, id: crypto.randomUUID() }],
-                },
-              }
-            : s
+          updateActive(s, (c) => ({
+            ...c,
+            gastos: [...c.gastos, { ...g, id: crypto.randomUUID() }],
+          }))
         ),
       updateGasto: (id, patch) =>
         set((s) =>
-          s.current
-            ? {
-                current: {
-                  ...s.current,
-                  gastos: s.current.gastos.map((g) => (g.id === id ? { ...g, ...patch } : g)),
-                },
-              }
-            : s
+          updateActive(s, (c) => ({
+            ...c,
+            gastos: c.gastos.map((g) => (g.id === id ? { ...g, ...patch } : g)),
+          }))
         ),
       removeGasto: (id) =>
         set((s) =>
-          s.current
-            ? {
-                current: { ...s.current, gastos: s.current.gastos.filter((g) => g.id !== id) },
-              }
-            : s
+          updateActive(s, (c) => ({ ...c, gastos: c.gastos.filter((g) => g.id !== id) }))
         ),
       setDenominacion: (billete, cantidad) =>
         set((s) =>
-          s.current
-            ? {
-                current: {
-                  ...s.current,
-                  denominaciones: { ...s.current.denominaciones, [billete]: cantidad },
-                },
-              }
-            : s
+          updateActive(s, (c) => ({
+            ...c,
+            denominaciones: { ...c.denominaciones, [billete]: cantidad },
+          }))
         ),
       setSalarioDen: (billete, cantidad) =>
         set((s) =>
-          s.current
-            ? {
-                current: {
-                  ...s.current,
-                  salarioDenominaciones: { ...s.current.salarioDenominaciones, [billete]: cantidad },
-                },
-              }
-            : s
+          updateActive(s, (c) => ({
+            ...c,
+            salarioDenominaciones: { ...c.salarioDenominaciones, [billete]: cantidad },
+          }))
         ),
       finalizar: () => {
-        const c = get().current;
+        const s = get();
+        const c = s.currents[s.activePunto];
         if (!c) return;
-        set((s) => ({
-          history: [{ ...c, finalizado: true, fecha: new Date().toISOString() }, ...s.history],
-          current: null,
-        }));
+        set({
+          history: [
+            { ...c, finalizado: true, fecha: new Date().toISOString() },
+            ...s.history,
+          ],
+          currents: { ...s.currents, [s.activePunto]: null },
+        });
       },
-      cancelar: () => set({ current: null }),
+      cancelar: (punto) =>
+        set((s) => {
+          const p = punto ?? s.activePunto;
+          return { currents: { ...s.currents, [p]: null } };
+        }),
       deleteHistory: (id) =>
         set((s) => ({ history: s.history.filter((c) => c.id !== id) })),
     }),
     { name: "alfarocafe-store" }
   )
 );
+
+// Conveniencia: cuadre activo
+export const useCurrent = () => {
+  const c = useCuadreStore((s) => s.currents[s.activePunto]);
+  return c;
+};
 
 // ============ Selectors / calculations ============
 export const calcProducto = (p: Producto) => {
@@ -221,15 +300,15 @@ export const calcCuadre = (c: Cuadre) => {
     0
   );
   const efectivoADepositar = totalVenta - totalGastos;
-  const diferencia = c.efectivoDepositado - efectivoADepositar;
+  // Diferencia simple: en caja - a depositar  (positivo = sobrante / propina, negativo = faltante)
+  const diferencia = efectivoEnCaja - efectivoADepositar;
 
   const diasCount = c.diasTrabajados.length;
   const salarioBruto = diasCount * c.salarioBase;
-  // diferencia negativa => falta dinero => se descuenta del salario
-  // diferencia positiva => sobra (propina) no afecta salario base
   const descuentoFalta = diferencia < 0 ? Math.abs(diferencia) : 0;
-  const salarioReal = salarioBruto - descuentoFalta;
   const propina = diferencia > 0 ? diferencia : 0;
+  // Salario real = bruto + propina - descuento por faltante
+  const salarioReal = salarioBruto + propina - descuentoFalta;
 
   const gananciaNeta = gananciaTotal - totalGastos - salarioReal;
 
@@ -252,7 +331,6 @@ export const calcCuadre = (c: Cuadre) => {
   };
 };
 
-// Suggest payment denominations using smallest bills first based on availability
 export const sugerirPagoSalario = (
   monto: number,
   disponibles: Denominaciones
@@ -261,7 +339,6 @@ export const sugerirPagoSalario = (
     DENOMINACIONES.map((d) => [String(d), 0])
   );
   let restante = Math.floor(monto);
-  // ascending (smallest first)
   const orden = [...DENOMINACIONES].sort((a, b) => a - b);
   for (const bill of orden) {
     const dispo = disponibles[String(bill)] || 0;
@@ -270,7 +347,6 @@ export const sugerirPagoSalario = (
     result[String(bill)] = usar;
     restante -= usar * bill;
   }
-  // if remainder, fall back to larger bills (no availability check)
   if (restante > 0) {
     const desc = [...DENOMINACIONES].sort((a, b) => b - a);
     for (const bill of desc) {
