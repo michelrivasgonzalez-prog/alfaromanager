@@ -666,23 +666,66 @@ function Step8() {
   const c = calcCuadre(current);
   const falta = c.diferencia < 0;
   const sobra = c.diferencia > 0;
+  const [depositadoStr, setDepositadoStr] = useState<string>(
+    current.efectivoDepositado ? String(current.efectivoDepositado) : ""
+  );
+
+  // Si todavía no se ha tocado y hay efectivo en caja, sugerirlo automáticamente
+  useEffect(() => {
+    if (!current.efectivoDepositado && c.efectivoEnCaja > 0) {
+      updateCurrent({ efectivoDepositado: c.efectivoEnCaja });
+      setDepositadoStr(String(c.efectivoEnCaja));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <StepShell>
       <div className="grid grid-cols-2 gap-3">
         <SummaryTile label="A depositar" value={fmt(c.efectivoADepositar)} accent="primary" />
-        <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
-          <Label className="text-xs uppercase tracking-widest text-muted-foreground">
-            Depositado
-          </Label>
-          <Input
-            type="number"
-            value={current.efectivoDepositado}
-            onChange={(e) =>
-              updateCurrent({ efectivoDepositado: Number(e.target.value) || 0 })
-            }
-            className="mt-1 h-11 rounded-xl text-2xl font-bold"
-          />
+        <SummaryTile label="En caja" value={fmt(c.efectivoEnCaja)} accent="emerald" />
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+        <Label className="text-xs uppercase tracking-widest text-muted-foreground">
+          Efectivo depositado
+        </Label>
+        <Input
+          type="number"
+          inputMode="decimal"
+          value={depositadoStr}
+          placeholder="0"
+          onChange={(e) => {
+            setDepositadoStr(e.target.value);
+            updateCurrent({ efectivoDepositado: Number(e.target.value) || 0 });
+          }}
+          className="mt-1 h-12 rounded-xl text-2xl font-bold"
+        />
+        <div className="mt-2 flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="rounded-lg text-xs"
+            onClick={() => {
+              setDepositadoStr(String(c.efectivoEnCaja));
+              updateCurrent({ efectivoDepositado: c.efectivoEnCaja });
+            }}
+          >
+            Usar efectivo en caja ({fmt(c.efectivoEnCaja)})
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="rounded-lg text-xs"
+            onClick={() => {
+              setDepositadoStr(String(c.efectivoADepositar));
+              updateCurrent({ efectivoDepositado: c.efectivoADepositar });
+            }}
+          >
+            Usar a depositar
+          </Button>
         </div>
       </div>
 
