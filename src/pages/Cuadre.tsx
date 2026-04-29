@@ -54,7 +54,7 @@ const fmt = (n: number) =>
 export default function Cuadre() {
   const { step } = useParams();
   const nav = useNavigate();
-  const { activePunto, currents, startCuadre } = useCuadreStore();
+  const { activePunto, currents, startCuadre, setLastStep } = useCuadreStore();
   const current = currents[activePunto];
 
   useEffect(() => {
@@ -63,6 +63,11 @@ export default function Cuadre() {
 
   if (!current) return null;
   const idx = Math.max(1, Math.min(10, Number(step) || 1));
+  // Persist current step to allow resuming
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffect(() => {
+    setLastStep(activePunto, idx);
+  }, [idx, activePunto, setLastStep]);
 
   switch (idx) {
     case 1: return <Step1 />;
