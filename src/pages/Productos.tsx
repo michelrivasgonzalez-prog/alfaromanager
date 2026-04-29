@@ -1,11 +1,25 @@
 import { useCuadreStore } from "@/store/cuadreStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Lock } from "lucide-react";
 
 export default function Productos() {
-  const { current, startCuadre, addProducto, removeProducto, updateProducto } =
+  const { current, startCuadre, addProducto, removeProducto, updateProducto, role } =
     useCuadreStore();
+
+  if (role !== "admin") {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-2xl font-bold">Productos</h1>
+        <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">
+          <Lock className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            Solo el administrador puede gestionar el catálogo de productos, precios y costos.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (!current) {
     return (

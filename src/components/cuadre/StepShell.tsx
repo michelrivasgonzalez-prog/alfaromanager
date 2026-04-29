@@ -7,8 +7,8 @@ import { motion } from "framer-motion";
 const STEPS = [
   "Datos del turno",
   "Inventario inicial",
-  "Inventario final",
   "Entradas y traslados",
+  "Inventario final",
   "Resultados",
   "Gastos",
   "Cuadre de efectivo",

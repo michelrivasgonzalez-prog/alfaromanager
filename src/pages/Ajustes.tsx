@@ -1,12 +1,56 @@
 import { useCuadreStore } from "@/store/cuadreStore";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { Shield, User } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function Ajustes() {
-  const { history } = useCuadreStore();
+  const { history, role, setRole } = useCuadreStore();
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">Ajustes</h1>
+
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3">
+        <div>
+          <div className="text-sm font-semibold">Rol activo</div>
+          <div className="text-xs text-muted-foreground">
+            El dependiente no puede ver ganancias ni costos, ni editar precios o el catálogo.
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => {
+              setRole("admin");
+              toast.success("Rol: Administrador");
+            }}
+            className={cn(
+              "flex flex-col items-center gap-1 rounded-xl border p-3 text-sm font-semibold transition-smooth",
+              role === "admin"
+                ? "gradient-primary border-0 text-primary-foreground shadow-soft"
+                : "border-border bg-card text-foreground"
+            )}
+          >
+            <Shield className="h-5 w-5" />
+            Administrador
+          </button>
+          <button
+            onClick={() => {
+              setRole("dependiente");
+              toast.success("Rol: Dependiente");
+            }}
+            className={cn(
+              "flex flex-col items-center gap-1 rounded-xl border p-3 text-sm font-semibold transition-smooth",
+              role === "dependiente"
+                ? "gradient-emerald border-0 text-secondary-foreground shadow-soft"
+                : "border-border bg-card text-foreground"
+            )}
+          >
+            <User className="h-5 w-5" />
+            Dependiente
+          </button>
+        </div>
+      </div>
+
       <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3">
         <Row label="Cuadres en historial" value={String(history.length)} />
         <Row label="Versión" value="1.0.0" />

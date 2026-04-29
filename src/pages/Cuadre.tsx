@@ -62,8 +62,8 @@ export default function Cuadre() {
   switch (idx) {
     case 1: return <Step1 />;
     case 2: return <StepInventario field="inicio" title="Inventario inicial" />;
-    case 3: return <StepInventario field="final" title="Inventario final" />;
-    case 4: return <Step4 />;
+    case 3: return <Step4 />;
+    case 4: return <StepInventario field="final" title="Inventario final" />;
     case 5: return <Step5 />;
     case 6: return <Step6 />;
     case 7: return <Step7 />;
@@ -76,7 +76,7 @@ export default function Cuadre() {
 
 /* ================== Step 1: datos del turno ================== */
 function Step1() {
-  const { current, updateCurrent } = useCuadreStore();
+  const { current, updateCurrent, role } = useCuadreStore();
   if (!current) return null;
   const days = current.diasTrabajados.map((d) => new Date(d));
 
@@ -90,7 +90,14 @@ function Step1() {
             onChange={(e) => updateCurrent({ dependiente: e.target.value })}
             placeholder="Ej. María Pérez"
             className="h-12 rounded-xl"
+            readOnly={role === "dependiente"}
+            disabled={role === "dependiente"}
           />
+          {role === "dependiente" && (
+            <p className="text-[11px] text-muted-foreground">
+              Solo el administrador puede editar el nombre del dependiente.
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -150,7 +157,7 @@ function StepInventario({
   field: "inicio" | "final";
   title: string;
 }) {
-  const { current, updateProducto, addProducto, removeProducto } = useCuadreStore();
+  const { current, updateProducto } = useCuadreStore();
   const [editing, setEditing] = useState<string | null>(null);
   if (!current) return null;
 
@@ -204,33 +211,16 @@ function StepInventario({
           </tbody>
         </table>
       </div>
-
-      <Button
-        variant="outline"
-        className="h-11 w-full rounded-xl"
-        onClick={() => {
-          const nombre = prompt("Nombre del producto:");
-          if (!nombre) return;
-          addProducto({
-            nombre,
-            inicio: 0,
-            entradas: 0,
-            traslados: 0,
-            final: 0,
-            precio: 0,
-            costo: 0,
-          });
-        }}
-      >
-        <Plus className="mr-2 h-4 w-4" /> Agregar producto
-      </Button>
+      <p className="text-center text-xs text-muted-foreground">
+        Para agregar productos nuevos, ve al paso de Entradas y traslados.
+      </p>
     </StepShell>
   );
 }
 
 /* ================== Step 4: entradas y traslados ================== */
 function Step4() {
-  const { current, updateProducto } = useCuadreStore();
+  const { current, updateProducto, addProducto, role } = useCuadreStore();
   const [productoId, setProductoId] = useState("");
   const [tipo, setTipo] = useState<"entrada" | "traslado">("entrada");
   const [cantidad, setCantidad] = useState("");
@@ -249,6 +239,28 @@ function Step4() {
 
   return (
     <StepShell>
+      {role === "admin" && (
+        <Button
+          variant="outline"
+          className="h-11 w-full rounded-xl"
+          onClick={() => {
+            const nombre = prompt("Nombre del nuevo producto:");
+            if (!nombre) return;
+            addProducto({
+              nombre,
+              inicio: 0,
+              entradas: 0,
+              traslados: 0,
+              final: 0,
+              precio: 0,
+              costo: 0,
+            });
+            toast.success("Producto agregado");
+          }}
+        >
+          <Plus className="mr-2 h-4 w-4" /> Agregar producto
+        </Button>
+      )}
       <div className="rounded-2xl border border-border bg-card p-5 shadow-soft space-y-3">
         <div className="grid grid-cols-2 gap-2">
           <Button
@@ -335,8 +347,9 @@ function Step4() {
 
 /* ================== Step 5: Resultados ================== */
 function Step5() {
-  const { current, updateProducto } = useCuadreStore();
+  const { current, updateProducto, role } = useCuadreStore();
   if (!current) return null;
+  const isAdmin = role === "admin";
   const totalImporte = current.productos.reduce(
     (s, p) => s + calcProducto(p).importe,
     0
@@ -350,7 +363,13 @@ function Step5() {
     <StepShell>
       <div className="grid grid-cols-2 gap-3">
         <SummaryTile label="Venta total" value={fmt(totalImporte)} accent="emerald" />
-        <SummaryTile label="Ganancia" value={fmt(totalGanancia)} accent="primary" />
+        {isAdmin ? (
+          <SummaryTile label="Ganancia" value={fmt(totalGanancia)} accent="primary" />
+        ) : (
+          <SummaryTile label="Unidades vendidas" value={String(
+            current.productos.reduce((s, p) => s + calcProducto(p).venta, 0)
+          )} accent="primary" />
+        )}
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-soft">
@@ -363,10 +382,11 @@ function Step5() {
               <th className="px-2 py-2 text-right">Trasl.</th>
               <th className="px-2 py-2 text-right">Total</th>
               <th className="px-2 py-2 text-right">Final</th>
-              <th className="px-2 py-2 text-right">Precio</th>
+              <th className="px-2 py-2 text-right">Vendidos</th>
+              {isAdmin && <th className="px-2 py-2 text-right">Precio</th>}
               <th className="px-2 py-2 text-right">Importe</th>
-              <th className="px-2 py-2 text-right">Costo</th>
-              <th className="px-2 py-2 text-right">Ganancia</th>
+              {isAdmin && <th className="px-2 py-2 text-right">Costo</th>}
+              {isAdmin && <th className="px-2 py-2 text-right">Ganancia</th>}
             </tr>
           </thead>
           <tbody>
@@ -382,24 +402,33 @@ function Step5() {
                     {c.total}
                   </td>
                   <td className="px-2 py-2 text-right tabular-nums">{p.final}</td>
-                  <td className="px-2 py-2 text-right tabular-nums">
-                    <InlineNum
-                      value={p.precio}
-                      onChange={(v) => updateProducto(p.id, { precio: v })}
-                    />
+                  <td className="px-2 py-2 text-right tabular-nums font-semibold">
+                    {c.venta}
                   </td>
+                  {isAdmin && (
+                    <td className="px-2 py-2 text-right tabular-nums">
+                      <InlineNum
+                        value={p.precio}
+                        onChange={(v) => updateProducto(p.id, { precio: v })}
+                      />
+                    </td>
+                  )}
                   <td className="px-2 py-2 text-right tabular-nums font-semibold text-secondary">
                     {fmt(c.importe)}
                   </td>
-                  <td className="px-2 py-2 text-right tabular-nums">
-                    <InlineNum
-                      value={p.costo}
-                      onChange={(v) => updateProducto(p.id, { costo: v })}
-                    />
-                  </td>
-                  <td className="px-2 py-2 text-right tabular-nums font-semibold text-primary">
-                    {fmt(c.ganancia)}
-                  </td>
+                  {isAdmin && (
+                    <td className="px-2 py-2 text-right tabular-nums">
+                      <InlineNum
+                        value={p.costo}
+                        onChange={(v) => updateProducto(p.id, { costo: v })}
+                      />
+                    </td>
+                  )}
+                  {isAdmin && (
+                    <td className="px-2 py-2 text-right tabular-nums font-semibold text-primary">
+                      {fmt(c.ganancia)}
+                    </td>
+                  )}
                 </tr>
               );
             })}
@@ -637,23 +666,66 @@ function Step8() {
   const c = calcCuadre(current);
   const falta = c.diferencia < 0;
   const sobra = c.diferencia > 0;
+  const [depositadoStr, setDepositadoStr] = useState<string>(
+    current.efectivoDepositado ? String(current.efectivoDepositado) : ""
+  );
+
+  // Si todavía no se ha tocado y hay efectivo en caja, sugerirlo automáticamente
+  useEffect(() => {
+    if (!current.efectivoDepositado && c.efectivoEnCaja > 0) {
+      updateCurrent({ efectivoDepositado: c.efectivoEnCaja });
+      setDepositadoStr(String(c.efectivoEnCaja));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <StepShell>
       <div className="grid grid-cols-2 gap-3">
         <SummaryTile label="A depositar" value={fmt(c.efectivoADepositar)} accent="primary" />
-        <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
-          <Label className="text-xs uppercase tracking-widest text-muted-foreground">
-            Depositado
-          </Label>
-          <Input
-            type="number"
-            value={current.efectivoDepositado}
-            onChange={(e) =>
-              updateCurrent({ efectivoDepositado: Number(e.target.value) || 0 })
-            }
-            className="mt-1 h-11 rounded-xl text-2xl font-bold"
-          />
+        <SummaryTile label="En caja" value={fmt(c.efectivoEnCaja)} accent="emerald" />
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+        <Label className="text-xs uppercase tracking-widest text-muted-foreground">
+          Efectivo depositado
+        </Label>
+        <Input
+          type="number"
+          inputMode="decimal"
+          value={depositadoStr}
+          placeholder="0"
+          onChange={(e) => {
+            setDepositadoStr(e.target.value);
+            updateCurrent({ efectivoDepositado: Number(e.target.value) || 0 });
+          }}
+          className="mt-1 h-12 rounded-xl text-2xl font-bold"
+        />
+        <div className="mt-2 flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="rounded-lg text-xs"
+            onClick={() => {
+              setDepositadoStr(String(c.efectivoEnCaja));
+              updateCurrent({ efectivoDepositado: c.efectivoEnCaja });
+            }}
+          >
+            Usar efectivo en caja ({fmt(c.efectivoEnCaja)})
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="rounded-lg text-xs"
+            onClick={() => {
+              setDepositadoStr(String(c.efectivoADepositar));
+              updateCurrent({ efectivoDepositado: c.efectivoADepositar });
+            }}
+          >
+            Usar a depositar
+          </Button>
         </div>
       </div>
 
@@ -795,8 +867,9 @@ function Step9() {
 
 /* ================== Step 10: Resumen ================== */
 function Step10({ onClose }: { onClose: () => void }) {
-  const { current, finalizar } = useCuadreStore();
+  const { current, finalizar, role } = useCuadreStore();
   if (!current) return null;
+  const isAdmin = role === "admin";
   const c = calcCuadre(current);
 
   const finalizarTurno = () => {
@@ -811,14 +884,22 @@ function Step10({ onClose }: { onClose: () => void }) {
         <div className="text-xs font-semibold uppercase tracking-widest opacity-80">
           {current.dependiente} · {format(new Date(current.fecha), "dd MMM yyyy", { locale: es })}
         </div>
-        <div className="mt-2 text-4xl font-bold">{fmt(c.gananciaNeta)}</div>
-        <div className="mt-1 text-sm opacity-90">Ganancia neta del turno</div>
+        <div className="mt-2 text-4xl font-bold">
+          {isAdmin ? fmt(c.gananciaNeta) : fmt(c.totalVenta)}
+        </div>
+        <div className="mt-1 text-sm opacity-90">
+          {isAdmin ? "Ganancia neta del turno" : "Venta total del turno"}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <SummaryTile label="Venta total" value={fmt(c.totalVenta)} accent="emerald" />
-        <SummaryTile label="Costo total" value={fmt(c.totalCosto)} accent="primary" />
-        <SummaryTile label="Ganancia bruta" value={fmt(c.gananciaTotal)} accent="emerald" />
+        {isAdmin && (
+          <SummaryTile label="Costo total" value={fmt(c.totalCosto)} accent="primary" />
+        )}
+        {isAdmin && (
+          <SummaryTile label="Ganancia bruta" value={fmt(c.gananciaTotal)} accent="emerald" />
+        )}
         <SummaryTile label="Total gastos" value={fmt(c.totalGastos)} accent="destructive" />
       </div>
 
@@ -851,13 +932,17 @@ function Step10({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <Button
-          variant="outline"
-          className="h-12 rounded-xl"
-          onClick={() => generarPDF(current)}
-        >
-          <FileDown className="mr-2 h-4 w-4" /> Generar PDF
-        </Button>
+        {isAdmin ? (
+          <Button
+            variant="outline"
+            className="h-12 rounded-xl"
+            onClick={() => generarPDF(current)}
+          >
+            <FileDown className="mr-2 h-4 w-4" /> Generar PDF
+          </Button>
+        ) : (
+          <div />
+        )}
         <Button
           onClick={finalizarTurno}
           className="h-12 rounded-xl gradient-emerald text-secondary-foreground shadow-emerald"
