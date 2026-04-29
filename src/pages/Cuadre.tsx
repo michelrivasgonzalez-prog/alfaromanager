@@ -1019,10 +1019,26 @@ function Step9() {
         )}
       </div>
 
-      <details className="rounded-2xl border border-border bg-card p-4 shadow-soft">
-        <summary className="cursor-pointer text-sm font-semibold">
-          Ajustar denominaciones manualmente
-        </summary>
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+        <div className="mb-2 flex items-center justify-between">
+          <div>
+            <div className="text-sm font-semibold">Denominación a entregar</div>
+            <div className="text-[11px] text-muted-foreground">
+              Acepta la sugerencia o edita manualmente
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 rounded-lg text-xs"
+            onClick={() => {
+              Object.entries(sugerencia).forEach(([b, n]) => setSalarioDen(b, n));
+              toast.success("Sugerencia aplicada");
+            }}
+          >
+            Aceptar sugerencia
+          </Button>
+        </div>
         <div className="mt-3 mb-2 flex items-center justify-between">
           <div className="text-xs text-muted-foreground">Pagado</div>
           <div
@@ -1044,6 +1060,7 @@ function Step9() {
                 value={current.salarioDenominaciones[String(d)] || 0}
                 onChange={(v) => setSalarioDen(String(d), v)}
                 className="h-9 flex-1 rounded-lg"
+                placeholder="0"
               />
               <div className="w-20 text-right font-mono text-xs tabular-nums">
                 {fmt(d * (current.salarioDenominaciones[String(d)] || 0))}
@@ -1051,7 +1068,7 @@ function Step9() {
             </div>
           ))}
         </div>
-      </details>
+      </div>
     </StepShell>
   );
 }
