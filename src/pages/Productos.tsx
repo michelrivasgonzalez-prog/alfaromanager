@@ -1,13 +1,18 @@
-import { useCuadreStore } from "@/store/cuadreStore";
+import { useRef, useState } from "react";
+import { useCuadreStore, PUNTOS, PuntoVenta } from "@/store/cuadreStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/NumberInput";
-import { Plus, Trash2, Lock, Package } from "lucide-react";
+import { Plus, Trash2, Lock, Package, Upload, Download, Coffee, Store } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import * as XLSX from "xlsx";
 
 export default function Productos() {
-  const { catalogo, addCatalogItem, updateCatalogItem, removeCatalogItem, role } =
+  const { catalogo, addCatalogItem, updateCatalogItem, removeCatalogItem, importCatalog, role } =
     useCuadreStore();
+  const [punto, setPunto] = useState<PuntoVenta>("Cafetería");
+  const fileRef = useRef<HTMLInputElement>(null);
 
   if (role !== "admin") {
     return (
@@ -23,6 +28,50 @@ export default function Productos() {
     );
   }
 
+  const productosPunto = catalogo.filter((p) => (p.punto ?? "Cafetería") === punto);
+
+  const descargarPlantilla = () => {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["nombre", "costo", "precio"],
+      ["Café espresso", 20, 50],
+      ["Capuchino", 35, 80],
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Productos");
+    XLSX.writeFile(wb, `plantilla-productos-${punto}.xlsx`);
+    toast.success("Plantilla descargada");
+  };
+
+  const importarExcel = async (file: File) => {
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws);
+      const items = rows
+        .map((r) => {
+          // tolerante a mayúsculas/acentos
+          const keys = Object.fromEntries(
+            Object.entries(r).map(([k, v]) => [k.toLowerCase().trim(), v])
+          );
+          const nombre = String(keys["nombre"] ?? keys["producto"] ?? "").trim();
+          const costo = Number(keys["costo"] ?? keys["precio costo"] ?? 0);
+          const precio = Number(keys["precio"] ?? keys["precio venta"] ?? 0);
+          return nombre ? { nombre, costo, precio, punto } : null;
+        })
+        .filter(Boolean) as { nombre: string; costo: number; precio: number; punto: PuntoVenta }[];
+      if (items.length === 0) {
+        toast.error("No se encontraron filas válidas");
+        return;
+      }
+      importCatalog(items);
+      toast.success(`${items.length} productos importados a ${punto}`);
+    } catch (e) {
+      console.error(e);
+      toast.error("Error al leer el archivo");
+    }
+  };
+
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">Catálogo de productos</h1>
@@ -31,14 +80,82 @@ export default function Productos() {
         Cambiar precios aquí <strong>no afecta</strong> los cuadres ya guardados.
       </p>
 
+      {/* Selector de punto de venta */}
+      <div className="grid grid-cols-2 gap-2">
+        {PUNTOS.map((p) => {
+          const Icon = p === "Cafetería" ? Coffee : Store;
+          const active = p === punto;
+          return (
+            <button
+              key={p}
+              onClick={() => setPunto(p)}
+              className={cn(
+                "flex items-center justify-center gap-2 rounded-xl border p-3 text-sm font-semibold transition-smooth",
+                active
+                  ? "gradient-primary border-0 text-primary-foreground shadow-soft"
+                  : "border-border bg-card text-foreground"
+              )}
+            >
+              <Icon className="h-4 w-4" />
+              {p}
+              <span className="ml-1 rounded-full bg-white/20 px-1.5 text-[10px]">
+                {catalogo.filter((c) => (c.punto ?? "Cafetería") === p).length}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Importación Excel */}
+      <div className="rounded-2xl border border-border bg-card p-3 shadow-soft">
+        <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Importar desde Excel
+        </div>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Encabezados requeridos: <code className="rounded bg-muted px-1">nombre</code>,{" "}
+          <code className="rounded bg-muted px-1">costo</code>,{" "}
+          <code className="rounded bg-muted px-1">precio</code>. Los productos se agregan al
+          punto seleccionado ({punto}).
+        </p>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".xlsx,.xls,.csv"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) importarExcel(f);
+            e.currentTarget.value = "";
+          }}
+        />
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <Button
+            variant="outline"
+            className="h-10 rounded-xl"
+            onClick={() => fileRef.current?.click()}
+          >
+            <Upload className="mr-1.5 h-4 w-4" /> Subir Excel
+          </Button>
+          <Button
+            variant="outline"
+            className="h-10 rounded-xl"
+            onClick={descargarPlantilla}
+          >
+            <Download className="mr-1.5 h-4 w-4" /> Plantilla
+          </Button>
+        </div>
+      </div>
+
       <div className="space-y-2">
-        {catalogo.length === 0 && (
+        {productosPunto.length === 0 && (
           <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center">
             <Package className="mx-auto mb-2 h-7 w-7 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">Sin productos en el catálogo</p>
+            <p className="text-sm text-muted-foreground">
+              Sin productos en {punto}
+            </p>
           </div>
         )}
-        {catalogo.map((p) => (
+        {productosPunto.map((p) => (
           <div
             key={p.id}
             className="rounded-2xl border border-border bg-card p-3 shadow-soft"
@@ -83,8 +200,8 @@ export default function Productos() {
         variant="outline"
         className="h-11 w-full rounded-xl"
         onClick={() => {
-          addCatalogItem({ nombre: "Nuevo producto", precio: 0, costo: 0 });
-          toast.success("Producto agregado al catálogo");
+          addCatalogItem({ nombre: "Nuevo producto", precio: 0, costo: 0, punto });
+          toast.success(`Producto agregado a ${punto}`);
         }}
       >
         <Plus className="mr-2 h-4 w-4" /> Agregar producto al catálogo

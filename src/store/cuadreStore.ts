@@ -17,6 +17,7 @@ export type CatalogoItem = {
   nombre: string;
   precio: number;
   costo: number;
+  punto?: "Cafetería" | "Mipyme";
 };
 
 export type GastoTipo = "Efectivo" | "Producto";
@@ -28,6 +29,8 @@ export type Gasto = {
   tipo: GastoTipo;
   descripcion: string;
   // Para tipo Producto:
+  productoId?: string;
+  productoNombre?: string;
   cantidad?: number;
   precio?: number;
   // Importe final
@@ -55,10 +58,10 @@ export type Cuadre = {
 };
 
 const DEFAULT_CATALOG: CatalogoItem[] = [
-  { id: "p1", nombre: "Café", precio: 50, costo: 20 },
-  { id: "p2", nombre: "Azúcar", precio: 5, costo: 2 },
-  { id: "p3", nombre: "Leche", precio: 30, costo: 15 },
-  { id: "p4", nombre: "Vasos", precio: 5, costo: 2 },
+  { id: "p1", nombre: "Café", precio: 50, costo: 20, punto: "Cafetería" },
+  { id: "p2", nombre: "Azúcar", precio: 5, costo: 2, punto: "Cafetería" },
+  { id: "p3", nombre: "Leche", precio: 30, costo: 15, punto: "Cafetería" },
+  { id: "p4", nombre: "Vasos", precio: 5, costo: 2, punto: "Cafetería" },
 ];
 
 export const DENOMINACIONES = [1000, 500, 200, 100, 50, 20, 10, 5];
@@ -76,7 +79,9 @@ export const newCuadre = (
   diasTrabajados: [new Date().toISOString()],
   dependiente: "",
   // Snapshot del catálogo: cambios futuros NO afectan este cuadre
-  productos: catalogo.map((c) => ({
+  productos: catalogo
+    .filter((c) => !c.punto || c.punto === punto)
+    .map((c) => ({
     id: crypto.randomUUID(),
     nombre: c.nombre,
     inicio: 0,
@@ -98,6 +103,8 @@ interface State {
   // Cuadres en curso por punto de venta
   currents: Record<PuntoVenta, Cuadre | null>;
   activePunto: PuntoVenta;
+  // Último paso visitado por cuadre (para reanudar)
+  lastStep: Record<PuntoVenta, number>;
   history: Cuadre[];
   catalogo: CatalogoItem[];
   dependientes: string[];
@@ -105,11 +112,13 @@ interface State {
 
   setRole: (r: "admin" | "dependiente") => void;
   setActivePunto: (p: PuntoVenta) => void;
+  setLastStep: (p: PuntoVenta, step: number) => void;
 
   // Catálogo (master)
   addCatalogItem: (item: Omit<CatalogoItem, "id">) => void;
   updateCatalogItem: (id: string, patch: Partial<CatalogoItem>) => void;
   removeCatalogItem: (id: string) => void;
+  importCatalog: (items: Omit<CatalogoItem, "id">[]) => void;
 
   // Dependientes
   addDependiente: (nombre: string) => void;
@@ -148,6 +157,7 @@ export const useCuadreStore = create<State>()(
     (set, get) => ({
       currents: { "Cafetería": null, "Mipyme": null },
       activePunto: "Cafetería",
+      lastStep: { "Cafetería": 1, "Mipyme": 1 },
       history: [],
       catalogo: DEFAULT_CATALOG,
       dependientes: [],
@@ -155,6 +165,8 @@ export const useCuadreStore = create<State>()(
 
       setRole: (r) => set({ role: r }),
       setActivePunto: (p) => set({ activePunto: p }),
+      setLastStep: (p, step) =>
+        set((s) => ({ lastStep: { ...s.lastStep, [p]: step } })),
 
       addCatalogItem: (item) =>
         set((s) => ({
@@ -166,6 +178,13 @@ export const useCuadreStore = create<State>()(
         })),
       removeCatalogItem: (id) =>
         set((s) => ({ catalogo: s.catalogo.filter((c) => c.id !== id) })),
+      importCatalog: (items) =>
+        set((s) => ({
+          catalogo: [
+            ...s.catalogo,
+            ...items.map((i) => ({ ...i, id: crypto.randomUUID() })),
+          ],
+        })),
 
       addDependiente: (nombre) =>
         set((s) =>
@@ -186,6 +205,7 @@ export const useCuadreStore = create<State>()(
           return {
             activePunto: p,
             currents: { ...s.currents, [p]: newCuadre(p, s.catalogo) },
+            lastStep: { ...s.lastStep, [p]: 1 },
           };
         }),
 
@@ -253,12 +273,16 @@ export const useCuadreStore = create<State>()(
             ...s.history,
           ],
           currents: { ...s.currents, [s.activePunto]: null },
+          lastStep: { ...s.lastStep, [s.activePunto]: 1 },
         });
       },
       cancelar: (punto) =>
         set((s) => {
           const p = punto ?? s.activePunto;
-          return { currents: { ...s.currents, [p]: null } };
+          return {
+            currents: { ...s.currents, [p]: null },
+            lastStep: { ...s.lastStep, [p]: 1 },
+          };
         }),
       deleteHistory: (id) =>
         set((s) => ({ history: s.history.filter((c) => c.id !== id) })),
