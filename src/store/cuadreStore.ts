@@ -64,6 +64,8 @@ export const newCuadre = (): Cuadre => ({
 interface State {
   current: Cuadre | null;
   history: Cuadre[];
+  role: "admin" | "dependiente";
+  setRole: (r: "admin" | "dependiente") => void;
   startCuadre: () => void;
   updateCurrent: (patch: Partial<Cuadre>) => void;
   updateProducto: (id: string, patch: Partial<Producto>) => void;
@@ -84,6 +86,8 @@ export const useCuadreStore = create<State>()(
     (set, get) => ({
       current: null,
       history: [],
+      role: "admin",
+      setRole: (r) => set({ role: r }),
       startCuadre: () => set({ current: newCuadre() }),
       updateCurrent: (patch) =>
         set((s) => (s.current ? { current: { ...s.current, ...patch } } : s)),
