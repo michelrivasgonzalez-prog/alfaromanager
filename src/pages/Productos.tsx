@@ -163,14 +163,17 @@ export default function Productos() {
             <div className="flex items-center gap-2">
               <Input
                 value={p.nombre}
-                onChange={(e) => updateCatalogItem(p.id, { nombre: e.target.value })}
+                onChange={(e) => updateAndSync(p.id, { nombre: e.target.value })}
                 className="h-10 flex-1 rounded-xl font-semibold"
               />
               <Button
                 variant="ghost"
                 size="icon"
                 className="text-destructive"
-                onClick={() => removeCatalogItem(p.id)}
+                onClick={() => {
+                  removeCatalogItem(p.id);
+                  deleteCatalogItem(p.id).catch(console.error);
+                }}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -180,7 +183,7 @@ export default function Productos() {
                 <span className="text-muted-foreground">Precio</span>
                 <NumberInput
                   value={p.precio}
-                  onChange={(v) => updateCatalogItem(p.id, { precio: v })}
+                  onChange={(v) => updateAndSync(p.id, { precio: v })}
                   className="mt-0.5 h-9 rounded-lg"
                 />
               </label>
@@ -188,7 +191,7 @@ export default function Productos() {
                 <span className="text-muted-foreground">Costo</span>
                 <NumberInput
                   value={p.costo}
-                  onChange={(v) => updateCatalogItem(p.id, { costo: v })}
+                  onChange={(v) => updateAndSync(p.id, { costo: v })}
                   className="mt-0.5 h-9 rounded-lg"
                 />
               </label>
