@@ -458,7 +458,8 @@ function Step4() {
 
 /* ================== Step 5: Resultados ================== */
 function Step5() {
-  const { currents, activePunto, updateProducto, role } = useCuadreStore();
+  const { currents, activePunto, updateProducto, syncProductoToCatalog, role } =
+    useCuadreStore();
   const current = currents[activePunto];
   if (!current) return null;
   const isAdmin = role === "admin";
@@ -471,8 +472,39 @@ function Step5() {
     0
   );
 
+  // Validaciones de avance:
+  // 1) Final no puede ser mayor que Total (inicio + entradas - traslados)
+  // 2) Si hubo ventas (venta > 0), debe existir precio y costo > 0
+  const errores = current.productos
+    .map((p) => {
+      const c = calcProducto(p);
+      const errs: string[] = [];
+      if (p.final > c.total) errs.push("Final mayor al Total");
+      if (c.venta > 0 && (!p.precio || p.precio <= 0))
+        errs.push("Falta precio de venta");
+      if (c.venta > 0 && (!p.costo || p.costo <= 0))
+        errs.push("Falta precio de costo");
+      return errs.length ? { nombre: p.nombre, errs } : null;
+    })
+    .filter(Boolean) as { nombre: string; errs: string[] }[];
+  const hayErrores = errores.length > 0;
+
   return (
-    <StepShell>
+    <StepShell onNextDisabled={hayErrores}>
+      {hayErrores && (
+        <div className="rounded-2xl border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+          <div className="mb-1 flex items-center gap-1.5 font-semibold">
+            <AlertTriangle className="h-4 w-4" /> Corrige antes de continuar
+          </div>
+          <ul className="list-disc space-y-0.5 pl-5">
+            {errores.map((e) => (
+              <li key={e.nombre}>
+                <strong>{e.nombre}:</strong> {e.errs.join(", ")}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <SummaryTile label="Venta total" value={fmt(totalImporte)} accent="emerald" />
         {isAdmin ? (
@@ -526,6 +558,7 @@ function Step5() {
                       <NumberInput
                         value={p.precio}
                         onChange={(v) => updateProducto(p.id, { precio: v })}
+                        onBlur={() => syncProductoToCatalog(p.id)}
                         className="ml-auto h-7 w-16 rounded-md text-right text-xs"
                       />
                     </td>
@@ -538,6 +571,7 @@ function Step5() {
                       <NumberInput
                         value={p.costo}
                         onChange={(v) => updateProducto(p.id, { costo: v })}
+                        onBlur={() => syncProductoToCatalog(p.id)}
                         className="ml-auto h-7 w-16 rounded-md text-right text-xs"
                       />
                     </td>
@@ -592,7 +626,7 @@ const CATEGORIAS: Gasto["categoria"][] = [
 ];
 
 function Step6() {
-  const { currents, activePunto, addGasto, removeGasto } = useCuadreStore();
+  const { currents, activePunto, addGasto, removeGasto, settings } = useCuadreStore();
   const current = currents[activePunto];
   const [cat, setCat] = useState<Gasto["categoria"]>("Local");
   const [tipo, setTipo] = useState<"Efectivo" | "Producto">("Efectivo");
@@ -602,6 +636,17 @@ function Step6() {
   const [cantidad, setCantidad] = useState(0);
   const [precio, setPrecio] = useState(0);
   const [productoId, setProductoId] = useState<string>("");
+  // Estado específico para Transferencia
+  const [trFecha, setTrFecha] = useState<Date | undefined>(new Date());
+  const [trTransaccion, setTrTransaccion] = useState("");
+  const [trImporte, setTrImporte] = useState(0);
+  const [trPorcentaje, setTrPorcentaje] = useState(settings.porcentajeTransferencia);
+  const trMontoRecibido = trImporte + (trImporte * trPorcentaje) / 100;
+  // Si cambia la categoría a Transferencia, resetea el % al predeterminado
+  useEffect(() => {
+    if (cat === "Transferencia") setTrPorcentaje(settings.porcentajeTransferencia);
+  }, [cat, settings.porcentajeTransferencia]);
+  const isTransfer = cat === "Transferencia";
   if (!current) return null;
 
   const importeProducto = cantidad * precio;
@@ -615,9 +660,31 @@ function Step6() {
     setCantidad(0);
     setPrecio(0);
     setProductoId("");
+    setTrTransaccion("");
+    setTrImporte(0);
+    setTrFecha(new Date());
+    setTrPorcentaje(settings.porcentajeTransferencia);
   };
 
   const guardar = () => {
+    if (isTransfer) {
+      if (!trImporte) return;
+      addGasto({
+        categoria: "Transferencia",
+        nombre: trTransaccion || "—",
+        tipo: "Efectivo",
+        descripcion: `Transferencia ${trTransaccion || ""}`.trim(),
+        fecha: trFecha?.toISOString(),
+        transaccion: trTransaccion,
+        importe: trImporte,
+        porcentaje: trPorcentaje,
+        montoRecibido: trMontoRecibido,
+        monto: trMontoRecibido,
+      });
+      limpiar();
+      toast.success("Transferencia agregada");
+      return;
+    }
     if (tipo === "Efectivo" && !monto) return;
     if (tipo === "Producto" && (!productoId || !cantidad || !precio)) return;
     addGasto({
@@ -658,7 +725,7 @@ function Step6() {
               </SelectContent>
             </Select>
           </div>
-          <div>
+          <div className={cn(isTransfer && "opacity-50 pointer-events-none")}>
             <Label className="text-xs">Tipo</Label>
             <Select value={tipo} onValueChange={(v) => setTipo(v as any)}>
               <SelectTrigger className="mt-1 h-11 rounded-xl">
@@ -672,26 +739,96 @@ function Step6() {
           </div>
         </div>
 
-        <div>
-          <Label className="text-xs">Nombre (quién recibe)</Label>
-          <Input
-            placeholder="Nombre"
-            value={nombre}
-            onChange={(e) => setNombre(e.target.value)}
-            className="mt-1 h-11 rounded-xl"
-          />
-        </div>
-
-        <div>
-          <Label className="text-xs">Descripción</Label>
-          <Input
-            placeholder="Descripción"
-            value={desc}
-            onChange={(e) => setDesc(e.target.value)}
-            className="mt-1 h-11 rounded-xl"
-          />
-        </div>
-
+        {isTransfer ? (
+          <>
+            <div>
+              <Label className="text-xs">Fecha</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "mt-1 h-11 w-full justify-start rounded-xl text-left font-normal",
+                      !trFecha && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {trFecha
+                      ? format(trFecha, "dd MMM yyyy", { locale: es })
+                      : "Selecciona fecha"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={trFecha}
+                    onSelect={setTrFecha}
+                    className={cn("p-3 pointer-events-auto")}
+                    locale={es}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div>
+              <Label className="text-xs">Transacción</Label>
+              <Input
+                placeholder="Nº de transacción / referencia"
+                value={trTransaccion}
+                onChange={(e) => setTrTransaccion(e.target.value)}
+                className="mt-1 h-11 rounded-xl"
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <Label className="text-xs">Importe</Label>
+                <NumberInput
+                  value={trImporte}
+                  onChange={setTrImporte}
+                  className="mt-1 h-11 rounded-xl"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Cargo %</Label>
+                <NumberInput
+                  value={trPorcentaje}
+                  onChange={setTrPorcentaje}
+                  className="mt-1 h-11 rounded-xl"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Monto recibido</Label>
+                <Input
+                  value={fmt(trMontoRecibido)}
+                  readOnly
+                  disabled
+                  className="mt-1 h-11 rounded-xl bg-muted text-right font-mono"
+                />
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Monto recibido = Importe + ({trPorcentaje}% por usar este método de pago).
+            </p>
+          </>
+        ) : (
+          <>
+            <div>
+              <Label className="text-xs">Nombre (quién recibe)</Label>
+              <Input
+                placeholder="Nombre"
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                className="mt-1 h-11 rounded-xl"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Descripción</Label>
+              <Input
+                placeholder="Descripción"
+                value={desc}
+                onChange={(e) => setDesc(e.target.value)}
+                className="mt-1 h-11 rounded-xl"
+              />
+            </div>
         {tipo === "Efectivo" ? (
           <div>
             <Label className="text-xs">Monto</Label>
@@ -752,6 +889,8 @@ function Step6() {
               />
             </div>
           </div>
+          </>
+        )}
           </>
         )}
 
