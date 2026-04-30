@@ -626,7 +626,7 @@ const CATEGORIAS: Gasto["categoria"][] = [
 ];
 
 function Step6() {
-  const { currents, activePunto, addGasto, removeGasto } = useCuadreStore();
+  const { currents, activePunto, addGasto, removeGasto, settings } = useCuadreStore();
   const current = currents[activePunto];
   const [cat, setCat] = useState<Gasto["categoria"]>("Local");
   const [tipo, setTipo] = useState<"Efectivo" | "Producto">("Efectivo");
@@ -636,6 +636,17 @@ function Step6() {
   const [cantidad, setCantidad] = useState(0);
   const [precio, setPrecio] = useState(0);
   const [productoId, setProductoId] = useState<string>("");
+  // Estado específico para Transferencia
+  const [trFecha, setTrFecha] = useState<Date | undefined>(new Date());
+  const [trTransaccion, setTrTransaccion] = useState("");
+  const [trImporte, setTrImporte] = useState(0);
+  const [trPorcentaje, setTrPorcentaje] = useState(settings.porcentajeTransferencia);
+  const trMontoRecibido = trImporte + (trImporte * trPorcentaje) / 100;
+  // Si cambia la categoría a Transferencia, resetea el % al predeterminado
+  useEffect(() => {
+    if (cat === "Transferencia") setTrPorcentaje(settings.porcentajeTransferencia);
+  }, [cat, settings.porcentajeTransferencia]);
+  const isTransfer = cat === "Transferencia";
   if (!current) return null;
 
   const importeProducto = cantidad * precio;
@@ -649,9 +660,31 @@ function Step6() {
     setCantidad(0);
     setPrecio(0);
     setProductoId("");
+    setTrTransaccion("");
+    setTrImporte(0);
+    setTrFecha(new Date());
+    setTrPorcentaje(settings.porcentajeTransferencia);
   };
 
   const guardar = () => {
+    if (isTransfer) {
+      if (!trImporte) return;
+      addGasto({
+        categoria: "Transferencia",
+        nombre: trTransaccion || "—",
+        tipo: "Efectivo",
+        descripcion: `Transferencia ${trTransaccion || ""}`.trim(),
+        fecha: trFecha?.toISOString(),
+        transaccion: trTransaccion,
+        importe: trImporte,
+        porcentaje: trPorcentaje,
+        montoRecibido: trMontoRecibido,
+        monto: trMontoRecibido,
+      });
+      limpiar();
+      toast.success("Transferencia agregada");
+      return;
+    }
     if (tipo === "Efectivo" && !monto) return;
     if (tipo === "Producto" && (!productoId || !cantidad || !precio)) return;
     addGasto({
@@ -692,7 +725,7 @@ function Step6() {
               </SelectContent>
             </Select>
           </div>
-          <div>
+          <div className={cn(isTransfer && "opacity-50 pointer-events-none")}>
             <Label className="text-xs">Tipo</Label>
             <Select value={tipo} onValueChange={(v) => setTipo(v as any)}>
               <SelectTrigger className="mt-1 h-11 rounded-xl">
@@ -706,26 +739,96 @@ function Step6() {
           </div>
         </div>
 
-        <div>
-          <Label className="text-xs">Nombre (quién recibe)</Label>
-          <Input
-            placeholder="Nombre"
-            value={nombre}
-            onChange={(e) => setNombre(e.target.value)}
-            className="mt-1 h-11 rounded-xl"
-          />
-        </div>
-
-        <div>
-          <Label className="text-xs">Descripción</Label>
-          <Input
-            placeholder="Descripción"
-            value={desc}
-            onChange={(e) => setDesc(e.target.value)}
-            className="mt-1 h-11 rounded-xl"
-          />
-        </div>
-
+        {isTransfer ? (
+          <>
+            <div>
+              <Label className="text-xs">Fecha</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "mt-1 h-11 w-full justify-start rounded-xl text-left font-normal",
+                      !trFecha && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {trFecha
+                      ? format(trFecha, "dd MMM yyyy", { locale: es })
+                      : "Selecciona fecha"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={trFecha}
+                    onSelect={setTrFecha}
+                    className={cn("p-3 pointer-events-auto")}
+                    locale={es}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div>
+              <Label className="text-xs">Transacción</Label>
+              <Input
+                placeholder="Nº de transacción / referencia"
+                value={trTransaccion}
+                onChange={(e) => setTrTransaccion(e.target.value)}
+                className="mt-1 h-11 rounded-xl"
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <Label className="text-xs">Importe</Label>
+                <NumberInput
+                  value={trImporte}
+                  onChange={setTrImporte}
+                  className="mt-1 h-11 rounded-xl"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Cargo %</Label>
+                <NumberInput
+                  value={trPorcentaje}
+                  onChange={setTrPorcentaje}
+                  className="mt-1 h-11 rounded-xl"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Monto recibido</Label>
+                <Input
+                  value={fmt(trMontoRecibido)}
+                  readOnly
+                  disabled
+                  className="mt-1 h-11 rounded-xl bg-muted text-right font-mono"
+                />
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Monto recibido = Importe + ({trPorcentaje}% por usar este método de pago).
+            </p>
+          </>
+        ) : (
+          <>
+            <div>
+              <Label className="text-xs">Nombre (quién recibe)</Label>
+              <Input
+                placeholder="Nombre"
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                className="mt-1 h-11 rounded-xl"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Descripción</Label>
+              <Input
+                placeholder="Descripción"
+                value={desc}
+                onChange={(e) => setDesc(e.target.value)}
+                className="mt-1 h-11 rounded-xl"
+              />
+            </div>
         {tipo === "Efectivo" ? (
           <div>
             <Label className="text-xs">Monto</Label>
@@ -786,6 +889,8 @@ function Step6() {
               />
             </div>
           </div>
+          </>
+        )}
           </>
         )}
 
