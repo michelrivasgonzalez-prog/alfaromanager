@@ -3,15 +3,33 @@ import { useCuadreStore, PUNTOS, PuntoVenta } from "@/store/cuadreStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/NumberInput";
-import { Plus, Trash2, Lock, Package, Upload, Download, Coffee, Store } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Lock,
+  Package,
+  Upload,
+  Download,
+  Coffee,
+  Store,
+  ChevronUp,
+  ChevronDown,
+} from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 import { pushCatalogItem, deleteCatalogItem } from "@/lib/sync";
 
 export default function Productos() {
-  const { catalogo, addCatalogItem, updateCatalogItem, removeCatalogItem, importCatalog, role } =
-    useCuadreStore();
+  const {
+    catalogo,
+    addCatalogItem,
+    updateCatalogItem,
+    removeCatalogItem,
+    importCatalog,
+    moveCatalogItem,
+    role,
+  } = useCuadreStore();
   const [punto, setPunto] = useState<PuntoVenta>("Cafetería");
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -30,6 +48,11 @@ export default function Productos() {
   }
 
   const productosPunto = catalogo.filter((p) => (p.punto ?? "Cafetería") === punto);
+  const moveItem = (id: string, dir: -1 | 1) => {
+    moveCatalogItem(id, dir);
+    const item = useCuadreStore.getState().catalogo.find((c) => c.id === id);
+    if (item) pushCatalogItem(item).catch(console.error);
+  };
 
   const updateAndSync = (id: string, patch: any) => {
     updateCatalogItem(id, patch);
@@ -164,12 +187,32 @@ export default function Productos() {
             </p>
           </div>
         )}
-        {productosPunto.map((p) => (
+        {productosPunto.map((p, i) => (
           <div
             key={p.id}
             className="rounded-2xl border border-border bg-card p-3 shadow-soft"
           >
             <div className="flex items-center gap-2">
+              <div className="flex flex-col">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  disabled={i === 0}
+                  onClick={() => moveItem(p.id, -1)}
+                >
+                  <ChevronUp className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  disabled={i === productosPunto.length - 1}
+                  onClick={() => moveItem(p.id, 1)}
+                >
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </div>
               <Input
                 value={p.nombre}
                 onChange={(e) => updateAndSync(p.id, { nombre: e.target.value })}
