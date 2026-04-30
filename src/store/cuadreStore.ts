@@ -318,6 +318,10 @@ export const calcCuadre = (c: Cuadre) => {
     return acc;
   }, {});
   const totalGastos = c.gastos.reduce((s, g) => s + g.monto, 0);
+  // Solo Gastos Local + Gastos Yanitza afectan la ganancia neta.
+  // Compras, Cuentas por Cobrar y Transferencias NO se restan.
+  const gastosNeta =
+    (gastosPorCategoria["Local"] || 0) + (gastosPorCategoria["Yanitza"] || 0);
 
   const efectivoEnCaja = Object.entries(c.denominaciones).reduce(
     (s, [b, n]) => s + Number(b) * n,
@@ -334,7 +338,8 @@ export const calcCuadre = (c: Cuadre) => {
   // Salario real = bruto + propina - descuento por faltante
   const salarioReal = salarioBruto + propina - descuentoFalta;
 
-  const gananciaNeta = gananciaTotal - totalGastos - salarioReal;
+  // Ganancia Neta = Ganancia Bruta - Gastos Local - Gastos Yanitza - Salario Base
+  const gananciaNeta = gananciaTotal - gastosNeta - salarioBruto;
 
   return {
     productos,
