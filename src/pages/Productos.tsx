@@ -7,6 +7,7 @@ import { Plus, Trash2, Lock, Package, Upload, Download, Coffee, Store } from "lu
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
+import { pushCatalogItem, deleteCatalogItem } from "@/lib/sync";
 
 export default function Productos() {
   const { catalogo, addCatalogItem, updateCatalogItem, removeCatalogItem, importCatalog, role } =
@@ -29,6 +30,12 @@ export default function Productos() {
   }
 
   const productosPunto = catalogo.filter((p) => (p.punto ?? "Cafetería") === punto);
+
+  const updateAndSync = (id: string, patch: any) => {
+    updateCatalogItem(id, patch);
+    const next = useCuadreStore.getState().catalogo.find((c) => c.id === id);
+    if (next) pushCatalogItem(next).catch(console.error);
+  };
 
   const descargarPlantilla = () => {
     const ws = XLSX.utils.aoa_to_sheet([
