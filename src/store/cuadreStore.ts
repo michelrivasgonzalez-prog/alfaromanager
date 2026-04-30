@@ -139,6 +139,7 @@ interface State {
   finalizar: () => void;
   cancelar: (punto?: PuntoVenta) => void;
   deleteHistory: (id: string) => void;
+  importarFinales: (cuadreId: string) => void;
 }
 
 const updateActive = (
@@ -286,6 +287,21 @@ export const useCuadreStore = create<State>()(
         }),
       deleteHistory: (id) =>
         set((s) => ({ history: s.history.filter((c) => c.id !== id) })),
+      importarFinales: (cuadreId) =>
+        set((s) => {
+          const src = s.history.find((h) => h.id === cuadreId);
+          const c = s.currents[s.activePunto];
+          if (!src || !c) return {};
+          // Map por nombre para tolerar IDs distintos entre snapshots
+          const finales = new Map(src.productos.map((p) => [p.nombre, p.final]));
+          const productos = c.productos.map((p) => ({
+            ...p,
+            inicio: finales.get(p.nombre) ?? p.inicio,
+          }));
+          return {
+            currents: { ...s.currents, [s.activePunto]: { ...c, productos } },
+          };
+        }),
     }),
     { name: "alfarocafe-store" }
   )
