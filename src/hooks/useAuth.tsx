@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { useCuadreStore } from "@/store/cuadreStore";
 
 export type AppRole = "admin" | "duena" | "dependiente";
 
@@ -47,6 +48,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setTimeout(async () => {
           const r = await fetchRole(s.user.id);
           setRole(r);
+          if (r) {
+            // Mapear al store local: 'duena' se trata como 'dependiente' (solo lectura)
+            useCuadreStore.getState().setRole(r === "admin" ? "admin" : "dependiente");
+          }
         }, 0);
       } else {
         setRole(null);
@@ -57,6 +62,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (s?.user) {
         const r = await fetchRole(s.user.id);
         setRole(r);
+        if (r) {
+          useCuadreStore.getState().setRole(r === "admin" ? "admin" : "dependiente");
+        }
       }
       setLoading(false);
     });
