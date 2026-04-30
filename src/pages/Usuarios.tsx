@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Trash2, Users as UsersIcon, Lock, Pencil, Check, X } from "lucide-react";
 import { toast } from "sonner";
+import { pushDependiente, deleteDependiente } from "@/lib/sync";
 
 export default function Usuarios() {
   const { dependientes, addDependiente, removeDependiente, updateDependiente, role } =
@@ -42,6 +43,7 @@ export default function Usuarios() {
                 const n = nuevo.trim();
                 if (!n) return;
                 addDependiente(n);
+                pushDependiente(n).catch(console.error);
                 setNuevo("");
                 toast.success("Dependiente agregado");
               }}
@@ -82,7 +84,11 @@ export default function Usuarios() {
                   className="h-8 w-8 text-secondary"
                   onClick={() => {
                     const v = editValue.trim();
-                    if (v) updateDependiente(d, v);
+                    if (v) {
+                      updateDependiente(d, v);
+                      deleteDependiente(d).catch(console.error);
+                      pushDependiente(v).catch(console.error);
+                    }
                     setEditing(null);
                   }}
                 >
@@ -118,6 +124,7 @@ export default function Usuarios() {
                       variant="ghost"
                       className="h-8 w-8 text-destructive"
                       onClick={() => removeDependiente(d)}
+                      onClickCapture={() => deleteDependiente(d).catch(console.error)}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
