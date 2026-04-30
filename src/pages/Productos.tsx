@@ -73,6 +73,8 @@ export default function Productos() {
       }
       importCatalog(items);
       toast.success(`${items.length} productos importados a ${punto}`);
+      const nuevos = useCuadreStore.getState().catalogo.slice(-items.length);
+      nuevos.forEach((c) => pushCatalogItem(c).catch(console.error));
     } catch (e) {
       console.error(e);
       toast.error("Error al leer el archivo");
@@ -212,6 +214,8 @@ export default function Productos() {
         onClick={() => {
           addCatalogItem({ nombre: "Nuevo producto", precio: 0, costo: 0, punto });
           toast.success(`Producto agregado a ${punto}`);
+          const last = useCuadreStore.getState().catalogo.slice(-1)[0];
+          if (last) pushCatalogItem(last).catch(console.error);
         }}
       >
         <Plus className="mr-2 h-4 w-4" /> Agregar producto al catálogo
