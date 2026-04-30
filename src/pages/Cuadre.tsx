@@ -240,13 +240,44 @@ function StepInventario({
   field: "inicio" | "final";
   title: string;
 }) {
-  const { currents, activePunto, updateProducto } = useCuadreStore();
+  const { currents, activePunto, updateProducto, history, importarFinales } =
+    useCuadreStore();
   const current = currents[activePunto];
   const [editing, setEditing] = useState<string | null>(null);
   if (!current) return null;
 
+  const previos = history.filter((h) => h.puntoVenta === activePunto);
+
   return (
     <StepShell title={title}>
+      {field === "inicio" && previos.length > 0 && (
+        <div className="rounded-2xl border border-border bg-card p-3 shadow-soft space-y-2">
+          <Label className="text-xs uppercase tracking-widest text-muted-foreground">
+            Importar finales del turno anterior
+          </Label>
+          <Select
+            onValueChange={(v) => {
+              importarFinales(v);
+              toast.success("Inicios cargados desde el turno seleccionado");
+            }}
+          >
+            <SelectTrigger className="h-11 rounded-xl">
+              <SelectValue placeholder="Selecciona un turno previo" />
+            </SelectTrigger>
+            <SelectContent>
+              {previos.map((h) => (
+                <SelectItem key={h.id} value={h.id}>
+                  {format(new Date(h.fecha), "dd MMM yyyy HH:mm", { locale: es })}
+                  {h.dependiente ? ` · ${h.dependiente}` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-[11px] text-muted-foreground">
+            Copia los finales del turno elegido como inicios de este cuadre.
+          </p>
+        </div>
+      )}
       <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
         <table className="w-full text-sm">
           <thead className="bg-muted/60">
