@@ -458,7 +458,8 @@ function Step4() {
 
 /* ================== Step 5: Resultados ================== */
 function Step5() {
-  const { currents, activePunto, updateProducto, role } = useCuadreStore();
+  const { currents, activePunto, updateProducto, syncProductoToCatalog, role } =
+    useCuadreStore();
   const current = currents[activePunto];
   if (!current) return null;
   const isAdmin = role === "admin";
@@ -471,8 +472,39 @@ function Step5() {
     0
   );
 
+  // Validaciones de avance:
+  // 1) Final no puede ser mayor que Total (inicio + entradas - traslados)
+  // 2) Si hubo ventas (venta > 0), debe existir precio y costo > 0
+  const errores = current.productos
+    .map((p) => {
+      const c = calcProducto(p);
+      const errs: string[] = [];
+      if (p.final > c.total) errs.push("Final mayor al Total");
+      if (c.venta > 0 && (!p.precio || p.precio <= 0))
+        errs.push("Falta precio de venta");
+      if (c.venta > 0 && (!p.costo || p.costo <= 0))
+        errs.push("Falta precio de costo");
+      return errs.length ? { nombre: p.nombre, errs } : null;
+    })
+    .filter(Boolean) as { nombre: string; errs: string[] }[];
+  const hayErrores = errores.length > 0;
+
   return (
-    <StepShell>
+    <StepShell onNextDisabled={hayErrores}>
+      {hayErrores && (
+        <div className="rounded-2xl border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+          <div className="mb-1 flex items-center gap-1.5 font-semibold">
+            <AlertTriangle className="h-4 w-4" /> Corrige antes de continuar
+          </div>
+          <ul className="list-disc space-y-0.5 pl-5">
+            {errores.map((e) => (
+              <li key={e.nombre}>
+                <strong>{e.nombre}:</strong> {e.errs.join(", ")}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <SummaryTile label="Venta total" value={fmt(totalImporte)} accent="emerald" />
         {isAdmin ? (
@@ -526,6 +558,7 @@ function Step5() {
                       <NumberInput
                         value={p.precio}
                         onChange={(v) => updateProducto(p.id, { precio: v })}
+                        onBlur={() => syncProductoToCatalog(p.id)}
                         className="ml-auto h-7 w-16 rounded-md text-right text-xs"
                       />
                     </td>
@@ -538,6 +571,7 @@ function Step5() {
                       <NumberInput
                         value={p.costo}
                         onChange={(v) => updateProducto(p.id, { costo: v })}
+                        onBlur={() => syncProductoToCatalog(p.id)}
                         className="ml-auto h-7 w-16 rounded-md text-right text-xs"
                       />
                     </td>
