@@ -47,6 +47,7 @@ import {
   useCuadreStore,
 } from "@/store/cuadreStore";
 import { generarPDF } from "@/lib/pdf";
+import { pushCuadre } from "@/lib/sync";
 
 const fmt = (n: number) =>
   `$${n.toLocaleString("es-ES", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
@@ -1113,7 +1114,13 @@ function Step10({ onClose }: { onClose: () => void }) {
   const c = calcCuadre(current);
 
   const finalizarTurno = () => {
+    // Snapshot ANTES de finalizar (finalizar limpia currents)
+    const snap = { ...current, finalizado: true, fecha: new Date().toISOString() };
     finalizar();
+    pushCuadre(snap).catch((e) => {
+      console.error(e);
+      toast.warning("Guardado local. Se sincronizará cuando haya conexión.");
+    });
     toast.success("Cuadre guardado en historial");
     onClose();
   };
