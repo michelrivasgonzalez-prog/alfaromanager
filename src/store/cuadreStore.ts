@@ -33,6 +33,12 @@ export type Gasto = {
   productoNombre?: string;
   cantidad?: number;
   precio?: number;
+  // Para Transferencia:
+  fecha?: string;          // ISO
+  transaccion?: string;    // nº/ref
+  importe?: number;        // monto base ingresado
+  porcentaje?: number;     // % cargo aplicado
+  montoRecibido?: number;  // importe + (importe * porcentaje/100)
   // Importe final
   monto: number;
 };
@@ -57,6 +63,16 @@ export type Cuadre = {
   finalizado: boolean;
 };
 
+export type Settings = {
+  salarioBase: Record<PuntoVenta, number>;
+  porcentajeTransferencia: number;
+};
+
+const DEFAULT_SETTINGS: Settings = {
+  salarioBase: { "Cafetería": 1000, "Mipyme": 1000 },
+  porcentajeTransferencia: 10,
+};
+
 const DEFAULT_CATALOG: CatalogoItem[] = [
   { id: "p1", nombre: "Café", precio: 50, costo: 20, punto: "Cafetería" },
   { id: "p2", nombre: "Azúcar", precio: 5, costo: 2, punto: "Cafetería" },
@@ -71,7 +87,8 @@ const emptyDen = (): Denominaciones =>
 
 export const newCuadre = (
   punto: PuntoVenta,
-  catalogo: CatalogoItem[]
+  catalogo: CatalogoItem[],
+  settings: Settings = DEFAULT_SETTINGS
 ): Cuadre => ({
   id: crypto.randomUUID(),
   puntoVenta: punto,
@@ -94,7 +111,7 @@ export const newCuadre = (
   gastos: [],
   denominaciones: emptyDen(),
   efectivoDepositado: 0,
-  salarioBase: 500,
+  salarioBase: settings.salarioBase[punto] ?? 1000,
   salarioDenominaciones: emptyDen(),
   finalizado: false,
 });
@@ -109,8 +126,11 @@ interface State {
   catalogo: CatalogoItem[];
   dependientes: string[];
   role: "admin" | "dependiente";
+  settings: Settings;
 
   setRole: (r: "admin" | "dependiente") => void;
+  updateSettings: (patch: Partial<Settings>) => void;
+  setSalarioBasePunto: (p: PuntoVenta, v: number) => void;
   setActivePunto: (p: PuntoVenta) => void;
   setLastStep: (p: PuntoVenta, step: number) => void;
 
@@ -119,6 +139,9 @@ interface State {
   updateCatalogItem: (id: string, patch: Partial<CatalogoItem>) => void;
   removeCatalogItem: (id: string) => void;
   importCatalog: (items: Omit<CatalogoItem, "id">[]) => void;
+  moveCatalogItem: (id: string, dir: -1 | 1) => void;
+  // Sincroniza precio/costo del cuadre activo al catálogo (busca por nombre+punto)
+  syncProductoToCatalog: (productoId: string) => void;
 
   // Dependientes
   addDependiente: (nombre: string) => void;
@@ -163,8 +186,18 @@ export const useCuadreStore = create<State>()(
       catalogo: DEFAULT_CATALOG,
       dependientes: [],
       role: "admin",
+      settings: DEFAULT_SETTINGS,
 
       setRole: (r) => set({ role: r }),
+      updateSettings: (patch) =>
+        set((s) => ({ settings: { ...s.settings, ...patch } })),
+      setSalarioBasePunto: (p, v) =>
+        set((s) => ({
+          settings: {
+            ...s.settings,
+            salarioBase: { ...s.settings.salarioBase, [p]: v },
+          },
+        })),
       setActivePunto: (p) => set({ activePunto: p }),
       setLastStep: (p, step) =>
         set((s) => ({ lastStep: { ...s.lastStep, [p]: step } })),
@@ -186,6 +219,46 @@ export const useCuadreStore = create<State>()(
             ...items.map((i) => ({ ...i, id: crypto.randomUUID() })),
           ],
         })),
+      moveCatalogItem: (id, dir) =>
+        set((s) => {
+          const item = s.catalogo.find((c) => c.id === id);
+          if (!item) return {};
+          const punto = item.punto ?? "Cafetería";
+          // Trabajamos sobre los índices globales pero solo intercambiamos
+          // dentro del mismo punto de venta.
+          const idxsPunto = s.catalogo
+            .map((c, i) => ((c.punto ?? "Cafetería") === punto ? i : -1))
+            .filter((i) => i >= 0);
+          const pos = idxsPunto.indexOf(s.catalogo.findIndex((c) => c.id === id));
+          const target = pos + dir;
+          if (target < 0 || target >= idxsPunto.length) return {};
+          const a = idxsPunto[pos];
+          const b = idxsPunto[target];
+          const next = [...s.catalogo];
+          [next[a], next[b]] = [next[b], next[a]];
+          return { catalogo: next };
+        }),
+      syncProductoToCatalog: (productoId) =>
+        set((s) => {
+          const c = s.currents[s.activePunto];
+          if (!c) return {};
+          const p = c.productos.find((x) => x.id === productoId);
+          if (!p) return {};
+          const punto = c.puntoVenta;
+          const target = s.catalogo.find(
+            (ci) =>
+              ci.nombre.trim().toLowerCase() === p.nombre.trim().toLowerCase() &&
+              (ci.punto ?? "Cafetería") === punto
+          );
+          if (!target) return {};
+          return {
+            catalogo: s.catalogo.map((ci) =>
+              ci.id === target.id
+                ? { ...ci, precio: p.precio, costo: p.costo }
+                : ci
+            ),
+          };
+        }),
 
       addDependiente: (nombre) =>
         set((s) =>
@@ -205,7 +278,10 @@ export const useCuadreStore = create<State>()(
           const p = punto ?? s.activePunto;
           return {
             activePunto: p,
-            currents: { ...s.currents, [p]: newCuadre(p, s.catalogo) },
+            currents: {
+              ...s.currents,
+              [p]: newCuadre(p, s.catalogo, s.settings),
+            },
             lastStep: { ...s.lastStep, [p]: 1 },
           };
         }),
