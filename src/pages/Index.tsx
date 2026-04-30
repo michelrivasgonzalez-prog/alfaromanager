@@ -5,11 +5,14 @@ import { Button } from "@/components/ui/button";
 import { useCuadreStore, PUNTOS, PuntoVenta } from "@/store/cuadreStore";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Index() {
   const nav = useNavigate();
   const { currents, activePunto, setActivePunto, startCuadre, history, lastStep, cancelar } =
     useCuadreStore();
+  const { role } = useAuth();
+  const canStart = role === "admin" || role === "dependiente";
   const current = currents[activePunto];
 
   const onStart = (punto: PuntoVenta) => {
@@ -48,7 +51,7 @@ export default function Index() {
       </div>
 
       <div className="grid grid-cols-1 gap-3">
-        {PUNTOS.map((p) => {
+        {canStart && PUNTOS.map((p) => {
           const c = currents[p];
           const Icon = p === "Cafetería" ? Coffee : Store;
           return (
@@ -98,6 +101,11 @@ export default function Index() {
             </div>
           );
         })}
+        {!canStart && (
+          <div className="rounded-2xl border border-border bg-card p-6 text-center text-sm text-muted-foreground">
+            Tu rol es <strong>solo lectura</strong>. Puedes consultar el historial y los reportes.
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">

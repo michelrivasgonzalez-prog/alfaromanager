@@ -139,6 +139,7 @@ interface State {
   finalizar: () => void;
   cancelar: (punto?: PuntoVenta) => void;
   deleteHistory: (id: string) => void;
+  importarFinales: (cuadreId: string) => void;
 }
 
 const updateActive = (
@@ -286,6 +287,21 @@ export const useCuadreStore = create<State>()(
         }),
       deleteHistory: (id) =>
         set((s) => ({ history: s.history.filter((c) => c.id !== id) })),
+      importarFinales: (cuadreId) =>
+        set((s) => {
+          const src = s.history.find((h) => h.id === cuadreId);
+          const c = s.currents[s.activePunto];
+          if (!src || !c) return {};
+          // Map por nombre para tolerar IDs distintos entre snapshots
+          const finales = new Map(src.productos.map((p) => [p.nombre, p.final]));
+          const productos = c.productos.map((p) => ({
+            ...p,
+            inicio: finales.get(p.nombre) ?? p.inicio,
+          }));
+          return {
+            currents: { ...s.currents, [s.activePunto]: { ...c, productos } },
+          };
+        }),
     }),
     { name: "alfarocafe-store" }
   )
@@ -318,6 +334,10 @@ export const calcCuadre = (c: Cuadre) => {
     return acc;
   }, {});
   const totalGastos = c.gastos.reduce((s, g) => s + g.monto, 0);
+  // Solo Gastos Local + Gastos Yanitza afectan la ganancia neta.
+  // Compras, Cuentas por Cobrar y Transferencias NO se restan.
+  const gastosNeta =
+    (gastosPorCategoria["Local"] || 0) + (gastosPorCategoria["Yanitza"] || 0);
 
   const efectivoEnCaja = Object.entries(c.denominaciones).reduce(
     (s, [b, n]) => s + Number(b) * n,
@@ -334,7 +354,8 @@ export const calcCuadre = (c: Cuadre) => {
   // Salario real = bruto + propina - descuento por faltante
   const salarioReal = salarioBruto + propina - descuentoFalta;
 
-  const gananciaNeta = gananciaTotal - totalGastos - salarioReal;
+  // Ganancia Neta = Ganancia Bruta - Gastos Local - Gastos Yanitza - Salario Base
+  const gananciaNeta = gananciaTotal - gastosNeta - salarioBruto;
 
   return {
     productos,

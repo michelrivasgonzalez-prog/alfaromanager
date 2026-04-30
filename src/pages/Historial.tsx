@@ -4,11 +4,16 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { FileDown, Trash2, History as HistoryIcon } from "lucide-react";
 import { generarPDF } from "@/lib/pdf";
+import { deleteCuadreRemote } from "@/lib/sync";
+import { useAuth } from "@/hooks/useAuth";
 
 const fmt = (n: number) => `$${n.toLocaleString("es-ES")}`;
 
 export default function Historial() {
   const { history, deleteHistory } = useCuadreStore();
+  const { role } = useAuth();
+  const canDelete = role === "admin";
+  const canPDF = role === "admin" || role === "duena";
 
   return (
     <div className="space-y-4">
@@ -53,6 +58,7 @@ export default function Historial() {
               />
             </div>
             <div className="mt-3 flex gap-2">
+              {canPDF && (
               <Button
                 size="sm"
                 variant="outline"
@@ -61,14 +67,21 @@ export default function Historial() {
               >
                 <FileDown className="mr-1.5 h-3.5 w-3.5" /> PDF
               </Button>
+              )}
+              {canDelete && (
               <Button
                 size="sm"
                 variant="ghost"
                 className="text-destructive"
-                onClick={() => deleteHistory(c.id)}
+                onClick={() => {
+                  if (!confirm("¿Eliminar este cuadre del historial?")) return;
+                  deleteHistory(c.id);
+                  deleteCuadreRemote(c.id).catch(console.error);
+                }}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
+              )}
             </div>
           </div>
         );
