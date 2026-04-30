@@ -51,8 +51,7 @@ export default function Index() {
       </div>
 
       <div className="grid grid-cols-1 gap-3">
-        {canStart &&
-        {PUNTOS.map((p) => {
+        {canStart && PUNTOS.map((p) => {
           const c = currents[p];
           const Icon = p === "Cafetería" ? Coffee : Store;
           return (
@@ -102,6 +101,11 @@ export default function Index() {
             </div>
           );
         })}
+        {!canStart && (
+          <div className="rounded-2xl border border-border bg-card p-6 text-center text-sm text-muted-foreground">
+            Tu rol es <strong>solo lectura</strong>. Puedes consultar el historial y los reportes.
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
