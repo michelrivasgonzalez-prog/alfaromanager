@@ -84,7 +84,9 @@ export function generarPDF(c: Cuadre) {
   )}</title>
 <style>
   * { box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1a1a1a; margin: 24px; font-size: 11px; }
+  @page { size: A4; margin: 0.5cm; }
+  html, body { margin: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1a1a1a; padding: 0.5cm; font-size: 10.5px; }
   header { display: flex; align-items: center; gap: 16px; border-bottom: 2px solid #4B3621; padding-bottom: 12px; margin-bottom: 16px; }
   header img { height: 70px; width: 70px; object-fit: contain; }
   header .title { flex: 1; }
@@ -108,7 +110,10 @@ export function generarPDF(c: Cuadre) {
   .bad { color: #b91c1c; }
   .total { font-size: 14px; font-weight: 800; }
   .footer { margin-top: 16px; padding-top: 8px; border-top: 1px solid #ddd; font-size: 10px; color: #666; display: flex; justify-content: space-between; }
-  @media print { body { margin: 12mm; } .no-print { display: none; } }
+  @media print {
+    body { padding: 0; }
+    .no-print { display: none; }
+  }
   .actions { position: fixed; top: 12px; right: 12px; }
   .actions button { background: #065F46; color: white; border: 0; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; margin-left: 6px; }
   .actions button.alt { background: #4B3621; }
