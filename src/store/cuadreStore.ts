@@ -139,6 +139,8 @@ interface State {
   updateCatalogItem: (id: string, patch: Partial<CatalogoItem>) => void;
   removeCatalogItem: (id: string) => void;
   importCatalog: (items: Omit<CatalogoItem, "id">[]) => void;
+  importCatalogReplace: (items: Omit<CatalogoItem, "id">[], punto: PuntoVenta) => void;
+  clearCatalog: (punto?: PuntoVenta) => void;
   moveCatalogItem: (id: string, dir: -1 | 1) => void;
   // Sincroniza precio/costo del cuadre activo al catálogo (busca por nombre+punto)
   syncProductoToCatalog: (productoId: string) => void;
