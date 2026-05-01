@@ -195,6 +195,33 @@ export default function Productos() {
             <Download className="mr-1.5 h-4 w-4" /> Plantilla
           </Button>
         </div>
+        <Button
+          variant="outline"
+          className="mt-2 h-10 w-full rounded-xl border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+          onClick={() => {
+            const total = catalogo.filter(
+              (c) => (c.punto ?? "Cafetería") === punto
+            ).length;
+            if (total === 0) {
+              toast.info(`No hay productos en ${punto}`);
+              return;
+            }
+            if (
+              !confirm(
+                `¿Eliminar TODOS los ${total} producto(s) de ${punto}? Esta acción no se puede deshacer.`
+              )
+            )
+              return;
+            const ids = catalogo
+              .filter((c) => (c.punto ?? "Cafetería") === punto)
+              .map((c) => c.id);
+            clearCatalog(punto);
+            ids.forEach((id) => deleteCatalogItem(id).catch(console.error));
+            toast.success(`Productos de ${punto} eliminados`);
+          }}
+        >
+          <Trash2 className="mr-1.5 h-4 w-4" /> Eliminar todos los de {punto}
+        </Button>
       </div>
 
       <div className="space-y-2">
