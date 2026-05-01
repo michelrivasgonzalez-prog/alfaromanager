@@ -221,6 +221,21 @@ export const useCuadreStore = create<State>()(
             ...items.map((i) => ({ ...i, id: crypto.randomUUID() })),
           ],
         })),
+      importCatalogReplace: (items, punto) =>
+        set((s) => ({
+          // Conserva los productos de OTROS puntos y reemplaza por completo
+          // los del punto indicado, respetando el orden del Excel.
+          catalogo: [
+            ...s.catalogo.filter((c) => (c.punto ?? "Cafetería") !== punto),
+            ...items.map((i) => ({ ...i, id: crypto.randomUUID() })),
+          ],
+        })),
+      clearCatalog: (punto) =>
+        set((s) => ({
+          catalogo: punto
+            ? s.catalogo.filter((c) => (c.punto ?? "Cafetería") !== punto)
+            : [],
+        })),
       moveCatalogItem: (id, dir) =>
         set((s) => {
           const item = s.catalogo.find((c) => c.id === id);
