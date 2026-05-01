@@ -139,6 +139,8 @@ interface State {
   updateCatalogItem: (id: string, patch: Partial<CatalogoItem>) => void;
   removeCatalogItem: (id: string) => void;
   importCatalog: (items: Omit<CatalogoItem, "id">[]) => void;
+  importCatalogReplace: (items: Omit<CatalogoItem, "id">[], punto: PuntoVenta) => void;
+  clearCatalog: (punto?: PuntoVenta) => void;
   moveCatalogItem: (id: string, dir: -1 | 1) => void;
   // Sincroniza precio/costo del cuadre activo al catálogo (busca por nombre+punto)
   syncProductoToCatalog: (productoId: string) => void;
@@ -218,6 +220,21 @@ export const useCuadreStore = create<State>()(
             ...s.catalogo,
             ...items.map((i) => ({ ...i, id: crypto.randomUUID() })),
           ],
+        })),
+      importCatalogReplace: (items, punto) =>
+        set((s) => ({
+          // Conserva los productos de OTROS puntos y reemplaza por completo
+          // los del punto indicado, respetando el orden del Excel.
+          catalogo: [
+            ...s.catalogo.filter((c) => (c.punto ?? "Cafetería") !== punto),
+            ...items.map((i) => ({ ...i, id: crypto.randomUUID() })),
+          ],
+        })),
+      clearCatalog: (punto) =>
+        set((s) => ({
+          catalogo: punto
+            ? s.catalogo.filter((c) => (c.punto ?? "Cafetería") !== punto)
+            : [],
         })),
       moveCatalogItem: (id, dir) =>
         set((s) => {

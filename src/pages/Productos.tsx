@@ -27,6 +27,8 @@ export default function Productos() {
     updateCatalogItem,
     removeCatalogItem,
     importCatalog,
+    importCatalogReplace,
+    clearCatalog,
     moveCatalogItem,
     role,
   } = useCuadreStore();
@@ -94,9 +96,26 @@ export default function Productos() {
         toast.error("No se encontraron filas válidas");
         return;
       }
-      importCatalog(items);
+      const existentes = useCuadreStore
+        .getState()
+        .catalogo.filter((c) => (c.punto ?? "Cafetería") === punto);
+      const reemplazar =
+        existentes.length === 0 ||
+        confirm(
+          `Hay ${existentes.length} producto(s) en ${punto}. ` +
+            `¿Reemplazarlos por los del Excel manteniendo el orden de la hoja?\n\n` +
+            `Aceptar = Reemplazar (recomendado para conservar el orden).\n` +
+            `Cancelar = Agregar al final.`
+        );
+      if (reemplazar) {
+        importCatalogReplace(items, punto);
+      } else {
+        importCatalog(items);
+      }
       toast.success(`${items.length} productos importados a ${punto}`);
-      const nuevos = useCuadreStore.getState().catalogo.slice(-items.length);
+      const nuevos = useCuadreStore
+        .getState()
+        .catalogo.filter((c) => (c.punto ?? "Cafetería") === punto);
       nuevos.forEach((c) => pushCatalogItem(c).catch(console.error));
     } catch (e) {
       console.error(e);
@@ -176,6 +195,33 @@ export default function Productos() {
             <Download className="mr-1.5 h-4 w-4" /> Plantilla
           </Button>
         </div>
+        <Button
+          variant="outline"
+          className="mt-2 h-10 w-full rounded-xl border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+          onClick={() => {
+            const total = catalogo.filter(
+              (c) => (c.punto ?? "Cafetería") === punto
+            ).length;
+            if (total === 0) {
+              toast.info(`No hay productos en ${punto}`);
+              return;
+            }
+            if (
+              !confirm(
+                `¿Eliminar TODOS los ${total} producto(s) de ${punto}? Esta acción no se puede deshacer.`
+              )
+            )
+              return;
+            const ids = catalogo
+              .filter((c) => (c.punto ?? "Cafetería") === punto)
+              .map((c) => c.id);
+            clearCatalog(punto);
+            ids.forEach((id) => deleteCatalogItem(id).catch(console.error));
+            toast.success(`Productos de ${punto} eliminados`);
+          }}
+        >
+          <Trash2 className="mr-1.5 h-4 w-4" /> Eliminar todos los de {punto}
+        </Button>
       </div>
 
       <div className="space-y-2">
