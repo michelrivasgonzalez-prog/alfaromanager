@@ -27,6 +27,8 @@ export default function Productos() {
     updateCatalogItem,
     removeCatalogItem,
     importCatalog,
+    importCatalogReplace,
+    clearCatalog,
     moveCatalogItem,
     role,
   } = useCuadreStore();
@@ -94,9 +96,26 @@ export default function Productos() {
         toast.error("No se encontraron filas válidas");
         return;
       }
-      importCatalog(items);
+      const existentes = useCuadreStore
+        .getState()
+        .catalogo.filter((c) => (c.punto ?? "Cafetería") === punto);
+      const reemplazar =
+        existentes.length === 0 ||
+        confirm(
+          `Hay ${existentes.length} producto(s) en ${punto}. ` +
+            `¿Reemplazarlos por los del Excel manteniendo el orden de la hoja?\n\n` +
+            `Aceptar = Reemplazar (recomendado para conservar el orden).\n` +
+            `Cancelar = Agregar al final.`
+        );
+      if (reemplazar) {
+        importCatalogReplace(items, punto);
+      } else {
+        importCatalog(items);
+      }
       toast.success(`${items.length} productos importados a ${punto}`);
-      const nuevos = useCuadreStore.getState().catalogo.slice(-items.length);
+      const nuevos = useCuadreStore
+        .getState()
+        .catalogo.filter((c) => (c.punto ?? "Cafetería") === punto);
       nuevos.forEach((c) => pushCatalogItem(c).catch(console.error));
     } catch (e) {
       console.error(e);
