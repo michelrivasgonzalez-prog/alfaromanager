@@ -679,7 +679,9 @@ function Step6() {
         importe: trImporte,
         porcentaje: trPorcentaje,
         montoRecibido: trMontoRecibido,
-        monto: trMontoRecibido,
+        // El gasto se contabiliza por el IMPORTE (lo que sale de caja).
+        // El "monto recibido" queda solo como referencia para conciliar el banco.
+        monto: trImporte,
       });
       limpiar();
       toast.success("Transferencia agregada");
