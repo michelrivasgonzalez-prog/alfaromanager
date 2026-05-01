@@ -1095,9 +1095,22 @@ function Step8() {
 
 /* ================== Step 9: Salario ================== */
 function Step9() {
-  const { currents, activePunto, updateCurrent, setSalarioDen } = useCuadreStore();
+  const { currents, activePunto, updateCurrent, setSalarioDen, settings } =
+    useCuadreStore();
   const current = currents[activePunto];
   if (!current) return null;
+
+  // Sincroniza el salario base con lo definido en Ajustes para este punto.
+  // Solo lo aplica cuando difiere, así si el admin lo edita manualmente en
+  // este paso se respeta su edición posterior.
+  useEffect(() => {
+    const conf = settings.salarioBase[activePunto];
+    if (conf && conf !== current.salarioBase) {
+      updateCurrent({ salarioBase: conf });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePunto, settings.salarioBase[activePunto]]);
+
   const c = calcCuadre(current);
   const sugerencia = useMemo(
     () => sugerirPagoSalario(c.salarioReal, current.denominaciones),
