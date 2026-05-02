@@ -99,7 +99,7 @@ const normalizeCatalogoOrden = (items: CatalogoItem[]) => {
   return sortCatalogo(items).map((item) => {
     const punto = item.punto ?? "Cafetería";
     counters[punto] += 1;
-    return { ...item, punto, orden: item.orden && item.orden > 0 ? item.orden : counters[punto] };
+    return { ...item, punto, orden: counters[punto] };
   });
 };
 
