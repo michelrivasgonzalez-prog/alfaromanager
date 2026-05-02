@@ -533,14 +533,5 @@ export const sugerirPagoSalario = (
     result[String(bill)] = usar;
     restante -= usar * bill;
   }
-  if (restante > 0) {
-    const desc = [...DENOMINACIONES].sort((a, b) => b - a);
-    for (const bill of desc) {
-      if (restante < bill) continue;
-      const usar = Math.floor(restante / bill);
-      result[String(bill)] = (result[String(bill)] || 0) + usar;
-      restante -= usar * bill;
-    }
-  }
   return result;
 };
