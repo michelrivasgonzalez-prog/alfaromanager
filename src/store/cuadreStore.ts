@@ -224,29 +224,54 @@ export const useCuadreStore = create<State>()(
 
       addCatalogItem: (item) =>
         set((s) => ({
-          catalogo: [...s.catalogo, { ...item, id: crypto.randomUUID() }],
+          catalogo: normalizeCatalogoOrden([
+            ...s.catalogo,
+            {
+              ...item,
+              id: crypto.randomUUID(),
+              orden:
+                item.orden ??
+                Math.max(
+                  0,
+                  ...s.catalogo
+                    .filter((c) => (c.punto ?? "Cafetería") === (item.punto ?? "Cafetería"))
+                    .map((c) => c.orden ?? 0)
+                ) + 1,
+            },
+          ]),
         })),
       updateCatalogItem: (id, patch) =>
         set((s) => ({
-          catalogo: s.catalogo.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+          catalogo: normalizeCatalogoOrden(
+            s.catalogo.map((c) => (c.id === id ? { ...c, ...patch } : c))
+          ),
         })),
       removeCatalogItem: (id) =>
         set((s) => ({ catalogo: s.catalogo.filter((c) => c.id !== id) })),
       importCatalog: (items) =>
-        set((s) => ({
-          catalogo: [
-            ...s.catalogo,
-            ...items.map((i) => ({ ...i, id: crypto.randomUUID() })),
-          ],
-        })),
+        set((s) => {
+          const next = items.map((i, idx) => ({
+            ...i,
+            id: crypto.randomUUID(),
+            orden:
+              i.orden ??
+              Math.max(
+                0,
+                ...s.catalogo
+                  .filter((c) => (c.punto ?? "Cafetería") === (i.punto ?? "Cafetería"))
+                  .map((c) => c.orden ?? 0)
+              ) + idx + 1,
+          }));
+          return { catalogo: normalizeCatalogoOrden([...s.catalogo, ...next]) };
+        }),
       importCatalogReplace: (items, punto) =>
         set((s) => ({
           // Conserva los productos de OTROS puntos y reemplaza por completo
           // los del punto indicado, respetando el orden del Excel.
-          catalogo: [
+          catalogo: normalizeCatalogoOrden([
             ...s.catalogo.filter((c) => (c.punto ?? "Cafetería") !== punto),
-            ...items.map((i) => ({ ...i, id: crypto.randomUUID() })),
-          ],
+            ...items.map((i, idx) => ({ ...i, punto, id: crypto.randomUUID(), orden: i.orden ?? idx + 1 })),
+          ]),
         })),
       clearCatalog: (punto) =>
         set((s) => ({
