@@ -168,7 +168,8 @@ export default function Productos() {
           Importar desde Excel
         </div>
         <p className="mt-1 text-[11px] text-muted-foreground">
-          Encabezados requeridos: <code className="rounded bg-muted px-1">nombre</code>,{" "}
+          Encabezados requeridos: <code className="rounded bg-muted px-1">orden</code>,{" "}
+          <code className="rounded bg-muted px-1">nombre</code>,{" "}
           <code className="rounded bg-muted px-1">costo</code>,{" "}
           <code className="rounded bg-muted px-1">precio</code>. Los productos se agregan al
           punto seleccionado ({punto}).
@@ -244,6 +245,12 @@ export default function Productos() {
             className="rounded-2xl border border-border bg-card p-3 shadow-soft"
           >
             <div className="flex items-center gap-2">
+              <NumberInput
+                value={p.orden ?? i + 1}
+                onChange={(v) => updateAndSync(p.id, { orden: v || i + 1 })}
+                className="h-10 w-14 rounded-xl text-center font-semibold"
+                aria-label="Orden"
+              />
               <div className="flex flex-col">
                 <Button
                   variant="ghost"
@@ -306,7 +313,8 @@ export default function Productos() {
         variant="outline"
         className="h-11 w-full rounded-xl"
         onClick={() => {
-          addCatalogItem({ nombre: "Nuevo producto", precio: 0, costo: 0, punto });
+          const orden = productosPunto.length + 1;
+          addCatalogItem({ nombre: "Nuevo producto", precio: 0, costo: 0, punto, orden });
           toast.success(`Producto agregado a ${punto}`);
           const last = useCuadreStore.getState().catalogo.slice(-1)[0];
           if (last) pushCatalogItem(last).catch(console.error);
