@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { useCuadreStore, PUNTOS, PuntoVenta } from "@/store/cuadreStore";
+import { useCuadreStore, PUNTOS, PuntoVenta, sortCatalogo } from "@/store/cuadreStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/NumberInput";
@@ -49,11 +49,13 @@ export default function Productos() {
     );
   }
 
-  const productosPunto = catalogo.filter((p) => (p.punto ?? "Cafetería") === punto);
+  const productosPunto = sortCatalogo(catalogo).filter((p) => (p.punto ?? "Cafetería") === punto);
   const moveItem = (id: string, dir: -1 | 1) => {
     moveCatalogItem(id, dir);
-    const item = useCuadreStore.getState().catalogo.find((c) => c.id === id);
-    if (item) pushCatalogItem(item).catch(console.error);
+    useCuadreStore
+      .getState()
+      .catalogo.filter((c) => (c.punto ?? "Cafetería") === punto)
+      .forEach((c) => pushCatalogItem(c).catch(console.error));
   };
 
   const updateAndSync = (id: string, patch: any) => {
@@ -64,9 +66,9 @@ export default function Productos() {
 
   const descargarPlantilla = () => {
     const ws = XLSX.utils.aoa_to_sheet([
-      ["nombre", "costo", "precio"],
-      ["Café espresso", 20, 50],
-      ["Capuchino", 35, 80],
+      ["orden", "nombre", "costo", "precio"],
+      [1, "Café espresso", 20, 50],
+      [2, "Capuchino", 35, 80],
     ]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Productos");
@@ -81,17 +83,19 @@ export default function Productos() {
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws);
       const items = rows
-        .map((r) => {
+        .map((r, idx) => {
           // tolerante a mayúsculas/acentos
           const keys = Object.fromEntries(
             Object.entries(r).map(([k, v]) => [k.toLowerCase().trim(), v])
           );
+          const orden = Number(keys["orden"] ?? keys["lugar"] ?? keys["no"] ?? keys["#"] ?? idx + 1);
           const nombre = String(keys["nombre"] ?? keys["producto"] ?? "").trim();
           const costo = Number(keys["costo"] ?? keys["precio costo"] ?? 0);
           const precio = Number(keys["precio"] ?? keys["precio venta"] ?? 0);
-          return nombre ? { nombre, costo, precio, punto } : null;
+          return nombre ? { nombre, costo, precio, orden: orden || idx + 1, punto } : null;
         })
-        .filter(Boolean) as { nombre: string; costo: number; precio: number; punto: PuntoVenta }[];
+        .filter(Boolean)
+        .sort((a: any, b: any) => a.orden - b.orden) as { nombre: string; costo: number; precio: number; orden: number; punto: PuntoVenta }[];
       if (items.length === 0) {
         toast.error("No se encontraron filas válidas");
         return;
@@ -109,6 +113,7 @@ export default function Productos() {
         );
       if (reemplazar) {
         importCatalogReplace(items, punto);
+        existentes.forEach((c) => deleteCatalogItem(c.id).catch(console.error));
       } else {
         importCatalog(items);
       }
