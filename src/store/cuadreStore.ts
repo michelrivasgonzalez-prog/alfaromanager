@@ -94,7 +94,7 @@ export const sortCatalogo = (items: CatalogoItem[]) =>
     return (a.orden ?? 999999) - (b.orden ?? 999999);
   });
 
-const normalizeCatalogoOrden = (items: CatalogoItem[]) => {
+export const normalizeCatalogoOrden = (items: CatalogoItem[]) => {
   const counters: Record<PuntoVenta, number> = { "Cafetería": 0, "Mipyme": 0 };
   return sortCatalogo(items).map((item) => {
     const punto = item.punto ?? "Cafetería";
