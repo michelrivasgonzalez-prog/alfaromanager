@@ -12,7 +12,7 @@ export async function fullSync(role: "admin" | "duena" | "dependiente" | null) {
   const store = useCuadreStore.getState();
 
   // ---- Catálogo ----
-  const { data: catRemote } = await supabase
+  const { data: catRemote } = await (supabase as any)
     .from("catalogo")
     .select("id, nombre, precio, costo, punto, orden")
     .order("punto", { ascending: true })
@@ -36,7 +36,7 @@ export async function fullSync(role: "admin" | "duena" | "dependiente" | null) {
     if (role === "admin") {
       const toUpload = store.catalogo.filter((c) => !remoteIds.has(c.id));
       if (toUpload.length > 0) {
-        await supabase.from("catalogo").insert(
+        await (supabase as any).from("catalogo").insert(
           toUpload.map((c) => ({
             id: c.id,
             nombre: c.nombre,
@@ -112,7 +112,7 @@ export async function pushCatalogItem(c: {
   orden?: number;
   punto?: string;
 }) {
-  await supabase.from("catalogo").upsert({
+  await (supabase as any).from("catalogo").upsert({
     id: c.id,
     nombre: c.nombre,
     precio: c.precio,
