@@ -95,14 +95,22 @@ export default function Productos() {
           const keys = Object.fromEntries(
             Object.entries(r).map(([k, v]) => [k.toLowerCase().trim(), v])
           );
-          const orden = Number(keys["orden"] ?? keys["lugar"] ?? keys["no"] ?? keys["#"] ?? idx + 1);
+          const orden = Number(
+            keys["orden"] ?? keys["lugar"] ?? keys["no"] ?? keys["#"] ?? idx + 1
+          );
           const nombre = String(keys["nombre"] ?? keys["producto"] ?? "").trim();
           const costo = Number(keys["costo"] ?? keys["precio costo"] ?? 0);
           const precio = Number(keys["precio"] ?? keys["precio venta"] ?? 0);
           return nombre ? { nombre, costo, precio, orden: orden || idx + 1, punto } : null;
         })
         .filter(Boolean)
-        .sort((a: any, b: any) => a.orden - b.orden) as { nombre: string; costo: number; precio: number; orden: number; punto: PuntoVenta }[];
+        .sort((a: any, b: any) => a.orden - b.orden) as {
+        nombre: string;
+        costo: number;
+        precio: number;
+        orden: number;
+        punto: PuntoVenta;
+      }[];
       if (items.length === 0) {
         toast.error("No se encontraron filas válidas");
         return;
