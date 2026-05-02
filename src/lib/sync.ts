@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { Cuadre, sortCatalogo, useCuadreStore } from "@/store/cuadreStore";
+import { Cuadre, normalizeCatalogoOrden, useCuadreStore } from "@/store/cuadreStore";
 
 /**
  * Sincronización simple "pull-then-push":
@@ -19,7 +19,7 @@ export async function fullSync(role: "admin" | "duena" | "dependiente" | null) {
     .order("orden", { ascending: true });
   if (catRemote) {
     const remoteIds = new Set(catRemote.map((c) => c.id));
-    const merged = sortCatalogo([
+    const merged = normalizeCatalogoOrden([
       ...catRemote.map((c) => ({
         id: c.id,
         nombre: c.nombre,
