@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { Cuadre, useCuadreStore } from "@/store/cuadreStore";
+import { Cuadre, sortCatalogo, useCuadreStore } from "@/store/cuadreStore";
 
 /**
  * Sincronización simple "pull-then-push":
@@ -14,19 +14,22 @@ export async function fullSync(role: "admin" | "duena" | "dependiente" | null) {
   // ---- Catálogo ----
   const { data: catRemote } = await supabase
     .from("catalogo")
-    .select("id, nombre, precio, costo, punto");
+    .select("id, nombre, precio, costo, punto, orden")
+    .order("punto", { ascending: true })
+    .order("orden", { ascending: true });
   if (catRemote) {
     const remoteIds = new Set(catRemote.map((c) => c.id));
-    const merged = [
+    const merged = sortCatalogo([
       ...catRemote.map((c) => ({
         id: c.id,
         nombre: c.nombre,
         precio: Number(c.precio),
         costo: Number(c.costo),
+        orden: Number((c as any).orden ?? 0),
         punto: (c.punto as "Cafetería" | "Mipyme" | undefined) || undefined,
       })),
       ...store.catalogo.filter((c) => !remoteIds.has(c.id)),
-    ];
+    ]);
     useCuadreStore.setState({ catalogo: merged });
 
     // Push faltantes si admin
@@ -39,6 +42,7 @@ export async function fullSync(role: "admin" | "duena" | "dependiente" | null) {
             nombre: c.nombre,
             precio: c.precio,
             costo: c.costo,
+            orden: c.orden ?? 0,
             punto: c.punto ?? null,
           }))
         );
@@ -105,6 +109,7 @@ export async function pushCatalogItem(c: {
   nombre: string;
   precio: number;
   costo: number;
+  orden?: number;
   punto?: string;
 }) {
   await supabase.from("catalogo").upsert({
@@ -112,8 +117,9 @@ export async function pushCatalogItem(c: {
     nombre: c.nombre,
     precio: c.precio,
     costo: c.costo,
+    orden: c.orden ?? 0,
     punto: c.punto ?? null,
-  });
+  } as any);
 }
 
 export async function deleteCatalogItem(id: string) {
