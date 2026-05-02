@@ -281,22 +281,27 @@ export const useCuadreStore = create<State>()(
         })),
       moveCatalogItem: (id, dir) =>
         set((s) => {
-          const item = s.catalogo.find((c) => c.id === id);
+          const ordered = normalizeCatalogoOrden(s.catalogo);
+          const item = ordered.find((c) => c.id === id);
           if (!item) return {};
           const punto = item.punto ?? "Cafetería";
-          // Trabajamos sobre los índices globales pero solo intercambiamos
-          // dentro del mismo punto de venta.
-          const idxsPunto = s.catalogo
-            .map((c, i) => ((c.punto ?? "Cafetería") === punto ? i : -1))
-            .filter((i) => i >= 0);
-          const pos = idxsPunto.indexOf(s.catalogo.findIndex((c) => c.id === id));
+          const same = ordered.filter((c) => (c.punto ?? "Cafetería") === punto);
+          const pos = same.findIndex((c) => c.id === id);
           const target = pos + dir;
-          if (target < 0 || target >= idxsPunto.length) return {};
-          const a = idxsPunto[pos];
-          const b = idxsPunto[target];
-          const next = [...s.catalogo];
-          [next[a], next[b]] = [next[b], next[a]];
-          return { catalogo: next };
+          if (target < 0 || target >= same.length) return {};
+          const a = same[pos];
+          const b = same[target];
+          return {
+            catalogo: normalizeCatalogoOrden(
+              ordered.map((c) =>
+                c.id === a.id
+                  ? { ...c, orden: b.orden }
+                  : c.id === b.id
+                  ? { ...c, orden: a.orden }
+                  : c
+              )
+            ),
+          };
         }),
       syncProductoToCatalog: (productoId) =>
         set((s) => {
