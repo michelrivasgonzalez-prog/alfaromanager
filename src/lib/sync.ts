@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { Cuadre, useCuadreStore } from "@/store/cuadreStore";
+import { Cuadre, normalizeCatalogoOrden, useCuadreStore } from "@/store/cuadreStore";
 
 /**
  * Sincronización simple "pull-then-push":
@@ -12,35 +12,39 @@ export async function fullSync(role: "admin" | "duena" | "dependiente" | null) {
   const store = useCuadreStore.getState();
 
   // ---- Catálogo ----
-  const { data: catRemote } = await supabase
+  const { data: catRemote } = await (supabase as any)
     .from("catalogo")
-    .select("id, nombre, precio, costo, punto");
+    .select("id, nombre, precio, costo, punto, orden")
+    .order("punto", { ascending: true })
+    .order("orden", { ascending: true });
   if (catRemote) {
     const remoteIds = new Set(catRemote.map((c) => c.id));
-    const merged = [
+    const merged = normalizeCatalogoOrden([
       ...catRemote.map((c) => ({
         id: c.id,
         nombre: c.nombre,
         precio: Number(c.precio),
         costo: Number(c.costo),
+        orden: Number((c as any).orden ?? 0),
         punto: (c.punto as "Cafetería" | "Mipyme" | undefined) || undefined,
       })),
       ...store.catalogo.filter((c) => !remoteIds.has(c.id)),
-    ];
+    ]);
     useCuadreStore.setState({ catalogo: merged });
 
     // Push faltantes si admin
     if (role === "admin") {
       const toUpload = store.catalogo.filter((c) => !remoteIds.has(c.id));
       if (toUpload.length > 0) {
-        await supabase.from("catalogo").insert(
+        await (supabase as any).from("catalogo").insert(
           toUpload.map((c) => ({
             id: c.id,
             nombre: c.nombre,
             precio: c.precio,
             costo: c.costo,
+            orden: c.orden ?? 0,
             punto: c.punto ?? null,
-          }))
+          })) as any
         );
       }
     }
@@ -105,15 +109,17 @@ export async function pushCatalogItem(c: {
   nombre: string;
   precio: number;
   costo: number;
+  orden?: number;
   punto?: string;
 }) {
-  await supabase.from("catalogo").upsert({
+  await (supabase as any).from("catalogo").upsert({
     id: c.id,
     nombre: c.nombre,
     precio: c.precio,
     costo: c.costo,
+    orden: c.orden ?? 0,
     punto: c.punto ?? null,
-  });
+  } as any);
 }
 
 export async function deleteCatalogItem(id: string) {

@@ -17,6 +17,7 @@ export type CatalogoItem = {
   nombre: string;
   precio: number;
   costo: number;
+  orden?: number;
   punto?: "Cafetería" | "Mipyme";
 };
 
@@ -74,16 +75,33 @@ const DEFAULT_SETTINGS: Settings = {
 };
 
 const DEFAULT_CATALOG: CatalogoItem[] = [
-  { id: "p1", nombre: "Café", precio: 50, costo: 20, punto: "Cafetería" },
-  { id: "p2", nombre: "Azúcar", precio: 5, costo: 2, punto: "Cafetería" },
-  { id: "p3", nombre: "Leche", precio: 30, costo: 15, punto: "Cafetería" },
-  { id: "p4", nombre: "Vasos", precio: 5, costo: 2, punto: "Cafetería" },
+  { id: "p1", nombre: "Café", precio: 50, costo: 20, punto: "Cafetería", orden: 1 },
+  { id: "p2", nombre: "Azúcar", precio: 5, costo: 2, punto: "Cafetería", orden: 2 },
+  { id: "p3", nombre: "Leche", precio: 30, costo: 15, punto: "Cafetería", orden: 3 },
+  { id: "p4", nombre: "Vasos", precio: 5, costo: 2, punto: "Cafetería", orden: 4 },
 ];
 
 export const DENOMINACIONES = [1000, 500, 200, 100, 50, 20, 10, 5];
 
 const emptyDen = (): Denominaciones =>
   Object.fromEntries(DENOMINACIONES.map((d) => [String(d), 0]));
+
+export const sortCatalogo = (items: CatalogoItem[]) =>
+  [...items].sort((a, b) => {
+    const pa = a.punto ?? "Cafetería";
+    const pb = b.punto ?? "Cafetería";
+    if (pa !== pb) return PUNTOS.indexOf(pa) - PUNTOS.indexOf(pb);
+    return (a.orden ?? 999999) - (b.orden ?? 999999);
+  });
+
+export const normalizeCatalogoOrden = (items: CatalogoItem[]) => {
+  const counters: Record<PuntoVenta, number> = { "Cafetería": 0, "Mipyme": 0 };
+  return sortCatalogo(items).map((item) => {
+    const punto = item.punto ?? "Cafetería";
+    counters[punto] += 1;
+    return { ...item, punto, orden: counters[punto] };
+  });
+};
 
 export const newCuadre = (
   punto: PuntoVenta,
@@ -96,7 +114,7 @@ export const newCuadre = (
   diasTrabajados: [new Date().toISOString()],
   dependiente: "",
   // Snapshot del catálogo: cambios futuros NO afectan este cuadre
-  productos: catalogo
+  productos: sortCatalogo(catalogo)
     .filter((c) => !c.punto || c.punto === punto)
     .map((c) => ({
     id: crypto.randomUUID(),
@@ -206,29 +224,54 @@ export const useCuadreStore = create<State>()(
 
       addCatalogItem: (item) =>
         set((s) => ({
-          catalogo: [...s.catalogo, { ...item, id: crypto.randomUUID() }],
+          catalogo: normalizeCatalogoOrden([
+            ...s.catalogo,
+            {
+              ...item,
+              id: crypto.randomUUID(),
+              orden:
+                item.orden ??
+                Math.max(
+                  0,
+                  ...s.catalogo
+                    .filter((c) => (c.punto ?? "Cafetería") === (item.punto ?? "Cafetería"))
+                    .map((c) => c.orden ?? 0)
+                ) + 1,
+            },
+          ]),
         })),
       updateCatalogItem: (id, patch) =>
         set((s) => ({
-          catalogo: s.catalogo.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+          catalogo: normalizeCatalogoOrden(
+            s.catalogo.map((c) => (c.id === id ? { ...c, ...patch } : c))
+          ),
         })),
       removeCatalogItem: (id) =>
         set((s) => ({ catalogo: s.catalogo.filter((c) => c.id !== id) })),
       importCatalog: (items) =>
-        set((s) => ({
-          catalogo: [
-            ...s.catalogo,
-            ...items.map((i) => ({ ...i, id: crypto.randomUUID() })),
-          ],
-        })),
+        set((s) => {
+          const next = items.map((i, idx) => ({
+            ...i,
+            id: crypto.randomUUID(),
+            orden:
+              i.orden ??
+              Math.max(
+                0,
+                ...s.catalogo
+                  .filter((c) => (c.punto ?? "Cafetería") === (i.punto ?? "Cafetería"))
+                  .map((c) => c.orden ?? 0)
+              ) + idx + 1,
+          }));
+          return { catalogo: normalizeCatalogoOrden([...s.catalogo, ...next]) };
+        }),
       importCatalogReplace: (items, punto) =>
         set((s) => ({
           // Conserva los productos de OTROS puntos y reemplaza por completo
           // los del punto indicado, respetando el orden del Excel.
-          catalogo: [
+          catalogo: normalizeCatalogoOrden([
             ...s.catalogo.filter((c) => (c.punto ?? "Cafetería") !== punto),
-            ...items.map((i) => ({ ...i, id: crypto.randomUUID() })),
-          ],
+            ...items.map((i, idx) => ({ ...i, punto, id: crypto.randomUUID(), orden: i.orden ?? idx + 1 })),
+          ]),
         })),
       clearCatalog: (punto) =>
         set((s) => ({
@@ -238,22 +281,27 @@ export const useCuadreStore = create<State>()(
         })),
       moveCatalogItem: (id, dir) =>
         set((s) => {
-          const item = s.catalogo.find((c) => c.id === id);
+          const ordered = normalizeCatalogoOrden(s.catalogo);
+          const item = ordered.find((c) => c.id === id);
           if (!item) return {};
           const punto = item.punto ?? "Cafetería";
-          // Trabajamos sobre los índices globales pero solo intercambiamos
-          // dentro del mismo punto de venta.
-          const idxsPunto = s.catalogo
-            .map((c, i) => ((c.punto ?? "Cafetería") === punto ? i : -1))
-            .filter((i) => i >= 0);
-          const pos = idxsPunto.indexOf(s.catalogo.findIndex((c) => c.id === id));
+          const same = ordered.filter((c) => (c.punto ?? "Cafetería") === punto);
+          const pos = same.findIndex((c) => c.id === id);
           const target = pos + dir;
-          if (target < 0 || target >= idxsPunto.length) return {};
-          const a = idxsPunto[pos];
-          const b = idxsPunto[target];
-          const next = [...s.catalogo];
-          [next[a], next[b]] = [next[b], next[a]];
-          return { catalogo: next };
+          if (target < 0 || target >= same.length) return {};
+          const a = same[pos];
+          const b = same[target];
+          return {
+            catalogo: normalizeCatalogoOrden(
+              ordered.map((c) =>
+                c.id === a.id
+                  ? { ...c, orden: b.orden }
+                  : c.id === b.id
+                  ? { ...c, orden: a.orden }
+                  : c
+              )
+            ),
+          };
         }),
       syncProductoToCatalog: (productoId) =>
         set((s) => {
@@ -484,15 +532,6 @@ export const sugerirPagoSalario = (
     const usar = Math.min(dispo, Math.floor(restante / bill));
     result[String(bill)] = usar;
     restante -= usar * bill;
-  }
-  if (restante > 0) {
-    const desc = [...DENOMINACIONES].sort((a, b) => b - a);
-    for (const bill of desc) {
-      if (restante < bill) continue;
-      const usar = Math.floor(restante / bill);
-      result[String(bill)] = (result[String(bill)] || 0) + usar;
-      restante -= usar * bill;
-    }
   }
   return result;
 };
