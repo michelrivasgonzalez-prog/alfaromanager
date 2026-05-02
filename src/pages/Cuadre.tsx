@@ -1246,12 +1246,21 @@ function Step9() {
         <div className="space-y-2">
           {DENOMINACIONES.map((d) => (
             <div key={d} className="flex items-center gap-3">
-              <div className="flex h-9 w-14 items-center justify-center rounded-lg bg-muted text-xs font-bold">
-                ${d}
+              <div className="flex h-9 w-16 flex-col items-center justify-center rounded-lg bg-muted text-xs font-bold leading-tight">
+                <span>${d}</span>
+                <span className="text-[9px] font-medium text-muted-foreground">
+                  max {current.denominaciones[String(d)] || 0}
+                </span>
               </div>
               <NumberInput
                 value={current.salarioDenominaciones[String(d)] || 0}
-                onChange={(v) => setSalarioDen(String(d), v)}
+                onChange={(v) =>
+                  setSalarioDen(
+                    String(d),
+                    Math.min(v, current.denominaciones[String(d)] || 0)
+                  )
+                }
+                disabled={noHayEfectivo}
                 className="h-9 flex-1 rounded-lg"
                 placeholder="0"
               />
