@@ -1124,6 +1124,10 @@ function Step9() {
       (s, n) => s + n,
       0
     );
+    if (noHayEfectivo && totalSet > 0) {
+      DENOMINACIONES.forEach((d) => setSalarioDen(String(d), 0));
+      return;
+    }
     if (totalSet === 0 && c.salarioReal > 0 && !noHayEfectivo) {
       Object.entries(sugerencia).forEach(([b, n]) => setSalarioDen(b, n));
     }
