@@ -1116,13 +1116,15 @@ function Step9() {
     () => sugerirPagoSalario(c.salarioReal, current.denominaciones),
     [c.salarioReal, current.denominaciones]
   );
+  const efectivoRecibido = c.efectivoEnCaja;
+  const noHayEfectivo = efectivoRecibido <= 0;
 
   useEffect(() => {
     const totalSet = Object.values(current.salarioDenominaciones).reduce(
       (s, n) => s + n,
       0
     );
-    if (totalSet === 0 && c.salarioReal > 0) {
+    if (totalSet === 0 && c.salarioReal > 0 && !noHayEfectivo) {
       Object.entries(sugerencia).forEach(([b, n]) => setSalarioDen(b, n));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1183,13 +1185,17 @@ function Step9() {
           <div>
             <div className="font-semibold">Pago sugerido</div>
             <div className="text-xs text-muted-foreground">
-              Total: {fmt(c.salarioReal)}
+              Desde efectivo recibido en caja: {fmt(efectivoRecibido)}
             </div>
           </div>
         </div>
-        {sugerenciaCompacta.length === 0 ? (
+        {noHayEfectivo ? (
+          <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-4 text-center text-xs font-medium text-destructive">
+            No tienes efectivo en caja para pagar.
+          </div>
+        ) : sugerenciaCompacta.length === 0 ? (
           <div className="rounded-xl bg-muted/60 px-3 py-4 text-center text-xs text-muted-foreground">
-            Sin sugerencia
+            No alcanza el efectivo recibido para sugerir una denominación completa.
           </div>
         ) : (
           <div className="flex flex-wrap gap-2">
@@ -1217,6 +1223,7 @@ function Step9() {
             size="sm"
             variant="outline"
             className="h-8 rounded-lg text-xs"
+            disabled={noHayEfectivo}
             onClick={() => {
               Object.entries(sugerencia).forEach(([b, n]) => setSalarioDen(b, n));
               toast.success("Sugerencia aplicada");
