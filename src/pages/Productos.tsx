@@ -60,7 +60,14 @@ export default function Productos() {
 
   const updateAndSync = (id: string, patch: any) => {
     updateCatalogItem(id, patch);
-    const next = useCuadreStore.getState().catalogo.find((c) => c.id === id);
+    const state = useCuadreStore.getState();
+    if ("orden" in patch) {
+      state.catalogo
+        .filter((c) => (c.punto ?? "Cafetería") === punto)
+        .forEach((c) => pushCatalogItem(c).catch(console.error));
+      return;
+    }
+    const next = state.catalogo.find((c) => c.id === id);
     if (next) pushCatalogItem(next).catch(console.error);
   };
 
