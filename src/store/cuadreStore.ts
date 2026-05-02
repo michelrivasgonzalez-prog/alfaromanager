@@ -17,6 +17,7 @@ export type CatalogoItem = {
   nombre: string;
   precio: number;
   costo: number;
+  orden?: number;
   punto?: "Cafetería" | "Mipyme";
 };
 
@@ -74,16 +75,33 @@ const DEFAULT_SETTINGS: Settings = {
 };
 
 const DEFAULT_CATALOG: CatalogoItem[] = [
-  { id: "p1", nombre: "Café", precio: 50, costo: 20, punto: "Cafetería" },
-  { id: "p2", nombre: "Azúcar", precio: 5, costo: 2, punto: "Cafetería" },
-  { id: "p3", nombre: "Leche", precio: 30, costo: 15, punto: "Cafetería" },
-  { id: "p4", nombre: "Vasos", precio: 5, costo: 2, punto: "Cafetería" },
+  { id: "p1", nombre: "Café", precio: 50, costo: 20, punto: "Cafetería", orden: 1 },
+  { id: "p2", nombre: "Azúcar", precio: 5, costo: 2, punto: "Cafetería", orden: 2 },
+  { id: "p3", nombre: "Leche", precio: 30, costo: 15, punto: "Cafetería", orden: 3 },
+  { id: "p4", nombre: "Vasos", precio: 5, costo: 2, punto: "Cafetería", orden: 4 },
 ];
 
 export const DENOMINACIONES = [1000, 500, 200, 100, 50, 20, 10, 5];
 
 const emptyDen = (): Denominaciones =>
   Object.fromEntries(DENOMINACIONES.map((d) => [String(d), 0]));
+
+export const sortCatalogo = (items: CatalogoItem[]) =>
+  [...items].sort((a, b) => {
+    const pa = a.punto ?? "Cafetería";
+    const pb = b.punto ?? "Cafetería";
+    if (pa !== pb) return PUNTOS.indexOf(pa) - PUNTOS.indexOf(pb);
+    return (a.orden ?? 999999) - (b.orden ?? 999999);
+  });
+
+const normalizeCatalogoOrden = (items: CatalogoItem[]) => {
+  const counters: Record<PuntoVenta, number> = { "Cafetería": 0, "Mipyme": 0 };
+  return sortCatalogo(items).map((item) => {
+    const punto = item.punto ?? "Cafetería";
+    counters[punto] += 1;
+    return { ...item, punto, orden: item.orden && item.orden > 0 ? item.orden : counters[punto] };
+  });
+};
 
 export const newCuadre = (
   punto: PuntoVenta,
@@ -96,7 +114,7 @@ export const newCuadre = (
   diasTrabajados: [new Date().toISOString()],
   dependiente: "",
   // Snapshot del catálogo: cambios futuros NO afectan este cuadre
-  productos: catalogo
+  productos: sortCatalogo(catalogo)
     .filter((c) => !c.punto || c.punto === punto)
     .map((c) => ({
     id: crypto.randomUUID(),
