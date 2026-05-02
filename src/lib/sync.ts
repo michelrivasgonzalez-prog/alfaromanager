@@ -44,7 +44,7 @@ export async function fullSync(role: "admin" | "duena" | "dependiente" | null) {
             costo: c.costo,
             orden: c.orden ?? 0,
             punto: c.punto ?? null,
-          }))
+          })) as any
         );
       }
     }
