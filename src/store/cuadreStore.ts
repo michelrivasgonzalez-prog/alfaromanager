@@ -74,12 +74,7 @@ const DEFAULT_SETTINGS: Settings = {
   porcentajeTransferencia: 10,
 };
 
-const DEFAULT_CATALOG: CatalogoItem[] = [
-  { id: "p1", nombre: "Café", precio: 50, costo: 20, punto: "Cafetería", orden: 1 },
-  { id: "p2", nombre: "Azúcar", precio: 5, costo: 2, punto: "Cafetería", orden: 2 },
-  { id: "p3", nombre: "Leche", precio: 30, costo: 15, punto: "Cafetería", orden: 3 },
-  { id: "p4", nombre: "Vasos", precio: 5, costo: 2, punto: "Cafetería", orden: 4 },
-];
+const DEFAULT_CATALOG: CatalogoItem[] = [];
 
 export const DENOMINACIONES = [1000, 500, 200, 100, 50, 20, 10, 5];
 
