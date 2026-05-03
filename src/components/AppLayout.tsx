@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Home, History, BarChart3, Package, Users, Settings, LogOut } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth, AppRole } from "@/hooks/useAuth";
@@ -15,13 +15,14 @@ const ALL_TABS: { to: string; icon: any; label: string; allow: AppRole[] }[] = [
 
 export default function AppLayout() {
   const location = useLocation();
-  const { role, signOut, user } = useAuth();
+  const navigate = useNavigate();
+  const { role, signOut, nombre } = useAuth();
   const tabs = ALL_TABS.filter((t) => !role || t.allow.includes(role));
   return (
     <div className="min-h-screen gradient-warm">
       <div className="mx-auto flex max-w-2xl items-center justify-between px-4 pt-3 text-xs text-muted-foreground">
         <span className="truncate">
-          {user?.email}
+          {nombre}
           {role && (
             <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary">
               {role === "duena" ? "Dueña" : role === "admin" ? "Admin" : "Dependiente"}
@@ -31,7 +32,10 @@ export default function AppLayout() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => signOut()}
+          onClick={async () => {
+            await signOut();
+            navigate("/auth", { replace: true });
+          }}
           className="h-7 px-2 text-xs"
         >
           <LogOut className="mr-1 h-3 w-3" /> Salir
