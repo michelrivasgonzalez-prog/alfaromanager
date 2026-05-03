@@ -21,6 +21,7 @@ export default function Auth() {
   const [nombre, setNombre] = useState("");
   const [recoveryEmail, setRecoveryEmail] = useState("");
   const [firstPin, setFirstPin] = useState("");
+  const [showRecover, setShowRecover] = useState(false);
 
   useEffect(() => {
     if (currentUserId) nav("/", { replace: true });
@@ -117,8 +118,6 @@ export default function Auth() {
   }
 
   // ---- Login ----
-  const [showRecover, setShowRecover] = useState(false);
-
   if (showRecover) {
     return <Recovery onClose={() => setShowRecover(false)} />;
   }
