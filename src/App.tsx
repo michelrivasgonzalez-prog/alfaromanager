@@ -13,16 +13,13 @@ import Usuarios from "./pages/Usuarios";
 import Ajustes from "./pages/Ajustes";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
-import { AuthProvider, useAuth } from "@/hooks/useAuth";
-import { useEffect } from "react";
-import { fullSync } from "@/lib/sync";
+import { usePinStore } from "@/store/pinStore";
 
 const queryClient = new QueryClient();
 
 function RequireAuth({ children }: { children: JSX.Element }) {
-  const { session, loading } = useAuth();
-  if (loading) return null;
-  if (!session) return <Navigate to="/auth" replace />;
+  const currentUserId = usePinStore((s) => s.currentUserId);
+  if (!currentUserId) return <Navigate to="/auth" replace />;
   return children;
 }
 
@@ -33,20 +30,10 @@ function RequireRole({
   allow: Array<"admin" | "duena" | "dependiente">;
   children: JSX.Element;
 }) {
-  const { role, loading } = useAuth();
-  if (loading) return null;
-  if (!role || !allow.includes(role)) return <Navigate to="/" replace />;
+  const { users, currentUserId } = usePinStore();
+  const u = users.find((x) => x.id === currentUserId);
+  if (!u || !allow.includes(u.role)) return <Navigate to="/" replace />;
   return children;
-}
-
-function SyncBoot() {
-  const { role, session } = useAuth();
-  useEffect(() => {
-    if (session && role) {
-      fullSync(role).catch(console.error);
-    }
-  }, [session, role]);
-  return null;
 }
 
 const App = () => (
@@ -55,49 +42,46 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <AuthProvider>
-          <SyncBoot />
-          <Routes>
-            <Route path="/auth" element={<Auth />} />
+        <Routes>
+          <Route path="/auth" element={<Auth />} />
+          <Route
+            element={
+              <RequireAuth>
+                <AppLayout />
+              </RequireAuth>
+            }
+          >
+            <Route path="/" element={<Index />} />
             <Route
+              path="/cuadre/:step"
               element={
-                <RequireAuth>
-                  <AppLayout />
-                </RequireAuth>
+                <RequireRole allow={["admin", "dependiente"]}>
+                  <Cuadre />
+                </RequireRole>
               }
-            >
-              <Route path="/" element={<Index />} />
-              <Route
-                path="/cuadre/:step"
-                element={
-                  <RequireRole allow={["admin", "dependiente"]}>
-                    <Cuadre />
-                  </RequireRole>
-                }
-              />
-              <Route path="/historial" element={<Historial />} />
-              <Route path="/reportes" element={<Reportes />} />
-              <Route
-                path="/productos"
-                element={
-                  <RequireRole allow={["admin"]}>
-                    <Productos />
-                  </RequireRole>
-                }
-              />
-              <Route
-                path="/usuarios"
-                element={
-                  <RequireRole allow={["admin"]}>
-                    <Usuarios />
-                  </RequireRole>
-                }
-              />
-              <Route path="/ajustes" element={<Ajustes />} />
-            </Route>
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </AuthProvider>
+            />
+            <Route path="/historial" element={<Historial />} />
+            <Route path="/reportes" element={<Reportes />} />
+            <Route
+              path="/productos"
+              element={
+                <RequireRole allow={["admin"]}>
+                  <Productos />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="/usuarios"
+              element={
+                <RequireRole allow={["admin"]}>
+                  <Usuarios />
+                </RequireRole>
+              }
+            />
+            <Route path="/ajustes" element={<Ajustes />} />
+          </Route>
+          <Route path="*" element={<NotFound />} />
+        </Routes>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
