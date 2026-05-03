@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useCuadreStore, PUNTOS } from "@/store/cuadreStore";
 import { usePinStore } from "@/store/pinStore";
 import { useAuth } from "@/hooks/useAuth";
@@ -24,11 +24,11 @@ export default function Ajustes() {
   const [password, setPassword] = useState("");
 
   // Detect existing cloud session
-  useState(() => {
+  useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setCloudUser(data.session?.user.email ?? null);
     });
-  });
+  }, []);
 
   const connectCloud = async (e: React.FormEvent) => {
     e.preventDefault();
