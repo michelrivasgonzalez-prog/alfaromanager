@@ -15,6 +15,9 @@ import {
   TrendingDown,
   Coffee,
   Store,
+  Lock,
+  LockOpen,
+  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -33,6 +36,22 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import StepShell from "@/components/cuadre/StepShell";
 import { NumberInput } from "@/components/NumberInput";
@@ -50,7 +69,7 @@ import { generarPDF } from "@/lib/pdf";
 import { pushCuadre } from "@/lib/sync";
 
 const fmt = (n: number) =>
-  `$${n.toLocaleString("es-ES", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+  `$${n.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function Cuadre() {
   const { step } = useParams();
