@@ -260,13 +260,24 @@ function StepInventario({
   field: "inicio" | "final";
   title: string;
 }) {
-  const { currents, activePunto, updateProducto, history, importarFinales } =
-    useCuadreStore();
+  const {
+    currents,
+    activePunto,
+    updateProducto,
+    history,
+    importarFinales,
+    desbloquearProducto,
+  } = useCuadreStore();
   const current = currents[activePunto];
   const [editing, setEditing] = useState<string | null>(null);
+  const [unlockId, setUnlockId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState<string | null>(null);
+  const [unlockNote, setUnlockNote] = useState("");
   if (!current) return null;
 
   const previos = history.filter((h) => h.puntoVenta === activePunto);
+  const isInicio = field === "inicio";
+  const productoUnlock = current.productos.find((p) => p.id === unlockId);
 
   return (
     <StepShell title={title}>
@@ -314,9 +325,43 @@ function StepInventario({
           <tbody>
             {current.productos.map((p) => (
               <tr key={p.id} className="border-t border-border">
-                <td className="px-3 py-3 font-medium">{p.nombre}</td>
+                <td className="px-3 py-3 font-medium">
+                  <div className="flex items-center gap-2">
+                    {isInicio && p.bloqueado && (
+                      <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                    )}
+                    {isInicio && editingName === p.id && !p.bloqueado ? (
+                      <Input
+                        autoFocus
+                        defaultValue={p.nombre}
+                        onBlur={(e) => {
+                          const v = e.target.value.trim();
+                          if (v) updateProducto(p.id, { nombre: v });
+                          setEditingName(null);
+                        }}
+                        className="h-8 rounded-lg"
+                      />
+                    ) : (
+                      <span
+                        className={cn(
+                          isInicio && !p.bloqueado && "cursor-pointer underline-offset-2 hover:underline"
+                        )}
+                        onClick={() => {
+                          if (isInicio && !p.bloqueado) setEditingName(p.id);
+                        }}
+                      >
+                        {p.nombre}
+                      </span>
+                    )}
+                  </div>
+                  {isInicio && p.notaDesbloqueo && (
+                    <div className="mt-0.5 text-[10px] text-muted-foreground">
+                      Nota: {p.notaDesbloqueo}
+                    </div>
+                  )}
+                </td>
                 <td className="px-3 py-2 text-right">
-                  {editing === p.id ? (
+                  {editing === p.id && !(isInicio && p.bloqueado) ? (
                     <NumberInput
                       autoFocus
                       value={p[field]}
@@ -329,14 +374,29 @@ function StepInventario({
                   )}
                 </td>
                 <td className="px-2 py-2 text-right">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 rounded-lg"
-                    onClick={() => setEditing(editing === p.id ? null : p.id)}
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
+                  {isInicio && p.bloqueado ? (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 rounded-lg"
+                      title="Desbloquear (requiere nota)"
+                      onClick={() => {
+                        setUnlockId(p.id);
+                        setUnlockNote("");
+                      }}
+                    >
+                      <Lock className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 rounded-lg"
+                      onClick={() => setEditing(editing === p.id ? null : p.id)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -346,6 +406,62 @@ function StepInventario({
       <p className="text-center text-xs text-muted-foreground">
         Para agregar productos nuevos, ve al paso de Entradas y traslados.
       </p>
+
+      <Dialog
+        open={!!unlockId}
+        onOpenChange={(o) => {
+          if (!o) {
+            setUnlockId(null);
+            setUnlockNote("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <LockOpen className="h-4 w-4" /> Desbloquear inicio
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Producto: <strong>{productoUnlock?.nombre}</strong>
+            </p>
+            <Label className="text-xs">Nota (obligatoria)</Label>
+            <Textarea
+              value={unlockNote}
+              onChange={(e) => setUnlockNote(e.target.value)}
+              placeholder="Motivo del cambio (ej. error de conteo del turno anterior)"
+              className="min-h-[80px] rounded-xl"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              La nota se anexará en el resumen y en el PDF del IPV.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setUnlockId(null);
+                setUnlockNote("");
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              disabled={!unlockNote.trim()}
+              onClick={() => {
+                if (!unlockId) return;
+                desbloquearProducto(unlockId, unlockNote.trim());
+                toast.success("Producto desbloqueado");
+                setUnlockId(null);
+                setUnlockNote("");
+              }}
+            >
+              Desbloquear
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </StepShell>
   );
 }
