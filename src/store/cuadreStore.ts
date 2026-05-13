@@ -10,6 +10,12 @@ export type Producto = {
   final: number;
   precio: number;
   costo: number;
+  // Bloqueado por importación de finales del turno anterior.
+  // Si está bloqueado, no se puede editar nombre ni inicio salvo
+  // que el usuario lo desbloquee con una nota obligatoria.
+  bloqueado?: boolean;
+  // Nota obligatoria registrada al desbloquear el producto.
+  notaDesbloqueo?: string;
 };
 
 export type CatalogoItem = {
@@ -167,6 +173,7 @@ interface State {
   startCuadre: (punto?: PuntoVenta) => void;
   updateCurrent: (patch: Partial<Cuadre>) => void;
   updateProducto: (id: string, patch: Partial<Producto>) => void;
+  desbloquearProducto: (id: string, nota: string) => void;
   addProducto: (p: Omit<Producto, "id">) => void;
   removeProducto: (id: string) => void;
   addGasto: (g: Omit<Gasto, "id">) => void;
@@ -354,6 +361,15 @@ export const useCuadreStore = create<State>()(
             productos: c.productos.map((p) => (p.id === id ? { ...p, ...patch } : p)),
           }))
         ),
+      desbloquearProducto: (id, nota) =>
+        set((s) =>
+          updateActive(s, (c) => ({
+            ...c,
+            productos: c.productos.map((p) =>
+              p.id === id ? { ...p, bloqueado: false, notaDesbloqueo: nota } : p
+            ),
+          }))
+        ),
       addProducto: (p) =>
         set((s) =>
           updateActive(s, (c) => ({
@@ -404,6 +420,29 @@ export const useCuadreStore = create<State>()(
         const s = get();
         const c = s.currents[s.activePunto];
         if (!c) return;
+        // Actualiza el catálogo con precios/costos finales del turno
+        const punto = c.puntoVenta;
+        const catalogo = [...s.catalogo];
+        for (const p of c.productos) {
+          const nombre = p.nombre.trim();
+          if (!nombre) continue;
+          const idx = catalogo.findIndex(
+            (ci) =>
+              ci.nombre.trim().toLowerCase() === nombre.toLowerCase() &&
+              (ci.punto ?? "Cafetería") === punto
+          );
+          if (idx >= 0) {
+            catalogo[idx] = { ...catalogo[idx], precio: p.precio, costo: p.costo };
+          } else {
+            catalogo.push({
+              id: crypto.randomUUID(),
+              nombre,
+              precio: p.precio,
+              costo: p.costo,
+              punto,
+            });
+          }
+        }
         set({
           history: [
             { ...c, finalizado: true, fecha: new Date().toISOString() },
@@ -411,6 +450,7 @@ export const useCuadreStore = create<State>()(
           ],
           currents: { ...s.currents, [s.activePunto]: null },
           lastStep: { ...s.lastStep, [s.activePunto]: 1 },
+          catalogo: normalizeCatalogoOrden(catalogo),
         });
       },
       cancelar: (punto) =>
@@ -428,12 +468,39 @@ export const useCuadreStore = create<State>()(
           const src = s.history.find((h) => h.id === cuadreId);
           const c = s.currents[s.activePunto];
           if (!src || !c) return {};
-          // Map por nombre para tolerar IDs distintos entre snapshots
-          const finales = new Map(src.productos.map((p) => [p.nombre, p.final]));
-          const productos = c.productos.map((p) => ({
-            ...p,
-            inicio: finales.get(p.nombre) ?? p.inicio,
-          }));
+          // Toma el ORDEN del cuadre fuente. Bloquea los productos cuyo final
+          // del turno anterior fue > 0 (no se puede editar nombre ni inicio).
+          // Productos sin existencia final quedan editables.
+          const currentByName = new Map(
+            c.productos.map((p) => [p.nombre.trim().toLowerCase(), p])
+          );
+          const usados = new Set<string>();
+          const reordenados = src.productos.map((sp) => {
+            const key = sp.nombre.trim().toLowerCase();
+            const existing = currentByName.get(key);
+            usados.add(key);
+            const base = existing ?? {
+              id: crypto.randomUUID(),
+              nombre: sp.nombre,
+              entradas: 0,
+              traslados: 0,
+              final: 0,
+              precio: sp.precio,
+              costo: sp.costo,
+              inicio: 0,
+            };
+            return {
+              ...base,
+              nombre: sp.nombre,
+              inicio: sp.final,
+              bloqueado: sp.final > 0,
+              notaDesbloqueo: undefined,
+            };
+          });
+          const restantes = c.productos.filter(
+            (p) => !usados.has(p.nombre.trim().toLowerCase())
+          );
+          const productos = [...reordenados, ...restantes];
           return {
             currents: { ...s.currents, [s.activePunto]: { ...c, productos } },
           };
