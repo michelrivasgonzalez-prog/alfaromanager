@@ -1580,6 +1580,23 @@ function Step10({ onClose }: { onClose: () => void }) {
         <Row label="Salario real (pagado)" value={fmt(c.salarioReal)} highlight="emerald" />
       </div>
 
+      {current.productos.some((p) => p.notaDesbloqueo) && (
+        <div className="rounded-2xl border border-amber-300/60 bg-amber-50 p-4 shadow-soft text-sm dark:bg-amber-950/30">
+          <div className="mb-2 flex items-center gap-2 font-semibold">
+            <LockOpen className="h-4 w-4" /> Notas de desbloqueo de inicios
+          </div>
+          <ul className="space-y-1.5 text-xs">
+            {current.productos
+              .filter((p) => p.notaDesbloqueo)
+              .map((p) => (
+                <li key={p.id}>
+                  <strong>{p.nombre}:</strong> {p.notaDesbloqueo}
+                </li>
+              ))}
+          </ul>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-2">
         {isAdmin ? (
           <Button
