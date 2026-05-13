@@ -4,7 +4,7 @@ import { es } from "date-fns/locale";
 import logoUrl from "@/assets/alfaro-logo.jpg";
 
 const fmt = (n: number) =>
-  `$${n.toLocaleString("es-ES", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+  `$${n.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /**
  * Genera un reporte imprimible (HTML) en una nueva ventana con
@@ -74,6 +74,23 @@ export function generarPDF(c: Cuadre) {
     0
   );
 
+  const diasTrabajadosStr = (c.diasTrabajados || [])
+    .map((d) => format(new Date(d), "dd MMM", { locale: es }))
+    .join(", ");
+
+  const productosBloqueados = c.productos.filter((p) => p.notaDesbloqueo);
+  const notasRows = productosBloqueados
+    .map(
+      (p) => `
+      <tr>
+        <td><strong>${escape(p.nombre)}</strong></td>
+        <td>${escape(p.notaDesbloqueo!)}</td>
+      </tr>`
+    )
+    .join("");
+
+  const tieneFaltante = r.diferencia < 0;
+
   const html = `<!doctype html>
 <html lang="es">
 <head>
@@ -132,6 +149,9 @@ export function generarPDF(c: Cuadre) {
       <div class="sub">${escape(c.puntoVenta)} · Dependiente: <strong>${escape(
     c.dependiente || "—"
   )}</strong></div>
+      <div class="sub">Días trabajados: <strong>${escape(
+        diasTrabajadosStr || "—"
+      )}</strong> (${c.diasTrabajados.length})</div>
     </div>
     <div class="meta">
       ${format(new Date(c.fecha), "dd MMM yyyy · HH:mm", { locale: es })}<br/>
@@ -254,8 +274,10 @@ export function generarPDF(c: Cuadre) {
             )}</span></div>`
           : ""
       }
-      <div class="row total ok"><span>Salario real (pagado)</span><span class="v">${fmt(
-        r.salarioReal
+      <div class="row total ${tieneFaltante ? "bad" : "ok"}"><span>${
+        tieneFaltante ? "Deuda del dependiente" : "Salario real (pagado)"
+      }</span><span class="v">${fmt(
+        tieneFaltante ? Math.abs(r.salarioReal) : r.salarioReal
       )}</span></div>
     </div>
     <div class="card">
@@ -277,15 +299,23 @@ export function generarPDF(c: Cuadre) {
   <div class="card">
     <div class="row"><span>Venta total</span><span class="v">${fmt(r.totalVenta)}</span></div>
     <div class="row"><span>Costo total</span><span class="v">${fmt(r.totalCosto)}</span></div>
-    <div class="row"><span>Ganancia bruta</span><span class="v">${fmt(
+    <div class="row"><span>Ganancia total</span><span class="v">${fmt(
       r.gananciaTotal
     )}</span></div>
-    <div class="row"><span>− Gastos</span><span class="v">${fmt(r.totalGastos)}</span></div>
-    <div class="row"><span>− Salario</span><span class="v">${fmt(r.salarioReal)}</span></div>
     <div class="row total ok"><span>Ganancia neta</span><span class="v">${fmt(
       r.gananciaNeta
     )}</span></div>
   </div>
+
+  ${
+    notasRows
+      ? `<h2>6. Notas de desbloqueo de inicios</h2>
+  <table>
+    <thead><tr><th>Producto</th><th>Nota</th></tr></thead>
+    <tbody>${notasRows}</tbody>
+  </table>`
+      : ""
+  }
 
   <div class="footer">
     <span>AlFaro Café · Reporte generado ${format(new Date(), "dd/MM/yyyy HH:mm")}</span>
@@ -293,12 +323,8 @@ export function generarPDF(c: Cuadre) {
   </div>
 
   <script>
-    // Auto-abrir el diálogo de impresión cuando carguen las imágenes
-    window.addEventListener('load', () => {
-      const imgs = Array.from(document.images);
-      const ready = Promise.all(imgs.map(i => i.complete ? null : new Promise(r => { i.onload = i.onerror = r; })));
-      ready.then(() => setTimeout(() => window.print(), 300));
-    });
+    // No se auto-imprime para no bloquear la interfaz. El usuario decide
+    // cuándo abrir el diálogo desde el botón superior derecho.
   </script>
 </body>
 </html>`;
