@@ -769,7 +769,8 @@ const CATEGORIAS: Gasto["categoria"][] = [
 ];
 
 function Step6() {
-  const { currents, activePunto, addGasto, removeGasto, settings } = useCuadreStore();
+  const { currents, activePunto, addGasto, updateGasto, removeGasto, settings } =
+    useCuadreStore();
   const current = currents[activePunto];
   const [cat, setCat] = useState<Gasto["categoria"]>("Local");
   const [tipo, setTipo] = useState<"Efectivo" | "Producto">("Efectivo");
@@ -779,6 +780,8 @@ function Step6() {
   const [cantidad, setCantidad] = useState(0);
   const [precio, setPrecio] = useState(0);
   const [productoId, setProductoId] = useState<string>("");
+  const [editingGastoId, setEditingGastoId] = useState<string | null>(null);
+  const [productoOpen, setProductoOpen] = useState(false);
   // Estado específico para Transferencia
   const [trFecha, setTrFecha] = useState<Date | undefined>(new Date());
   const [trTransaccion, setTrTransaccion] = useState("");
@@ -797,6 +800,7 @@ function Step6() {
   const productoSel = current.productos.find((p) => p.id === productoId);
 
   const limpiar = () => {
+    setEditingGastoId(null);
     setNombre("");
     setDesc("");
     setMonto(0);
@@ -809,10 +813,32 @@ function Step6() {
     setTrPorcentaje(settings.porcentajeTransferencia);
   };
 
+  const cargarParaEditar = (g: Gasto) => {
+    setEditingGastoId(g.id);
+    setCat(g.categoria);
+    setTipo(g.tipo);
+    setNombre(g.nombre || "");
+    setDesc(g.descripcion || "");
+    if (g.categoria === "Transferencia") {
+      setTrFecha(g.fecha ? new Date(g.fecha) : new Date());
+      setTrTransaccion(g.transaccion || "");
+      setTrImporte(g.importe || g.monto || 0);
+      setTrPorcentaje(g.porcentaje ?? settings.porcentajeTransferencia);
+    } else if (g.tipo === "Producto") {
+      setProductoId(g.productoId || "");
+      setCantidad(g.cantidad || 0);
+      setPrecio(g.precio || 0);
+    } else {
+      setMonto(g.monto || 0);
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const guardar = () => {
+    const baseId = editingGastoId;
     if (isTransfer) {
       if (!trImporte) return;
-      addGasto({
+      const payload: Omit<Gasto, "id"> = {
         categoria: "Transferencia",
         nombre: trTransaccion || "—",
         tipo: "Efectivo",
@@ -822,17 +848,17 @@ function Step6() {
         importe: trImporte,
         porcentaje: trPorcentaje,
         montoRecibido: trMontoRecibido,
-        // El gasto se contabiliza por el IMPORTE (lo que sale de caja).
-        // El "monto recibido" queda solo como referencia para conciliar el banco.
         monto: trImporte,
-      });
+      };
+      if (baseId) updateGasto(baseId, payload);
+      else addGasto(payload);
       limpiar();
-      toast.success("Transferencia agregada");
+      toast.success(baseId ? "Transferencia actualizada" : "Transferencia agregada");
       return;
     }
     if (tipo === "Efectivo" && !monto) return;
     if (tipo === "Producto" && (!productoId || !cantidad || !precio)) return;
-    addGasto({
+    const payload: Omit<Gasto, "id"> = {
       categoria: cat,
       nombre: nombre || "—",
       tipo,
@@ -846,9 +872,11 @@ function Step6() {
       cantidad: tipo === "Producto" ? cantidad : undefined,
       precio: tipo === "Producto" ? precio : undefined,
       monto: tipo === "Producto" ? importeProducto : monto,
-    });
+    };
+    if (baseId) updateGasto(baseId, payload);
+    else addGasto(payload);
     limpiar();
-    toast.success("Gasto agregado");
+    toast.success(baseId ? "Gasto actualizado" : "Gasto agregado");
   };
 
   return (
@@ -987,25 +1015,49 @@ function Step6() {
           <>
             <div>
               <Label className="text-xs">Producto</Label>
-              <Select
-                value={productoId}
-                onValueChange={(v) => {
-                  setProductoId(v);
-                  const p = current.productos.find((x) => x.id === v);
-                  if (p) setPrecio(p.precio);
-                }}
-              >
-                <SelectTrigger className="mt-1 h-11 rounded-xl">
-                  <SelectValue placeholder="Buscar producto…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {current.productos.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.nombre} · {fmt(p.precio)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={productoOpen} onOpenChange={setProductoOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    className="mt-1 h-11 w-full justify-between rounded-xl font-normal"
+                  >
+                    <span className="flex items-center gap-2 truncate">
+                      <Search className="h-4 w-4 opacity-60" />
+                      {productoSel ? (
+                        <span className="truncate">
+                          {productoSel.nombre} · {fmt(productoSel.precio)}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">Buscar producto…</span>
+                      )}
+                    </span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Escribe para buscar…" />
+                    <CommandList>
+                      <CommandEmpty>Sin resultados</CommandEmpty>
+                      <CommandGroup>
+                        {current.productos.map((p) => (
+                          <CommandItem
+                            key={p.id}
+                            value={p.nombre}
+                            onSelect={() => {
+                              setProductoId(p.id);
+                              setPrecio(p.precio);
+                              setProductoOpen(false);
+                            }}
+                          >
+                            {p.nombre} · {fmt(p.precio)}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
           <div className="grid grid-cols-3 gap-2">
             <div>
@@ -1043,19 +1095,29 @@ function Step6() {
           onClick={guardar}
           className="h-11 w-full rounded-xl bg-primary text-primary-foreground"
         >
-          <Plus className="mr-2 h-4 w-4" /> Agregar gasto
+          <Plus className="mr-2 h-4 w-4" />
+          {editingGastoId ? "Guardar cambios" : "Agregar gasto"}
         </Button>
+        {editingGastoId && (
+          <Button
+            variant="outline"
+            onClick={limpiar}
+            className="h-10 w-full rounded-xl"
+          >
+            Cancelar edición
+          </Button>
+        )}
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-soft">
+        <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-muted/60 text-[10px] uppercase tracking-wider text-muted-foreground">
             <tr>
               <th className="px-3 py-2 text-left">Categoría</th>
               <th className="px-3 py-2 text-left">Nombre</th>
               <th className="px-3 py-2 text-left">Detalle</th>
               <th className="px-3 py-2 text-right">Monto</th>
-              <th className="w-8"></th>
+              <th className="w-16"></th>
             </tr>
           </thead>
           <tbody>
@@ -1069,16 +1131,21 @@ function Step6() {
                 </td>
               </tr>
             )}
-            {current.gastos.map((g) => (
+            {[...current.gastos]
+              .sort(
+                (a, b) =>
+                  CATEGORIAS.indexOf(a.categoria) - CATEGORIAS.indexOf(b.categoria)
+              )
+              .map((g) => (
               <tr key={g.id} className="border-t border-border align-top">
-                <td className="px-3 py-2 text-xs">
+                <td className="px-3 py-2 text-xs whitespace-nowrap">
                   <span className="rounded-full bg-muted px-2 py-0.5 font-medium">
                     {g.categoria}
                   </span>
                   <div className="mt-0.5 text-[10px] text-muted-foreground">{g.tipo}</div>
                 </td>
-                <td className="px-3 py-2 text-xs font-medium">{g.nombre}</td>
-                <td className="px-3 py-2 text-xs">
+                <td className="px-3 py-2 text-xs font-medium whitespace-nowrap">{g.nombre}</td>
+                <td className="px-3 py-2 text-xs whitespace-nowrap">
                   <div>{g.descripcion}</div>
                   {g.tipo === "Producto" && (
                     <div className="text-[10px] text-muted-foreground">
@@ -1086,18 +1153,28 @@ function Step6() {
                     </div>
                   )}
                 </td>
-                <td className="px-3 py-2 text-right font-mono font-semibold tabular-nums">
+                <td className="px-3 py-2 text-right font-mono font-semibold tabular-nums whitespace-nowrap">
                   {fmt(g.monto)}
                 </td>
-                <td className="px-2 py-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-destructive"
-                    onClick={() => removeGasto(g.id)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                <td className="px-2 py-2 whitespace-nowrap">
+                  <div className="flex items-center justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => cargarParaEditar(g)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-destructive"
+                      onClick={() => removeGasto(g.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}
