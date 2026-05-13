@@ -576,11 +576,19 @@ function Step4() {
             {current.productos.map((p) => (
               <tr key={p.id} className="border-t border-border">
                 <td className="px-3 py-2">{p.nombre}</td>
-                <td className="px-2 py-2 text-right font-mono tabular-nums text-secondary">
-                  +{p.entradas}
+                <td className="px-2 py-2 text-right">
+                  <NumberInput
+                    value={p.entradas}
+                    onChange={(v) => updateProducto(p.id, { entradas: v })}
+                    className="ml-auto h-8 w-20 rounded-lg text-right text-xs"
+                  />
                 </td>
-                <td className="px-2 py-2 text-right font-mono tabular-nums text-primary">
-                  -{p.traslados}
+                <td className="px-2 py-2 text-right">
+                  <NumberInput
+                    value={p.traslados}
+                    onChange={(v) => updateProducto(p.id, { traslados: v })}
+                    className="ml-auto h-8 w-20 rounded-lg text-right text-xs"
+                  />
                 </td>
               </tr>
             ))}
