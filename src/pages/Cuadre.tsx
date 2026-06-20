@@ -60,6 +60,8 @@ import {
   Gasto,
   PUNTOS,
   PuntoVenta,
+  SALARIO_MODOS,
+  SalarioModo,
   calcCuadre,
   calcProducto,
   sugerirPagoSalario,
