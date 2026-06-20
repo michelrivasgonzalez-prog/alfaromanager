@@ -141,7 +141,7 @@ export default function Usuarios() {
 function NewUserForm({ onDone }: { onDone: () => void }) {
   const { createUser } = usePinStore();
   const [nombre, setNombre] = useState("");
-  const [role, setRole] = useState<PinRole>("dependiente");
+  const [role, setRole] = useState<PinRole>("duena");
   const [stage, setStage] = useState<"form" | "pin" | "confirm">("form");
   const [first, setFirst] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -170,7 +170,6 @@ function NewUserForm({ onDone }: { onDone: () => void }) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="dependiente">Dependiente</SelectItem>
               <SelectItem value="duena">Dueña</SelectItem>
             </SelectContent>
           </Select>
