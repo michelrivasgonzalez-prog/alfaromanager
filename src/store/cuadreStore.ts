@@ -55,6 +55,13 @@ export type Denominaciones = Record<string, number>;
 export type PuntoVenta = "Cafetería" | "Mipyme";
 export const PUNTOS: PuntoVenta[] = ["Cafetería", "Mipyme"];
 
+export type SalarioModo = "base" | "porcentaje" | "mixto";
+export const SALARIO_MODOS: { value: SalarioModo; label: string; desc: string }[] = [
+  { value: "base", label: "Salario base/día", desc: "Salario base por día × días trabajados" },
+  { value: "porcentaje", label: "% de venta", desc: "Porcentaje del total de ventas" },
+  { value: "mixto", label: "Base o % (el mayor)", desc: "El mayor entre el salario base y el % de venta" },
+];
+
 export type Cuadre = {
   id: string;
   puntoVenta: PuntoVenta;
@@ -66,6 +73,8 @@ export type Cuadre = {
   denominaciones: Denominaciones;
   efectivoDepositado: number;
   salarioBase: number;
+  salarioModo: SalarioModo;
+  porcentajeVenta: number;
   salarioDenominaciones: Denominaciones;
   finalizado: boolean;
 };
@@ -73,11 +82,15 @@ export type Cuadre = {
 export type Settings = {
   salarioBase: Record<PuntoVenta, number>;
   porcentajeTransferencia: number;
+  salarioModo: Record<PuntoVenta, SalarioModo>;
+  porcentajeVenta: Record<PuntoVenta, number>;
 };
 
 const DEFAULT_SETTINGS: Settings = {
   salarioBase: { "Cafetería": 1000, "Mipyme": 1000 },
   porcentajeTransferencia: 10,
+  salarioModo: { "Cafetería": "base", "Mipyme": "base" },
+  porcentajeVenta: { "Cafetería": 3, "Mipyme": 3 },
 };
 
 const DEFAULT_CATALOG: CatalogoItem[] = [];
@@ -131,6 +144,8 @@ export const newCuadre = (
   denominaciones: emptyDen(),
   efectivoDepositado: 0,
   salarioBase: settings.salarioBase[punto] ?? 1000,
+  salarioModo: settings.salarioModo?.[punto] ?? "base",
+  porcentajeVenta: settings.porcentajeVenta?.[punto] ?? 3,
   salarioDenominaciones: emptyDen(),
   finalizado: false,
 });
@@ -551,7 +566,16 @@ export const calcCuadre = (c: Cuadre) => {
   const diferencia = efectivoEnCaja - efectivoADepositar;
 
   const diasCount = c.diasTrabajados.length;
-  const salarioBruto = diasCount * c.salarioBase;
+  const modo: SalarioModo = c.salarioModo ?? "base";
+  const pct = c.porcentajeVenta ?? 0;
+  const salarioBasePeriodo = diasCount * c.salarioBase;
+  const salarioPorPorcentaje = totalVenta * (pct / 100);
+  const salarioBruto =
+    modo === "porcentaje"
+      ? salarioPorPorcentaje
+      : modo === "mixto"
+      ? Math.max(salarioBasePeriodo, salarioPorPorcentaje)
+      : salarioBasePeriodo;
   const descuentoFalta = diferencia < 0 ? Math.abs(diferencia) : 0;
   const propina = diferencia > 0 ? diferencia : 0;
   // Salario real = bruto + propina - descuento por faltante
@@ -572,6 +596,10 @@ export const calcCuadre = (c: Cuadre) => {
     diferencia,
     diasCount,
     salarioBruto,
+    salarioBasePeriodo,
+    salarioPorPorcentaje,
+    salarioModo: modo,
+    porcentajeVenta: pct,
     salarioReal,
     descuentoFalta,
     propina,

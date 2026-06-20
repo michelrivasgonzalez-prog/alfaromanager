@@ -60,6 +60,8 @@ import {
   Gasto,
   PUNTOS,
   PuntoVenta,
+  SALARIO_MODOS,
+  SalarioModo,
   calcCuadre,
   calcProducto,
   sugerirPagoSalario,
@@ -1328,8 +1330,16 @@ function Step9() {
     if (conf && conf !== current.salarioBase) {
       updateCurrent({ salarioBase: conf });
     }
+    const modoConf = settings.salarioModo?.[activePunto];
+    if (modoConf && modoConf !== current.salarioModo) {
+      updateCurrent({ salarioModo: modoConf });
+    }
+    const pctConf = settings.porcentajeVenta?.[activePunto];
+    if (pctConf != null && pctConf !== current.porcentajeVenta) {
+      updateCurrent({ porcentajeVenta: pctConf });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activePunto, settings.salarioBase[activePunto]]);
+  }, [activePunto, settings.salarioBase[activePunto], settings.salarioModo?.[activePunto], settings.porcentajeVenta?.[activePunto]]);
 
   const c = calcCuadre(current);
   const sugerencia = useMemo(
@@ -1367,7 +1377,28 @@ function Step9() {
   return (
     <StepShell>
       <div className="rounded-2xl border border-border bg-card p-5 shadow-soft space-y-3">
-        <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label>Modo de salario</Label>
+          <Select
+            value={current.salarioModo ?? "base"}
+            onValueChange={(v) => updateCurrent({ salarioModo: v as SalarioModo })}
+          >
+            <SelectTrigger className="mt-1 h-11 rounded-xl">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-popover">
+              {SALARIO_MODOS.map((m) => (
+                <SelectItem key={m.value} value={m.value}>
+                  {m.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {SALARIO_MODOS.find((m) => m.value === (current.salarioModo ?? "base"))?.desc}
+          </p>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
           <div>
             <Label>Días trabajados</Label>
             <Input
@@ -1378,13 +1409,27 @@ function Step9() {
             />
           </div>
           <div>
-            <Label>Salario base/día</Label>
+            <Label>Base/día</Label>
             <NumberInput
               value={current.salarioBase}
               onChange={(v) => updateCurrent({ salarioBase: v })}
               className="mt-1 h-11 rounded-xl"
+              disabled={current.salarioModo === "porcentaje"}
             />
           </div>
+          <div>
+            <Label>% venta</Label>
+            <NumberInput
+              value={current.porcentajeVenta ?? 0}
+              onChange={(v) => updateCurrent({ porcentajeVenta: v })}
+              className="mt-1 h-11 rounded-xl"
+              disabled={current.salarioModo === "base"}
+            />
+          </div>
+        </div>
+        <div className="rounded-xl bg-muted/40 p-2 text-[11px] text-muted-foreground grid grid-cols-2 gap-2">
+          <div>Por base: <span className="font-semibold text-foreground">{fmt(c.salarioBasePeriodo)}</span></div>
+          <div>Por %: <span className="font-semibold text-foreground">{fmt(c.salarioPorPorcentaje)}</span></div>
         </div>
       </div>
 
