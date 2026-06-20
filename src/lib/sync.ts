@@ -2,15 +2,22 @@ import { supabase } from "@/integrations/supabase/client";
 import { Cuadre, normalizeCatalogoOrden, useCuadreStore } from "@/store/cuadreStore";
 
 /**
- * Sincronización simple "pull-then-push":
- * - Descarga catálogo, dependientes y cuadres desde la nube y los fusiona con el store local.
- * - Si el usuario es admin, sube cualquier cuadre/catálogo/dependiente local que no exista en remoto.
- * El modo offline sigue funcionando: el store usa zustand persist en localStorage.
+ * Sincronización:
+ * - Admin: el estado LOCAL es la fuente de verdad. Sube todo lo local (upsert)
+ *   y borra en remoto lo que ya no existe localmente (propaga eliminaciones).
+ * - No admin: solo descarga desde la nube y fusiona en el local.
+ * Modo offline sigue funcionando: zustand persist en localStorage.
  */
 export async function fullSync(role: "admin" | "duena" | "dependiente" | null) {
   if (!role) return;
   const store = useCuadreStore.getState();
 
+  if (role === "admin") {
+    await pushAllLocal(store);
+    return;
+  }
+
+  // -------- Modo lectura (no admin): pull y merge --------
   // ---- Catálogo ----
   const { data: catRemote } = await (supabase as any)
     .from("catalogo")
@@ -31,37 +38,13 @@ export async function fullSync(role: "admin" | "duena" | "dependiente" | null) {
       ...store.catalogo.filter((c) => !remoteIds.has(c.id)),
     ]);
     useCuadreStore.setState({ catalogo: merged });
-
-    // Push faltantes si admin
-    if (role === "admin") {
-      const toUpload = store.catalogo.filter((c) => !remoteIds.has(c.id));
-      if (toUpload.length > 0) {
-        await (supabase as any).from("catalogo").insert(
-          toUpload.map((c) => ({
-            id: c.id,
-            nombre: c.nombre,
-            precio: c.precio,
-            costo: c.costo,
-            orden: c.orden ?? 0,
-            punto: c.punto ?? null,
-          })) as any
-        );
-      }
-    }
   }
 
   // ---- Dependientes ----
   const { data: depRemote } = await supabase.from("dependientes").select("nombre");
   if (depRemote) {
-    const remoteSet = new Set(depRemote.map((d) => d.nombre));
-    const localOnly = store.dependientes.filter((n) => !remoteSet.has(n));
     const merged = Array.from(new Set([...depRemote.map((d) => d.nombre), ...store.dependientes]));
     useCuadreStore.setState({ dependientes: merged });
-    if (role === "admin" && localOnly.length > 0) {
-      await supabase
-        .from("dependientes")
-        .insert(localOnly.map((n) => ({ nombre: n })));
-    }
   }
 
   // ---- Cuadres ----
@@ -77,19 +60,74 @@ export async function fullSync(role: "admin" | "duena" | "dependiente" | null) {
       (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
     );
     useCuadreStore.setState({ history: merged });
+  }
+}
 
-    if (role === "admin" && localOnly.length > 0) {
-      await supabase.from("cuadres").insert(
-        localOnly.map((c) => ({
-          id: c.id,
-          punto_venta: c.puntoVenta,
-          fecha: c.fecha,
-          dependiente: c.dependiente || null,
-          finalizado: c.finalizado,
-          data: c as any,
-        }))
-      );
-    }
+/**
+ * Empuja el estado local completo a la nube (fuente de verdad = local).
+ * - Upsert de todo lo local.
+ * - Borra en remoto los registros cuya clave ya no existe localmente.
+ */
+async function pushAllLocal(store: ReturnType<typeof useCuadreStore.getState>) {
+  // ---- Catálogo ----
+  const localCatIds = new Set(store.catalogo.map((c) => c.id));
+  const { data: catRemote } = await (supabase as any)
+    .from("catalogo")
+    .select("id");
+  const catToDelete = (catRemote ?? [])
+    .map((r: any) => r.id as string)
+    .filter((id: string) => !localCatIds.has(id));
+  if (catToDelete.length > 0) {
+    await supabase.from("catalogo").delete().in("id", catToDelete);
+  }
+  if (store.catalogo.length > 0) {
+    await (supabase as any).from("catalogo").upsert(
+      store.catalogo.map((c) => ({
+        id: c.id,
+        nombre: c.nombre,
+        precio: c.precio,
+        costo: c.costo,
+        orden: c.orden ?? 0,
+        punto: c.punto ?? null,
+      })) as any
+    );
+  }
+
+  // ---- Dependientes ----
+  const localDep = new Set(store.dependientes);
+  const { data: depRemote } = await supabase.from("dependientes").select("nombre");
+  const depToDelete = (depRemote ?? [])
+    .map((r) => r.nombre)
+    .filter((n) => !localDep.has(n));
+  if (depToDelete.length > 0) {
+    await supabase.from("dependientes").delete().in("nombre", depToDelete);
+  }
+  if (store.dependientes.length > 0) {
+    await supabase
+      .from("dependientes")
+      .upsert(store.dependientes.map((n) => ({ nombre: n })), { onConflict: "nombre" });
+  }
+
+  // ---- Cuadres ----
+  const localCuadreIds = new Set(store.history.map((c) => c.id));
+  const { data: cuadresRemote } = await supabase.from("cuadres").select("id");
+  const cuadresToDelete = (cuadresRemote ?? [])
+    .map((r) => r.id)
+    .filter((id) => !localCuadreIds.has(id));
+  if (cuadresToDelete.length > 0) {
+    await supabase.from("cuadres").delete().in("id", cuadresToDelete);
+  }
+  if (store.history.length > 0) {
+    await supabase.from("cuadres").upsert(
+      store.history.map((c) => ({
+        id: c.id,
+        punto_venta: c.puntoVenta,
+        fecha: c.fecha,
+        dependiente: c.dependiente || null,
+        finalizado: c.finalizado,
+        data: c as any,
+      }))
+    );
   }
 }
 
