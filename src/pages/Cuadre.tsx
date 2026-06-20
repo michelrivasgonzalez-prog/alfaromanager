@@ -68,6 +68,7 @@ import {
   useCuadreStore,
 } from "@/store/cuadreStore";
 import { generarPDF } from "@/lib/pdf";
+import { usePinStore } from "@/store/pinStore";
 import { pushCuadre } from "@/lib/sync";
 
 const fmt = (n: number) =>
