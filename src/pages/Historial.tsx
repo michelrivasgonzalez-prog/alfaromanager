@@ -271,7 +271,23 @@ function CuadreDetalle({ c }: { c: Cuadre }) {
       <div className="grid gap-3 md:grid-cols-2">
         <Section title="Salario">
           <Row label="Días trabajados" value={String(r.diasCount)} />
+          <Row
+            label="Modo"
+            value={
+              r.salarioModo === "porcentaje"
+                ? `${r.porcentajeVenta}% de venta`
+                : r.salarioModo === "mixto"
+                ? `Base o ${r.porcentajeVenta}% (mayor)`
+                : "Base/día"
+            }
+          />
           <Row label="Salario base/día" value={fmt(c.salarioBase)} />
+          {(r.salarioModo === "porcentaje" || r.salarioModo === "mixto") && (
+            <>
+              <Row label="Calc. por base" value={fmt(r.salarioBasePeriodo)} />
+              <Row label={`Calc. por % (${r.porcentajeVenta}%)`} value={fmt(r.salarioPorPorcentaje)} />
+            </>
+          )}
           <Row label="Salario bruto" value={fmt(r.salarioBruto)} />
           {r.propina > 0 && (
             <Row label="+ Propina" value={fmt(r.propina)} tone="ok" />
