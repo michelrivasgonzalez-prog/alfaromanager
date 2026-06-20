@@ -116,6 +116,13 @@ function Step1() {
     dependientes,
     role,
   } = useCuadreStore();
+  const pinUsers = usePinStore((s) => s.users);
+  const dependientesList = Array.from(
+    new Set([
+      ...pinUsers.filter((u) => u.role === "dependiente").map((u) => u.nombre),
+      ...dependientes,
+    ])
+  ).sort((a, b) => a.localeCompare(b));
   const current = currents[activePunto];
   if (!current) return null;
   const days = current.diasTrabajados.map((d) => new Date(d));
@@ -185,12 +192,12 @@ function Step1() {
                 <SelectValue placeholder="Selecciona un dependiente" />
               </SelectTrigger>
               <SelectContent>
-                {dependientes.length === 0 && (
+                {dependientesList.length === 0 && (
                   <div className="px-3 py-2 text-xs text-muted-foreground">
                     Agrega dependientes en la sección Usuarios
                   </div>
                 )}
-                {dependientes.map((d) => (
+                {dependientesList.map((d) => (
                   <SelectItem key={d} value={d}>
                     {d}
                   </SelectItem>
