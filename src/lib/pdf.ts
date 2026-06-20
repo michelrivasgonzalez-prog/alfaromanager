@@ -254,9 +254,25 @@ export function generarPDF(c: Cuadre) {
     <div class="card">
       <h3>Cálculo</h3>
       <div class="row"><span>Días trabajados</span><span class="v">${r.diasCount}</span></div>
+      <div class="row"><span>Modo</span><span class="v">${
+        r.salarioModo === "porcentaje"
+          ? `${r.porcentajeVenta}% de venta`
+          : r.salarioModo === "mixto"
+          ? `Base o ${r.porcentajeVenta}% (mayor)`
+          : "Base/día"
+      }</span></div>
       <div class="row"><span>Salario base/día</span><span class="v">${fmt(
         c.salarioBase
       )}</span></div>
+      ${
+        r.salarioModo !== "base"
+          ? `<div class="row"><span>Calc. por base</span><span class="v">${fmt(
+              r.salarioBasePeriodo
+            )}</span></div><div class="row"><span>Calc. por % (${r.porcentajeVenta}%)</span><span class="v">${fmt(
+              r.salarioPorPorcentaje
+            )}</span></div>`
+          : ""
+      }
       <div class="row"><span>Salario bruto</span><span class="v">${fmt(
         r.salarioBruto
       )}</span></div>
