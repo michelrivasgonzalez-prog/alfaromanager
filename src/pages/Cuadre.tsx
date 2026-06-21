@@ -115,15 +115,8 @@ function Step1() {
     startCuadre,
     updateCurrent,
     dependientes,
-    role,
   } = useCuadreStore();
-  const pinUsers = usePinStore((s) => s.users);
-  const dependientesList = Array.from(
-    new Set([
-      ...pinUsers.filter((u) => u.role === "dependiente").map((u) => u.nombre),
-      ...dependientes,
-    ])
-  ).sort((a, b) => a.localeCompare(b));
+  const dependientesList = [...dependientes].sort((a, b) => a.localeCompare(b));
   const current = currents[activePunto];
   if (!current) return null;
   const days = current.diasTrabajados.map((d) => new Date(d));
@@ -176,41 +169,26 @@ function Step1() {
       <div className="rounded-2xl border border-border bg-card p-5 shadow-soft space-y-4">
         <div className="space-y-2">
           <Label>Nombre del dependiente</Label>
-          {role === "dependiente" ? (
-            <Input
-              value={current.dependiente}
-              readOnly
-              disabled
-              placeholder="Selecciona un dependiente"
-              className="h-12 rounded-xl"
-            />
-          ) : (
-            <Select
-              value={current.dependiente}
-              onValueChange={(v) => updateCurrent({ dependiente: v })}
-            >
-              <SelectTrigger className="h-12 rounded-xl">
-                <SelectValue placeholder="Selecciona un dependiente" />
-              </SelectTrigger>
-              <SelectContent>
-                {dependientesList.length === 0 && (
-                  <div className="px-3 py-2 text-xs text-muted-foreground">
-                    Agrega dependientes en la sección Usuarios
-                  </div>
-                )}
-                {dependientesList.map((d) => (
-                  <SelectItem key={d} value={d}>
-                    {d}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          {role === "dependiente" && (
-            <p className="text-[11px] text-muted-foreground">
-              Solo el administrador puede asignar el dependiente del turno.
-            </p>
-          )}
+          <Select
+            value={current.dependiente}
+            onValueChange={(v) => updateCurrent({ dependiente: v })}
+          >
+            <SelectTrigger className="h-12 rounded-xl">
+              <SelectValue placeholder="Selecciona un dependiente" />
+            </SelectTrigger>
+            <SelectContent>
+              {dependientesList.length === 0 && (
+                <div className="px-3 py-2 text-xs text-muted-foreground">
+                  Agrega dependientes en la sección Usuarios
+                </div>
+              )}
+              {dependientesList.map((d) => (
+                <SelectItem key={d} value={d}>
+                  {d}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="space-y-2">
