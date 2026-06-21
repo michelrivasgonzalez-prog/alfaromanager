@@ -2,133 +2,214 @@ import { supabase } from "@/integrations/supabase/client";
 import { Cuadre, normalizeCatalogoOrden, useCuadreStore } from "@/store/cuadreStore";
 
 /**
- * Sincronización:
- * - Admin: el estado LOCAL es la fuente de verdad. Sube todo lo local (upsert)
- *   y borra en remoto lo que ya no existe localmente (propaga eliminaciones).
- * - No admin: solo descarga desde la nube y fusiona en el local.
- * Modo offline sigue funcionando: zustand persist en localStorage.
+ * Sincronización con SOFT-DELETE / TOMBSTONES.
+ *
+ * Reglas clave:
+ *  - Nada se borra de forma destructiva. Las eliminaciones se marcan con
+ *    `deleted_at` en la nube y con `tombstones` en el local.
+ *  - Un dispositivo nuevo (local vacío, sin tombstones) NO borra nada en la
+ *    nube: solo descarga lo no eliminado.
+ *  - Las eliminaciones se propagan en ambos sentidos a través de tombstones.
+ *  - El merge conserva siempre los datos: si un id no está en ningún
+ *    tombstone, se mantiene.
  */
 export async function fullSync(role: "admin" | "duena" | "dependiente" | null) {
   if (!role) return;
-  const store = useCuadreStore.getState();
-
-  if (role === "admin") {
-    await pushAllLocal(store);
-    return;
-  }
-
-  // -------- Modo lectura (no admin): pull y merge --------
-  // ---- Catálogo ----
-  const { data: catRemote } = await (supabase as any)
-    .from("catalogo")
-    .select("id, nombre, precio, costo, punto, orden")
-    .order("punto", { ascending: true })
-    .order("orden", { ascending: true });
-  if (catRemote) {
-    const remoteIds = new Set(catRemote.map((c) => c.id));
-    const merged = normalizeCatalogoOrden([
-      ...catRemote.map((c) => ({
-        id: c.id,
-        nombre: c.nombre,
-        precio: Number(c.precio),
-        costo: Number(c.costo),
-        orden: Number((c as any).orden ?? 0),
-        punto: (c.punto as "Cafetería" | "Mipyme" | undefined) || undefined,
-      })),
-      ...store.catalogo.filter((c) => !remoteIds.has(c.id)),
-    ]);
-    useCuadreStore.setState({ catalogo: merged });
-  }
-
-  // ---- Dependientes ----
-  const { data: depRemote } = await supabase.from("dependientes").select("nombre");
-  if (depRemote) {
-    const merged = Array.from(new Set([...depRemote.map((d) => d.nombre), ...store.dependientes]));
-    useCuadreStore.setState({ dependientes: merged });
-  }
-
-  // ---- Cuadres ----
-  const { data: cuadresRemote } = await supabase
-    .from("cuadres")
-    .select("id, data")
-    .order("fecha", { ascending: false });
-  if (cuadresRemote) {
-    const remoteIds = new Set(cuadresRemote.map((c) => c.id));
-    const remoteCuadres = cuadresRemote.map((r) => r.data as unknown as Cuadre);
-    const localOnly = store.history.filter((c) => !remoteIds.has(c.id));
-    const merged: Cuadre[] = [...remoteCuadres, ...localOnly].sort(
-      (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
-    );
-    useCuadreStore.setState({ history: merged });
-  }
+  const isAdmin = role === "admin";
+  await syncCatalogo(isAdmin);
+  await syncDependientes(isAdmin);
+  await syncCuadres(isAdmin);
 }
 
-/**
- * Empuja el estado local completo a la nube (fuente de verdad = local).
- * - Upsert de todo lo local.
- * - Borra en remoto los registros cuya clave ya no existe localmente.
- */
-async function pushAllLocal(store: ReturnType<typeof useCuadreStore.getState>) {
-  // ---- Catálogo ----
-  const localCatIds = new Set(store.catalogo.map((c) => c.id));
-  const { data: catRemote } = await (supabase as any)
+// ---------- Catálogo ----------
+async function syncCatalogo(isAdmin: boolean) {
+  const state = useCuadreStore.getState();
+  const { data: remote } = await (supabase as any)
     .from("catalogo")
-    .select("id");
-  const catToDelete = (catRemote ?? [])
-    .map((r: any) => r.id as string)
-    .filter((id: string) => !localCatIds.has(id));
-  if (catToDelete.length > 0) {
-    await supabase.from("catalogo").delete().in("id", catToDelete);
+    .select("id, nombre, precio, costo, punto, orden, deleted_at");
+  const remoteRows: any[] = remote ?? [];
+
+  // 1) Aplicar tombstones remotos al local
+  const newTomb = { ...state.tombstones.catalogo };
+  const removedLocally = new Set<string>();
+  for (const r of remoteRows) {
+    if (r.deleted_at) {
+      newTomb[r.id] = newTomb[r.id] ?? r.deleted_at;
+      removedLocally.add(r.id);
+    }
   }
-  if (store.catalogo.length > 0) {
+
+  // 2) Empujar tombstones locales al remoto (solo admin)
+  if (isAdmin) {
+    const remoteById = new Map(remoteRows.map((r) => [r.id, r]));
+    const idsToTomb = Object.keys(state.tombstones.catalogo).filter((id) => {
+      const r = remoteById.get(id);
+      return r && !r.deleted_at;
+    });
+    if (idsToTomb.length > 0) {
+      await (supabase as any)
+        .from("catalogo")
+        .update({ deleted_at: new Date().toISOString() })
+        .in("id", idsToTomb);
+    }
+  }
+
+  // 3) Construir catálogo local mergeado
+  const localById = new Map(state.catalogo.map((c) => [c.id, c]));
+  // Quitar locales que la nube marca como eliminados
+  for (const id of removedLocally) localById.delete(id);
+
+  // Añadir/actualizar desde la nube los no eliminados y no tombstoneados localmente
+  for (const r of remoteRows) {
+    if (r.deleted_at) continue;
+    if (newTomb[r.id]) continue; // eliminado localmente: no re-añadir
+    localById.set(r.id, {
+      id: r.id,
+      nombre: r.nombre,
+      precio: Number(r.precio),
+      costo: Number(r.costo),
+      orden: Number(r.orden ?? 0),
+      punto: (r.punto as "Cafetería" | "Mipyme" | undefined) || undefined,
+    });
+  }
+  const merged = normalizeCatalogoOrden([...localById.values()]);
+
+  // 4) Upsert local → nube (solo admin, y solo los no tombstoneados)
+  if (isAdmin && merged.length > 0) {
     await (supabase as any).from("catalogo").upsert(
-      store.catalogo.map((c) => ({
+      merged.map((c) => ({
         id: c.id,
         nombre: c.nombre,
         precio: c.precio,
         costo: c.costo,
         orden: c.orden ?? 0,
         punto: c.punto ?? null,
+        deleted_at: null,
       })) as any
     );
   }
 
-  // ---- Dependientes ----
-  const localDep = new Set(store.dependientes);
-  const { data: depRemote } = await supabase.from("dependientes").select("nombre");
-  const depToDelete = (depRemote ?? [])
-    .map((r) => r.nombre)
-    .filter((n) => !localDep.has(n));
-  if (depToDelete.length > 0) {
-    await supabase.from("dependientes").delete().in("nombre", depToDelete);
-  }
-  if (store.dependientes.length > 0) {
-    await supabase
-      .from("dependientes")
-      .upsert(store.dependientes.map((n) => ({ nombre: n })), { onConflict: "nombre" });
+  useCuadreStore.setState({
+    catalogo: merged,
+    tombstones: { ...state.tombstones, catalogo: newTomb },
+  });
+}
+
+// ---------- Dependientes ----------
+async function syncDependientes(isAdmin: boolean) {
+  const state = useCuadreStore.getState();
+  const { data: remote } = await (supabase as any)
+    .from("dependientes")
+    .select("nombre, deleted_at");
+  const remoteRows: any[] = remote ?? [];
+
+  const newTomb = { ...state.tombstones.dependientes };
+  const removedLocally = new Set<string>();
+  for (const r of remoteRows) {
+    if (r.deleted_at) {
+      newTomb[r.nombre] = newTomb[r.nombre] ?? r.deleted_at;
+      removedLocally.add(r.nombre);
+    }
   }
 
-  // ---- Cuadres ----
-  const localCuadreIds = new Set(store.history.map((c) => c.id));
-  const { data: cuadresRemote } = await supabase.from("cuadres").select("id");
-  const cuadresToDelete = (cuadresRemote ?? [])
-    .map((r) => r.id)
-    .filter((id) => !localCuadreIds.has(id));
-  if (cuadresToDelete.length > 0) {
-    await supabase.from("cuadres").delete().in("id", cuadresToDelete);
+  if (isAdmin) {
+    const remoteByName = new Map(remoteRows.map((r) => [r.nombre, r]));
+    const namesToTomb = Object.keys(state.tombstones.dependientes).filter((n) => {
+      const r = remoteByName.get(n);
+      return r && !r.deleted_at;
+    });
+    if (namesToTomb.length > 0) {
+      await (supabase as any)
+        .from("dependientes")
+        .update({ deleted_at: new Date().toISOString() })
+        .in("nombre", namesToTomb);
+    }
   }
-  if (store.history.length > 0) {
-    await supabase.from("cuadres").upsert(
-      store.history.map((c) => ({
+
+  const localSet = new Set(state.dependientes);
+  for (const n of removedLocally) localSet.delete(n);
+  for (const r of remoteRows) {
+    if (r.deleted_at) continue;
+    if (newTomb[r.nombre]) continue;
+    localSet.add(r.nombre);
+  }
+  const merged = Array.from(localSet).sort((a, b) => a.localeCompare(b));
+
+  if (isAdmin && merged.length > 0) {
+    await (supabase as any)
+      .from("dependientes")
+      .upsert(
+        merged.map((n) => ({ nombre: n, deleted_at: null })),
+        { onConflict: "nombre" }
+      );
+  }
+
+  useCuadreStore.setState({
+    dependientes: merged,
+    tombstones: { ...state.tombstones, dependientes: newTomb },
+  });
+}
+
+// ---------- Cuadres ----------
+async function syncCuadres(isAdmin: boolean) {
+  const state = useCuadreStore.getState();
+  const { data: remote } = await (supabase as any)
+    .from("cuadres")
+    .select("id, data, deleted_at");
+  const remoteRows: any[] = remote ?? [];
+
+  const newTomb = { ...state.tombstones.cuadres };
+  const removedLocally = new Set<string>();
+  for (const r of remoteRows) {
+    if (r.deleted_at) {
+      newTomb[r.id] = newTomb[r.id] ?? r.deleted_at;
+      removedLocally.add(r.id);
+    }
+  }
+
+  if (isAdmin) {
+    const remoteById = new Map(remoteRows.map((r) => [r.id, r]));
+    const idsToTomb = Object.keys(state.tombstones.cuadres).filter((id) => {
+      const r = remoteById.get(id);
+      return r && !r.deleted_at;
+    });
+    if (idsToTomb.length > 0) {
+      await (supabase as any)
+        .from("cuadres")
+        .update({ deleted_at: new Date().toISOString() })
+        .in("id", idsToTomb);
+    }
+  }
+
+  const localById = new Map(state.history.map((c) => [c.id, c]));
+  for (const id of removedLocally) localById.delete(id);
+  for (const r of remoteRows) {
+    if (r.deleted_at) continue;
+    if (newTomb[r.id]) continue;
+    localById.set(r.id, r.data as Cuadre);
+  }
+  const merged: Cuadre[] = [...localById.values()].sort(
+    (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
+  );
+
+  if (isAdmin && merged.length > 0) {
+    await (supabase as any).from("cuadres").upsert(
+      merged.map((c) => ({
         id: c.id,
         punto_venta: c.puntoVenta,
         fecha: c.fecha,
         dependiente: c.dependiente || null,
         finalizado: c.finalizado,
         data: c as any,
+        deleted_at: null,
       }))
     );
   }
+
+  useCuadreStore.setState({
+    history: merged,
+    tombstones: { ...state.tombstones, cuadres: newTomb },
+  });
 }
 
 export async function pushCuadre(c: Cuadre) {
@@ -161,7 +242,11 @@ export async function pushCatalogItem(c: {
 }
 
 export async function deleteCatalogItem(id: string) {
-  await supabase.from("catalogo").delete().eq("id", id);
+  // Soft-delete: marca tombstone en la nube en lugar de borrar.
+  await (supabase as any)
+    .from("catalogo")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", id);
 }
 
 export async function pushDependiente(nombre: string) {
@@ -169,9 +254,15 @@ export async function pushDependiente(nombre: string) {
 }
 
 export async function deleteDependiente(nombre: string) {
-  await supabase.from("dependientes").delete().eq("nombre", nombre);
+  await (supabase as any)
+    .from("dependientes")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("nombre", nombre);
 }
 
 export async function deleteCuadreRemote(id: string) {
-  await supabase.from("cuadres").delete().eq("id", id);
+  await (supabase as any)
+    .from("cuadres")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", id);
 }
