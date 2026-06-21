@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           costo: number
           created_at: string
+          deleted_at: string | null
           id: string
           nombre: string
           orden: number
@@ -28,6 +29,7 @@ export type Database = {
         Insert: {
           costo?: number
           created_at?: string
+          deleted_at?: string | null
           id?: string
           nombre: string
           orden?: number
@@ -38,6 +40,7 @@ export type Database = {
         Update: {
           costo?: number
           created_at?: string
+          deleted_at?: string | null
           id?: string
           nombre?: string
           orden?: number
@@ -52,6 +55,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           data: Json
+          deleted_at: string | null
           dependiente: string | null
           fecha: string
           finalizado: boolean
@@ -63,6 +67,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           data: Json
+          deleted_at?: string | null
           dependiente?: string | null
           fecha?: string
           finalizado?: boolean
@@ -74,6 +79,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           data?: Json
+          deleted_at?: string | null
           dependiente?: string | null
           fecha?: string
           finalizado?: boolean
@@ -86,16 +92,19 @@ export type Database = {
       dependientes: {
         Row: {
           created_at: string
+          deleted_at: string | null
           id: string
           nombre: string
         }
         Insert: {
           created_at?: string
+          deleted_at?: string | null
           id?: string
           nombre: string
         }
         Update: {
           created_at?: string
+          deleted_at?: string | null
           id?: string
           nombre?: string
         }

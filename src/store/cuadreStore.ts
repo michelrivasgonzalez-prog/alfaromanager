@@ -161,6 +161,13 @@ interface State {
   dependientes: string[];
   role: "admin" | "dependiente";
   settings: Settings;
+  // Tombstones para propagar eliminaciones de forma segura entre dispositivos.
+  // Clave -> fecha ISO de la eliminación.
+  tombstones: {
+    catalogo: Record<string, string>;     // por id
+    dependientes: Record<string, string>; // por nombre
+    cuadres: Record<string, string>;      // por id
+  };
 
   setRole: (r: "admin" | "dependiente") => void;
   updateSettings: (patch: Partial<Settings>) => void;
@@ -200,6 +207,9 @@ interface State {
   cancelar: (punto?: PuntoVenta) => void;
   deleteHistory: (id: string) => void;
   importarFinales: (cuadreId: string) => void;
+  // Tombstones (uso interno de sincronización)
+  addTombstone: (kind: "catalogo" | "dependientes" | "cuadres", key: string) => void;
+  clearTombstone: (kind: "catalogo" | "dependientes" | "cuadres", key: string) => void;
 }
 
 const updateActive = (
@@ -224,6 +234,7 @@ export const useCuadreStore = create<State>()(
       dependientes: [],
       role: "admin",
       settings: DEFAULT_SETTINGS,
+      tombstones: { catalogo: {}, dependientes: {}, cuadres: {} },
 
       setRole: (r) => set({ role: r }),
       updateSettings: (patch) =>
@@ -264,7 +275,13 @@ export const useCuadreStore = create<State>()(
           ),
         })),
       removeCatalogItem: (id) =>
-        set((s) => ({ catalogo: s.catalogo.filter((c) => c.id !== id) })),
+        set((s) => ({
+          catalogo: s.catalogo.filter((c) => c.id !== id),
+          tombstones: {
+            ...s.tombstones,
+            catalogo: { ...s.tombstones.catalogo, [id]: new Date().toISOString() },
+          },
+        })),
       importCatalog: (items) =>
         set((s) => {
           const next = items.map((i, idx) => ({
@@ -282,20 +299,41 @@ export const useCuadreStore = create<State>()(
           return { catalogo: normalizeCatalogoOrden([...s.catalogo, ...next]) };
         }),
       importCatalogReplace: (items, punto) =>
-        set((s) => ({
-          // Conserva los productos de OTROS puntos y reemplaza por completo
-          // los del punto indicado, respetando el orden del Excel.
-          catalogo: normalizeCatalogoOrden([
-            ...s.catalogo.filter((c) => (c.punto ?? "Cafetería") !== punto),
-            ...items.map((i, idx) => ({ ...i, punto, id: crypto.randomUUID(), orden: i.orden ?? idx + 1 })),
-          ]),
-        })),
+        set((s) => {
+          const eliminados = s.catalogo.filter(
+            (c) => (c.punto ?? "Cafetería") === punto
+          );
+          const now = new Date().toISOString();
+          const tomb = { ...s.tombstones.catalogo };
+          eliminados.forEach((c) => (tomb[c.id] = now));
+          return {
+            catalogo: normalizeCatalogoOrden([
+              ...s.catalogo.filter((c) => (c.punto ?? "Cafetería") !== punto),
+              ...items.map((i, idx) => ({
+                ...i,
+                punto,
+                id: crypto.randomUUID(),
+                orden: i.orden ?? idx + 1,
+              })),
+            ]),
+            tombstones: { ...s.tombstones, catalogo: tomb },
+          };
+        }),
       clearCatalog: (punto) =>
-        set((s) => ({
-          catalogo: punto
-            ? s.catalogo.filter((c) => (c.punto ?? "Cafetería") !== punto)
-            : [],
-        })),
+        set((s) => {
+          const eliminados = punto
+            ? s.catalogo.filter((c) => (c.punto ?? "Cafetería") === punto)
+            : s.catalogo;
+          const now = new Date().toISOString();
+          const tomb = { ...s.tombstones.catalogo };
+          eliminados.forEach((c) => (tomb[c.id] = now));
+          return {
+            catalogo: punto
+              ? s.catalogo.filter((c) => (c.punto ?? "Cafetería") !== punto)
+              : [],
+            tombstones: { ...s.tombstones, catalogo: tomb },
+          };
+        }),
       moveCatalogItem: (id, dir) =>
         set((s) => {
           const ordered = normalizeCatalogoOrden(s.catalogo);
@@ -353,7 +391,16 @@ export const useCuadreStore = create<State>()(
           dependientes: s.dependientes.map((d) => (d === oldName ? newName : d)),
         })),
       removeDependiente: (nombre) =>
-        set((s) => ({ dependientes: s.dependientes.filter((d) => d !== nombre) })),
+        set((s) => ({
+          dependientes: s.dependientes.filter((d) => d !== nombre),
+          tombstones: {
+            ...s.tombstones,
+            dependientes: {
+              ...s.tombstones.dependientes,
+              [nombre]: new Date().toISOString(),
+            },
+          },
+        })),
 
       startCuadre: (punto) =>
         set((s) => {
@@ -477,7 +524,26 @@ export const useCuadreStore = create<State>()(
           };
         }),
       deleteHistory: (id) =>
-        set((s) => ({ history: s.history.filter((c) => c.id !== id) })),
+        set((s) => ({
+          history: s.history.filter((c) => c.id !== id),
+          tombstones: {
+            ...s.tombstones,
+            cuadres: { ...s.tombstones.cuadres, [id]: new Date().toISOString() },
+          },
+        })),
+      addTombstone: (kind, key) =>
+        set((s) => ({
+          tombstones: {
+            ...s.tombstones,
+            [kind]: { ...s.tombstones[kind], [key]: new Date().toISOString() },
+          },
+        })),
+      clearTombstone: (kind, key) =>
+        set((s) => {
+          const next = { ...s.tombstones[kind] };
+          delete next[key];
+          return { tombstones: { ...s.tombstones, [kind]: next } };
+        }),
       importarFinales: (cuadreId) =>
         set((s) => {
           const src = s.history.find((h) => h.id === cuadreId);
