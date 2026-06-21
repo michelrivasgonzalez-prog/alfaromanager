@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { usePinStore, PinRole, PinUser } from "@/store/pinStore";
 import { useAuth } from "@/hooks/useAuth";
+import { useCuadreStore } from "@/store/cuadreStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Users as UsersIcon, Lock, Pencil, Shield, Crown, User as UserIcon, KeyRound } from "lucide-react";
+import { Plus, Trash2, Users as UsersIcon, Lock, Pencil, Shield, Crown, User as UserIcon, KeyRound, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { PinPad } from "@/components/PinPad";
 
@@ -34,6 +35,9 @@ export default function Usuarios() {
   const { users, createUser, removeUser, updateUser, updatePin } = usePinStore();
   const [open, setOpen] = useState(false);
   const [pinUser, setPinUser] = useState<PinUser | null>(null);
+  const { dependientes, addDependiente, updateDependiente, removeDependiente } =
+    useCuadreStore();
+  const [nuevoDep, setNuevoDep] = useState("");
 
   if (!isAdmin) {
     return (
@@ -49,8 +53,13 @@ export default function Usuarios() {
 
   return (
     <div className="space-y-4">
+      <h1 className="text-2xl font-bold">Usuarios</h1>
+
+      {/* Cuentas de acceso (PIN) */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Usuarios</h1>
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+          Cuentas de acceso
+        </h2>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button className="rounded-xl gradient-primary">
@@ -64,7 +73,7 @@ export default function Usuarios() {
       </div>
 
       <div className="space-y-2">
-        {users.map((u) => {
+        {users.filter((u) => u.role !== "dependiente").map((u) => {
           const info = ROLE_INFO[u.role];
           const Icon = info.Icon;
           return (
@@ -115,6 +124,80 @@ export default function Usuarios() {
             </div>
           );
         })}
+      </div>
+
+      {/* Dependientes (solo nombres para los cuadres) */}
+      <div className="pt-2">
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+          Dependientes
+        </h2>
+        <p className="text-xs text-muted-foreground mb-2">
+          Personas que aparecen al asignar un turno. No tienen cuenta ni inician sesión.
+        </p>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const n = nuevoDep.trim();
+            if (!n) return;
+            if (dependientes.includes(n)) {
+              toast.error("Ya existe ese dependiente");
+              return;
+            }
+            addDependiente(n);
+            setNuevoDep("");
+            toast.success("Dependiente agregado");
+          }}
+          className="flex gap-2 mb-2"
+        >
+          <Input
+            placeholder="Nombre del dependiente"
+            value={nuevoDep}
+            onChange={(e) => setNuevoDep(e.target.value)}
+          />
+          <Button type="submit" className="rounded-xl gradient-emerald">
+            <UserPlus className="h-4 w-4 mr-1" /> Añadir
+          </Button>
+        </form>
+        <div className="space-y-2">
+          {dependientes.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-border bg-card p-4 text-center text-xs text-muted-foreground">
+              No hay dependientes. Añade uno arriba.
+            </div>
+          )}
+          {dependientes.map((d) => (
+            <div
+              key={d}
+              className="flex items-center gap-2 rounded-2xl border border-border bg-card p-3 shadow-soft"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-foreground">
+                <UserIcon className="h-4 w-4" />
+              </div>
+              <div className="flex-1 font-medium">{d}</div>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8"
+                title="Renombrar"
+                onClick={() => {
+                  const v = prompt("Nuevo nombre", d);
+                  if (v && v.trim() && v.trim() !== d) updateDependiente(d, v.trim());
+                }}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 text-destructive"
+                onClick={() => {
+                  if (confirm(`¿Eliminar a ${d}?`)) removeDependiente(d);
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+        </div>
       </div>
 
       <Dialog open={!!pinUser} onOpenChange={(v) => !v && setPinUser(null)}>
