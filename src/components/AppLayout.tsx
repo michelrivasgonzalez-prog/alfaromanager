@@ -54,7 +54,7 @@ export default function AppLayout() {
       </motion.main>
 
       <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card/95 backdrop-blur-lg">
-        <div className="mx-auto flex max-w-2xl items-center justify-around px-2 py-2">
+        <div className="mx-auto flex max-w-2xl items-center justify-around gap-1 overflow-x-auto px-2 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {tabs.map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
