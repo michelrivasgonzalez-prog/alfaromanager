@@ -189,6 +189,7 @@ export default function Historial() {
       </Dialog>
     </div>
   );
+}
 
 function RegistrarDeudaDialog({
   cuadre,
