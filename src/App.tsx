@@ -11,6 +11,8 @@ import Reportes from "./pages/Reportes";
 import Productos from "./pages/Productos";
 import Usuarios from "./pages/Usuarios";
 import Ajustes from "./pages/Ajustes";
+import Almacen from "./pages/Almacen";
+import Cobrar from "./pages/Cobrar";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import { usePinStore } from "@/store/pinStore";
@@ -79,6 +81,22 @@ const App = () => (
               }
             />
             <Route path="/ajustes" element={<Ajustes />} />
+            <Route
+              path="/almacen"
+              element={
+                <RequireRole allow={["admin", "duena"]}>
+                  <Almacen />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="/cobrar"
+              element={
+                <RequireRole allow={["admin", "duena"]}>
+                  <Cobrar />
+                </RequireRole>
+              }
+            />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
