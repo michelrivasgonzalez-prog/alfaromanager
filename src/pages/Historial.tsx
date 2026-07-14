@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   useCuadreStore,
   calcCuadre,
@@ -13,25 +13,57 @@ import {
   Trash2,
   History as HistoryIcon,
   Eye,
+  Receipt,
 } from "lucide-react";
 import { generarPDF } from "@/lib/pdf";
 import { deleteCuadreRemote } from "@/lib/sync";
 import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { listClientes, listDeudas, crearDeuda, upsertCliente } from "@/lib/cobrar";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 const fmt = (n: number) => `$${n.toLocaleString("es-ES")}`;
+
+// Extrae los gastos "Cuentas por Cobrar" como productos de la deuda potencial
+function gastosCredito(c: Cuadre) {
+  return c.gastos.filter((g) => g.categoria === "Cuentas por Cobrar");
+}
+function totalCredito(c: Cuadre) {
+  return gastosCredito(c).reduce((s, g) => s + g.monto, 0);
+}
 
 export default function Historial() {
   const { history, deleteHistory } = useCuadreStore();
   const { role } = useAuth();
   const canDelete = role === "admin";
   const canPDF = role === "admin" || role === "duena";
+  const canDeuda = role === "admin" || role === "duena";
   const [detalle, setDetalle] = useState<Cuadre | null>(null);
+  const [deudaFor, setDeudaFor] = useState<Cuadre | null>(null);
+
+  const clientes = useQuery({ queryKey: ["clientes"], queryFn: listClientes, enabled: canDeuda });
+  const deudasAll = useQuery({ queryKey: ["deudas-all"], queryFn: () => listDeudas(), enabled: canDeuda });
+  const deudaByCuadre = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const d of deudasAll.data ?? []) if (d.cuadre_id) m.set(d.cuadre_id, d.id);
+    return m;
+  }, [deudasAll.data]);
 
   return (
     <div className="space-y-4">
