@@ -13,6 +13,8 @@ import Usuarios from "./pages/Usuarios";
 import Ajustes from "./pages/Ajustes";
 import Almacen from "./pages/Almacen";
 import Cobrar from "./pages/Cobrar";
+import ClienteDetalle from "./pages/ClienteDetalle";
+import Abonar from "./pages/Abonar";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import { usePinStore } from "@/store/pinStore";
@@ -94,6 +96,22 @@ const App = () => (
               element={
                 <RequireRole allow={["admin", "duena"]}>
                   <Cobrar />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="/cobrar/clientes/:id"
+              element={
+                <RequireRole allow={["admin", "duena"]}>
+                  <ClienteDetalle />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="/cobrar/clientes/:id/abonar"
+              element={
+                <RequireRole allow={["admin", "duena"]}>
+                  <Abonar />
                 </RequireRole>
               }
             />
