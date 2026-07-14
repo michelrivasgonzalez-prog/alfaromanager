@@ -107,6 +107,29 @@ export default function Historial() {
                 tone={r.diferencia < 0 ? "danger" : r.diferencia > 0 ? "ok" : undefined}
               />
             </div>
+            {(() => {
+              const credito = totalCredito(c);
+              const yaLinked = deudaByCuadre.get(c.id);
+              if (credito <= 0) return null;
+              return (
+                <div className="mt-2 flex items-center justify-between rounded-xl border border-dashed border-primary/30 bg-primary/5 p-2 text-xs">
+                  <div>
+                    <span className="font-semibold text-primary">Venta a crédito</span>
+                    <span className="ml-2 font-mono tabular-nums">{fmt(credito)}</span>
+                  </div>
+                  {canDeuda && !yaLinked && (
+                    <Button size="sm" className="h-7 rounded-lg" onClick={() => setDeudaFor(c)}>
+                      <Receipt className="mr-1 h-3 w-3" /> Registrar deuda
+                    </Button>
+                  )}
+                  {yaLinked && (
+                    <span className="rounded-full bg-secondary/10 px-2 py-0.5 text-[10px] font-semibold text-secondary">
+                      Deuda registrada
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
             <div className="mt-3 flex gap-2">
               <Button
                 size="sm"
@@ -144,6 +167,15 @@ export default function Historial() {
           </div>
         );
       })}
+      <RegistrarDeudaDialog
+        cuadre={deudaFor}
+        clientes={clientes.data ?? []}
+        onClose={() => setDeudaFor(null)}
+        onSaved={() => {
+          clientes.refetch();
+          deudasAll.refetch();
+        }}
+      />
       <Dialog open={!!detalle} onOpenChange={(o) => !o && setDetalle(null)}>
         <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
