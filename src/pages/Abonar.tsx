@@ -1,0 +1,232 @@
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { ArrowLeft, Wallet, Share2, CheckCircle2 } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { NumberInput } from "@/components/NumberInput";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { listClientes, listDeudas, registrarAbono, fmt, Deuda } from "@/lib/cobrar";
+import { useAuth } from "@/hooks/useAuth";
+
+export default function Abonar() {
+  const { id = "" } = useParams();
+  const nav = useNavigate();
+  const qc = useQueryClient();
+  const { nombre, user } = useAuth();
+  const clientes = useQuery({ queryKey: ["clientes"], queryFn: listClientes });
+  const deudasQ = useQuery({ queryKey: ["deudas", id], queryFn: () => listDeudas(id) });
+
+  const cliente = clientes.data?.find((c) => c.id === id);
+  const pendientes = useMemo(
+    () =>
+      (deudasQ.data ?? [])
+        .filter((d) => d.estado !== "pagada")
+        .sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()),
+    [deudasQ.data]
+  );
+
+  const [monto, setMonto] = useState(0);
+  const [aplicaciones, setAplicaciones] = useState<Record<string, number>>({});
+  const [nota, setNota] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [comprobante, setComprobante] = useState<null | {
+    monto: number;
+    aplicaciones: { deuda: Deuda; monto: number }[];
+    saldoRestante: number;
+  }>(null);
+
+  // Auto-distribuir al más antiguo
+  useEffect(() => {
+    const next: Record<string, number> = {};
+    let rest = monto;
+    for (const d of pendientes) {
+      if (rest <= 0) break;
+      const apply = Math.min(rest, Number(d.saldo));
+      next[d.id] = Number(apply.toFixed(2));
+      rest -= apply;
+    }
+    setAplicaciones(next);
+  }, [monto, pendientes]);
+
+  const sumaApp = Object.values(aplicaciones).reduce((s, v) => s + (Number(v) || 0), 0);
+  const excede = sumaApp > monto + 0.001;
+  const totalSaldo = pendientes.reduce((s, d) => s + Number(d.saldo), 0);
+
+  const submit = async () => {
+    if (!monto || monto <= 0) return toast.error("Monto > 0");
+    if (excede) return toast.error("La distribución supera el monto");
+    const apps = pendientes
+      .map((d) => ({ deuda_id: d.id, monto: Number((aplicaciones[d.id] || 0).toFixed(2)) }))
+      .filter((a) => a.monto > 0);
+    if (apps.length === 0) return toast.error("Distribuye el pago en al menos una deuda");
+    setBusy(true);
+    try {
+      await registrarAbono({
+        cliente_id: id,
+        monto,
+        aplicaciones: apps,
+        usuario_id: user?.id ?? null,
+        usuario_nombre: nombre ?? null,
+        nota: nota.trim() || null,
+      });
+      toast.success("Abono registrado");
+      const detalle = apps.map((a) => ({
+        deuda: pendientes.find((d) => d.id === a.deuda_id)!,
+        monto: a.monto,
+      }));
+      setComprobante({
+        monto,
+        aplicaciones: detalle,
+        saldoRestante: totalSaldo - apps.reduce((s, a) => s + a.monto, 0),
+      });
+      qc.invalidateQueries({ queryKey: ["deudas", id] });
+      qc.invalidateQueries({ queryKey: ["deudas-all"] });
+      qc.invalidateQueries({ queryKey: ["abonos", id] });
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const comprobanteTexto = () => {
+    if (!cliente || !comprobante) return "";
+    const lines = [
+      `📋 Comprobante de abono — AlFaroCafé`,
+      `Cliente: ${cliente.nombre}`,
+      `Fecha: ${format(new Date(), "dd MMM yyyy HH:mm", { locale: es })}`,
+      `Monto abonado: ${fmt(comprobante.monto)}`,
+      ``,
+      `Distribución:`,
+      ...comprobante.aplicaciones.map(
+        (a) => `• ${a.deuda.cuadre_label ?? format(new Date(a.deuda.fecha), "dd/MM", { locale: es })}: ${fmt(a.monto)}  (saldo ${fmt(Number(a.deuda.saldo) - a.monto)})`
+      ),
+      ``,
+      `Saldo pendiente total: ${fmt(comprobante.saldoRestante)}`,
+      nombre ? `Registrado por: ${nombre}` : "",
+    ].filter(Boolean);
+    return lines.join("\n");
+  };
+
+  if (!cliente) return <div className="p-4 text-sm text-muted-foreground">Cargando…</div>;
+
+  return (
+    <div className="space-y-4 pb-24">
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="icon" onClick={() => nav(-1)}>
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div>
+          <h1 className="text-xl font-bold text-primary">Registrar abono</h1>
+          <p className="text-xs text-muted-foreground">{cliente.nombre} · Saldo total {fmt(totalSaldo)}</p>
+        </div>
+      </div>
+
+      {pendientes.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">
+          <CheckCircle2 className="mx-auto mb-2 h-8 w-8 text-secondary" />
+          <p className="text-sm text-muted-foreground">Este cliente no tiene deudas pendientes.</p>
+        </div>
+      ) : (
+        <>
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-2">
+            <Label>Monto entregado</Label>
+            <NumberInput value={monto} onChange={setMonto} className="h-12 text-lg" />
+            <p className="text-[11px] text-muted-foreground">
+              Se distribuye automáticamente al más antiguo; ajústalo si es necesario.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold uppercase tracking-wider text-muted-foreground">
+                Distribución
+              </span>
+              <span className={`font-mono ${excede ? "text-destructive" : "text-muted-foreground"}`}>
+                {fmt(sumaApp)} / {fmt(monto)}
+              </span>
+            </div>
+            {pendientes.map((d) => (
+              <div key={d.id} className="rounded-2xl border border-border bg-card p-3 shadow-soft">
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <div className="min-w-0">
+                    <div className="truncate font-semibold text-sm">
+                      {d.cuadre_label ?? format(new Date(d.fecha), "dd MMM yyyy", { locale: es })}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">Saldo: {fmt(d.saldo)}</div>
+                  </div>
+                  <NumberInput
+                    value={aplicaciones[d.id] || 0}
+                    onChange={(v) =>
+                      setAplicaciones((prev) => ({
+                        ...prev,
+                        [d.id]: Math.min(v, Number(d.saldo)),
+                      }))
+                    }
+                    className="w-28 text-right"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-2">
+            <Label>Nota (opcional)</Label>
+            <Textarea value={nota} onChange={(e) => setNota(e.target.value)} className="min-h-[60px] rounded-xl" />
+          </div>
+
+          <Button
+            disabled={busy || excede || monto <= 0}
+            onClick={submit}
+            className="h-12 w-full rounded-xl gradient-primary text-primary-foreground"
+          >
+            <Wallet className="mr-2 h-4 w-4" /> Confirmar abono {fmt(monto)}
+          </Button>
+        </>
+      )}
+
+      <Dialog open={!!comprobante} onOpenChange={(o) => { if (!o) { setComprobante(null); nav(`/cobrar/clientes/${id}`); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-secondary" /> Comprobante
+            </DialogTitle>
+          </DialogHeader>
+          {comprobante && (
+            <div className="space-y-2">
+              <pre className="whitespace-pre-wrap rounded-xl bg-muted/60 p-3 text-xs">{comprobanteTexto()}</pre>
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            {cliente.telefono && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  window.open(
+                    `https://wa.me/${cliente.telefono!.replace(/[^\d]/g, "")}?text=${encodeURIComponent(comprobanteTexto())}`,
+                    "_blank"
+                  );
+                }}
+              >
+                <Share2 className="mr-2 h-4 w-4" /> WhatsApp
+              </Button>
+            )}
+            <Button onClick={() => { setComprobante(null); nav(`/cobrar/clientes/${id}`); }}>Cerrar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   useCuadreStore,
   calcCuadre,
@@ -13,25 +13,57 @@ import {
   Trash2,
   History as HistoryIcon,
   Eye,
+  Receipt,
 } from "lucide-react";
 import { generarPDF } from "@/lib/pdf";
 import { deleteCuadreRemote } from "@/lib/sync";
 import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { listClientes, listDeudas, crearDeuda, upsertCliente } from "@/lib/cobrar";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 const fmt = (n: number) => `$${n.toLocaleString("es-ES")}`;
+
+// Extrae los gastos "Cuentas por Cobrar" como productos de la deuda potencial
+function gastosCredito(c: Cuadre) {
+  return c.gastos.filter((g) => g.categoria === "Cuentas por Cobrar");
+}
+function totalCredito(c: Cuadre) {
+  return gastosCredito(c).reduce((s, g) => s + g.monto, 0);
+}
 
 export default function Historial() {
   const { history, deleteHistory } = useCuadreStore();
   const { role } = useAuth();
   const canDelete = role === "admin";
   const canPDF = role === "admin" || role === "duena";
+  const canDeuda = role === "admin" || role === "duena";
   const [detalle, setDetalle] = useState<Cuadre | null>(null);
+  const [deudaFor, setDeudaFor] = useState<Cuadre | null>(null);
+
+  const clientes = useQuery({ queryKey: ["clientes"], queryFn: listClientes, enabled: canDeuda });
+  const deudasAll = useQuery({ queryKey: ["deudas-all"], queryFn: () => listDeudas(), enabled: canDeuda });
+  const deudaByCuadre = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const d of deudasAll.data ?? []) if (d.cuadre_id) m.set(d.cuadre_id, d.id);
+    return m;
+  }, [deudasAll.data]);
 
   return (
     <div className="space-y-4">
@@ -75,6 +107,29 @@ export default function Historial() {
                 tone={r.diferencia < 0 ? "danger" : r.diferencia > 0 ? "ok" : undefined}
               />
             </div>
+            {(() => {
+              const credito = totalCredito(c);
+              const yaLinked = deudaByCuadre.get(c.id);
+              if (credito <= 0) return null;
+              return (
+                <div className="mt-2 flex items-center justify-between rounded-xl border border-dashed border-primary/30 bg-primary/5 p-2 text-xs">
+                  <div>
+                    <span className="font-semibold text-primary">Venta a crédito</span>
+                    <span className="ml-2 font-mono tabular-nums">{fmt(credito)}</span>
+                  </div>
+                  {canDeuda && !yaLinked && (
+                    <Button size="sm" className="h-7 rounded-lg" onClick={() => setDeudaFor(c)}>
+                      <Receipt className="mr-1 h-3 w-3" /> Registrar deuda
+                    </Button>
+                  )}
+                  {yaLinked && (
+                    <span className="rounded-full bg-secondary/10 px-2 py-0.5 text-[10px] font-semibold text-secondary">
+                      Deuda registrada
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
             <div className="mt-3 flex gap-2">
               <Button
                 size="sm"
@@ -112,6 +167,15 @@ export default function Historial() {
           </div>
         );
       })}
+      <RegistrarDeudaDialog
+        cuadre={deudaFor}
+        clientes={clientes.data ?? []}
+        onClose={() => setDeudaFor(null)}
+        onSaved={() => {
+          clientes.refetch();
+          deudasAll.refetch();
+        }}
+      />
       <Dialog open={!!detalle} onOpenChange={(o) => !o && setDetalle(null)}>
         <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
@@ -126,6 +190,112 @@ export default function Historial() {
     </div>
   );
 }
+
+function RegistrarDeudaDialog({
+  cuadre,
+  clientes,
+  onClose,
+  onSaved,
+}: {
+  cuadre: Cuadre | null;
+  clientes: { id: string; nombre: string }[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const qc = useQueryClient();
+  const [clienteId, setClienteId] = useState<string>("");
+  const [nuevoNombre, setNuevoNombre] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  if (!cuadre) return null;
+  const gastos = gastosCredito(cuadre);
+  const total = totalCredito(cuadre);
+  const productos = gastos.map((g) => ({
+    nombre: g.tipo === "Producto" ? (g.productoNombre ?? g.descripcion) : g.descripcion || g.nombre || "Venta",
+    cantidad: g.tipo === "Producto" ? (g.cantidad ?? 1) : 1,
+    precio: g.tipo === "Producto" ? (g.precio ?? g.monto) : g.monto,
+  }));
+
+  const submit = async () => {
+    setBusy(true);
+    try {
+      let finalId = clienteId;
+      if (!finalId) {
+        if (!nuevoNombre.trim()) {
+          toast.error("Selecciona o crea un cliente");
+          setBusy(false);
+          return;
+        }
+        const c = await upsertCliente({ nombre: nuevoNombre.trim() });
+        finalId = c.id;
+      }
+      await crearDeuda({
+        cliente_id: finalId,
+        cuadre_id: cuadre.id,
+        cuadre_label: `${cuadre.puntoVenta} · ${format(new Date(cuadre.fecha), "dd MMM yyyy", { locale: es })}${cuadre.dependiente ? ` · ${cuadre.dependiente}` : ""}`,
+        productos,
+        total,
+        fecha: cuadre.fecha,
+      });
+      toast.success("Deuda registrada");
+      qc.invalidateQueries({ queryKey: ["deudas-all"] });
+      onSaved();
+      onClose();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Registrar deuda del cuadre</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="rounded-xl bg-muted/60 p-3 text-xs">
+            <div className="mb-1 font-semibold">Detalle</div>
+            {productos.map((p, i) => (
+              <div key={i} className="flex justify-between">
+                <span>{p.nombre} × {p.cantidad}</span>
+                <span className="tabular-nums">{fmt(p.precio * p.cantidad)}</span>
+              </div>
+            ))}
+            <div className="mt-2 flex justify-between border-t border-border pt-1 font-semibold">
+              <span>Total</span>
+              <span className="tabular-nums">{fmt(total)}</span>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label>Cliente existente</Label>
+            <Select value={clienteId} onValueChange={setClienteId}>
+              <SelectTrigger className="h-11 rounded-xl">
+                <SelectValue placeholder="Selecciona un cliente" />
+              </SelectTrigger>
+              <SelectContent>
+                {clientes.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="text-center text-[11px] text-muted-foreground">— o crear uno nuevo —</div>
+          <div className="space-y-1">
+            <Label>Nombre del nuevo cliente</Label>
+            <Input value={nuevoNombre} onChange={(e) => { setNuevoNombre(e.target.value); if (e.target.value) setClienteId(""); }} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button disabled={busy} onClick={submit}>Guardar deuda</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 
 function CuadreDetalle({ c }: { c: Cuadre }) {
   const r = calcCuadre(c);
