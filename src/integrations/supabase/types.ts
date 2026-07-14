@@ -475,6 +475,27 @@ export type Database = {
         }
         Returns: boolean
       }
+      registrar_abono: {
+        Args: {
+          _aplicaciones: Json
+          _cliente_id: string
+          _fecha?: string
+          _monto: number
+          _nota?: string
+          _usuario_id?: string
+          _usuario_nombre?: string
+        }
+        Returns: string
+      }
+      revertir_abono: {
+        Args: {
+          _abono_id: string
+          _nota?: string
+          _usuario_id?: string
+          _usuario_nombre?: string
+        }
+        Returns: string
+      }
     }
     Enums: {
       app_role: "admin" | "duena" | "dependiente"
