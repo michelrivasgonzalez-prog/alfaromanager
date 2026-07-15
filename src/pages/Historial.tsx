@@ -361,7 +361,7 @@ function CuadreDetalle({ c }: { c: Cuadre }) {
   return (
     <div className="space-y-4 text-sm">
       <div className="text-xs text-muted-foreground">
-        {format(new Date(c.fecha), "dd MMM yyyy · HH:mm", { locale: es })} ·{" "}
+        {format(new Date(fechaTrabajada(c)), "dd MMM yyyy", { locale: es })} ·{" "}
         {c.puntoVenta} · {c.diasTrabajados.length} día(s)
       </div>
 
