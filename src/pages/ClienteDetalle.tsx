@@ -12,6 +12,9 @@ import {
   Share2,
   Pencil,
   Trash2,
+  User as UserIcon,
+  Banknote,
+  Package,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -36,7 +39,6 @@ import {
   fmt,
 } from "@/lib/cobrar";
 import { EstadoBadge } from "./Cobrar";
-import { Avatar } from "@/components/Avatar";
 
 type ProdRow = { nombre: string; cantidad: number; precio: number };
 
