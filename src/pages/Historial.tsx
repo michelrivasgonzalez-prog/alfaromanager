@@ -174,6 +174,21 @@ export default function Historial() {
                 <FileDown className="mr-1.5 h-3.5 w-3.5" /> PDF
               </Button>
               )}
+              {canEdit && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-xl"
+                onClick={() => {
+                  if (!confirm("Al editar este cuadre se saldrá del historial y podrás modificar sus datos. Al finalizar se volverá a guardar. ¿Continuar?")) return;
+                  editCuadre(c.id);
+                  toast.info("Cuadre en edición. Ve a Cuadre para modificar.");
+                  nav("/cuadre/1");
+                }}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+              )}
               {canDelete && (
               <Button
                 size="sm"
