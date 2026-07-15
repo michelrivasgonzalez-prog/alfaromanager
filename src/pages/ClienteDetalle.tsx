@@ -360,32 +360,50 @@ function NuevaDeudaDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const [modo, setModo] = useState<"efectivo" | "productos">("efectivo");
+  const [monto, setMonto] = useState<number>(0);
   const [productos, setProductos] = useState<ProdRow[]>([{ nombre: "", cantidad: 1, precio: 0 }]);
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
   const [nota, setNota] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const total = productos.reduce((s, p) => s + Number(p.cantidad || 0) * Number(p.precio || 0), 0);
+  const totalProductos = productos.reduce((s, p) => s + Number(p.cantidad || 0) * Number(p.precio || 0), 0);
+  const total = modo === "efectivo" ? Number(monto || 0) : totalProductos;
 
   const reset = () => {
+    setModo("efectivo");
+    setMonto(0);
     setProductos([{ nombre: "", cantidad: 1, precio: 0 }]);
     setNota("");
     setFecha(new Date().toISOString().slice(0, 10));
   };
 
   const submit = async () => {
-    const items = productos
-      .map((p) => ({ nombre: p.nombre.trim(), cantidad: Number(p.cantidad) || 0, precio: Number(p.precio) || 0 }))
-      .filter((p) => p.nombre && p.cantidad > 0 && p.precio >= 0);
-    if (items.length === 0) return toast.error("Agrega al menos un producto con nombre y cantidad");
-    const totalCalc = items.reduce((s, p) => s + p.cantidad * p.precio, 0);
-    if (totalCalc <= 0) return toast.error("El total debe ser mayor que 0");
+    let items: ProdRow[] = [];
+    let totalCalc = 0;
+    if (modo === "efectivo") {
+      const m = Number(monto) || 0;
+      if (m <= 0) return toast.error("El monto debe ser mayor que 0");
+      items = [{ nombre: nota.trim() || "Préstamo en efectivo", cantidad: 1, precio: m }];
+      totalCalc = m;
+    } else {
+      items = productos
+        .map((p) => ({ nombre: p.nombre.trim(), cantidad: Number(p.cantidad) || 0, precio: Number(p.precio) || 0 }))
+        .filter((p) => p.nombre && p.cantidad > 0 && p.precio >= 0);
+      if (items.length === 0) return toast.error("Agrega al menos un producto");
+      totalCalc = items.reduce((s, p) => s + p.cantidad * p.precio, 0);
+      if (totalCalc <= 0) return toast.error("El total debe ser mayor que 0");
+    }
     setBusy(true);
     try {
       await crearDeuda({
         cliente_id: clienteId,
         cuadre_id: null,
-        cuadre_label: nota.trim() || `Deuda manual · ${clienteNombre}`,
+        cuadre_label:
+          nota.trim() ||
+          (modo === "efectivo"
+            ? `Deuda en efectivo · ${clienteNombre}`
+            : `Deuda manual · ${clienteNombre}`),
         productos: items,
         total: totalCalc,
         fecha: new Date(fecha).toISOString(),
@@ -405,76 +423,120 @@ function NuevaDeudaDialog({
     <Dialog open={open} onOpenChange={(o) => { if (!o) { reset(); onClose(); } }}>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nueva deuda manual · {clienteNombre}</DialogTitle>
+          <DialogTitle>Nueva deuda · {clienteNombre}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setModo("efectivo")}
+              className={`flex flex-col items-center gap-1 rounded-xl border p-3 text-xs transition-colors ${
+                modo === "efectivo"
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border bg-card text-muted-foreground"
+              }`}
+            >
+              <Banknote className="h-5 w-5" />
+              <span className="font-semibold">En efectivo</span>
+              <span className="text-[10px]">Solo un monto</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setModo("productos")}
+              className={`flex flex-col items-center gap-1 rounded-xl border p-3 text-xs transition-colors ${
+                modo === "productos"
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border bg-card text-muted-foreground"
+              }`}
+            >
+              <Package className="h-5 w-5" />
+              <span className="font-semibold">Con productos</span>
+              <span className="text-[10px]">Detalle por línea</span>
+            </button>
+          </div>
+
           <div className="grid grid-cols-2 gap-2">
             <div>
               <Label className="text-xs">Fecha</Label>
               <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="mt-1 h-10 rounded-xl" />
             </div>
             <div>
-              <Label className="text-xs">Etiqueta / nota</Label>
+              <Label className="text-xs">
+                {modo === "efectivo" ? "Motivo / descripción" : "Etiqueta / nota"}
+              </Label>
               <Input
                 value={nota}
                 onChange={(e) => setNota(e.target.value)}
-                placeholder="Opcional"
+                placeholder={modo === "efectivo" ? "Préstamo, adelanto..." : "Opcional"}
                 className="mt-1 h-10 rounded-xl"
               />
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Productos</Label>
-            {productos.map((p, i) => (
-              <div key={i} className="grid grid-cols-12 gap-1 rounded-xl border border-border bg-muted/40 p-2">
-                <Input
-                  className="col-span-6 h-9 rounded-lg"
-                  placeholder="Producto"
-                  value={p.nombre}
-                  onChange={(e) => {
-                    const next = [...productos];
-                    next[i] = { ...next[i], nombre: e.target.value };
-                    setProductos(next);
-                  }}
-                />
-                <NumberInput
-                  className="col-span-2 h-9 rounded-lg text-right"
-                  value={p.cantidad}
-                  onChange={(v) => {
-                    const next = [...productos];
-                    next[i] = { ...next[i], cantidad: v };
-                    setProductos(next);
-                  }}
-                />
-                <NumberInput
-                  className="col-span-3 h-9 rounded-lg text-right"
-                  value={p.precio}
-                  onChange={(v) => {
-                    const next = [...productos];
-                    next[i] = { ...next[i], precio: v };
-                    setProductos(next);
-                  }}
-                />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="col-span-1 h-9 w-9 text-destructive"
-                  onClick={() => setProductos(productos.filter((_, j) => j !== i))}
-                  disabled={productos.length <= 1}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            ))}
-            <Button
-              variant="outline"
-              className="h-9 w-full rounded-xl"
-              onClick={() => setProductos([...productos, { nombre: "", cantidad: 1, precio: 0 }])}
-            >
-              <Plus className="mr-1 h-3.5 w-3.5" /> Agregar producto
-            </Button>
-          </div>
+          {modo === "efectivo" ? (
+            <div className="rounded-xl border border-border bg-muted/40 p-3">
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                Monto de la deuda
+              </Label>
+              <NumberInput
+                className="mt-2 h-12 w-full rounded-xl text-right text-lg font-bold"
+                value={monto}
+                onChange={setMonto}
+              />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Productos</Label>
+              {productos.map((p, i) => (
+                <div key={i} className="grid grid-cols-12 gap-1 rounded-xl border border-border bg-muted/40 p-2">
+                  <Input
+                    className="col-span-6 h-9 rounded-lg"
+                    placeholder="Producto"
+                    value={p.nombre}
+                    onChange={(e) => {
+                      const next = [...productos];
+                      next[i] = { ...next[i], nombre: e.target.value };
+                      setProductos(next);
+                    }}
+                  />
+                  <NumberInput
+                    className="col-span-2 h-9 rounded-lg text-right"
+                    value={p.cantidad}
+                    onChange={(v) => {
+                      const next = [...productos];
+                      next[i] = { ...next[i], cantidad: v };
+                      setProductos(next);
+                    }}
+                  />
+                  <NumberInput
+                    className="col-span-3 h-9 rounded-lg text-right"
+                    value={p.precio}
+                    onChange={(v) => {
+                      const next = [...productos];
+                      next[i] = { ...next[i], precio: v };
+                      setProductos(next);
+                    }}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="col-span-1 h-9 w-9 text-destructive"
+                    onClick={() => setProductos(productos.filter((_, j) => j !== i))}
+                    disabled={productos.length <= 1}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ))}
+              <Button
+                variant="outline"
+                className="h-9 w-full rounded-xl"
+                onClick={() => setProductos([...productos, { nombre: "", cantidad: 1, precio: 0 }])}
+              >
+                <Plus className="mr-1 h-3.5 w-3.5" /> Agregar producto
+              </Button>
+            </div>
+          )}
 
           <div className="rounded-xl bg-primary/5 p-3 text-right">
             <span className="text-xs text-muted-foreground">Total: </span>
