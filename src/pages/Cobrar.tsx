@@ -111,7 +111,9 @@ export default function Cobrar() {
                 className="w-full rounded-2xl border border-border bg-card p-3 text-left shadow-soft transition-colors hover:bg-muted/40"
               >
                 <div className="flex items-center gap-3">
-                  <Avatar nombre={c.nombre} size={44} />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-foreground">
+                    <UserIcon className="h-4 w-4" />
+                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="truncate text-sm font-semibold">{c.nombre}</div>
                     <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
@@ -119,12 +121,8 @@ export default function Cobrar() {
                         <span className="inline-flex items-center gap-1">
                           <Phone className="h-3 w-3" /> {c.telefono}
                         </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-1.5 py-0.5 font-semibold text-destructive">
-                          <PhoneOff className="h-3 w-3" /> Sin teléfono
-                        </span>
-                      )}
-                      <span>· {cliDeudas.length} deuda(s)</span>
+                      ) : null}
+                      <span>{cliDeudas.length} deuda(s)</span>
                     </div>
                   </div>
                   <div className="text-right">
