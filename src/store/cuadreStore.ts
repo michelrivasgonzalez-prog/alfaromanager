@@ -603,7 +603,23 @@ export const useCuadreStore = create<State>()(
           return {
             currents: { ...s.currents, [s.activePunto]: { ...c, productos } },
           };
+      editCuadre: (cuadreId) =>
+        set((s) => {
+          const src = s.history.find((h) => h.id === cuadreId);
+          if (!src) return {};
+          const p = src.puntoVenta;
+          return {
+            activePunto: p,
+            currents: { ...s.currents, [p]: { ...src, finalizado: false } },
+            history: s.history.filter((h) => h.id !== cuadreId),
+            lastStep: { ...s.lastStep, [p]: 1 },
+          };
         }),
+      importCuadresBulk: (cuadres) =>
+        set((s) => ({
+          history: [...cuadres.map((c) => ({ ...c, finalizado: true })), ...s.history],
+        })),
+    }),
     }),
     { name: "alfarocafe-store" }
   )
