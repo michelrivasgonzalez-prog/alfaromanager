@@ -278,3 +278,79 @@ function Row({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+function AuditoriaPanel() {
+  const [logs, setLogs] = useState<AuditoriaRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [entidad, setEntidad] = useState("");
+  const [usuario, setUsuario] = useState("");
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const data = await listAuditoria({
+        entidad: entidad || undefined,
+        usuario: usuario || undefined,
+        limit: 100,
+      });
+      setLogs(data);
+    } catch (e: any) {
+      toast.error("Error al cargar auditoría: " + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3">
+      <div className="flex items-center gap-2">
+        <ShieldCheck className="h-4 w-4 text-primary" />
+        <div className="text-sm font-semibold">Auditoría</div>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <Input
+          placeholder="Entidad (ej. abonos)"
+          value={entidad}
+          onChange={(e) => setEntidad(e.target.value)}
+          className="h-9 rounded-xl text-xs"
+        />
+        <Input
+          placeholder="Usuario"
+          value={usuario}
+          onChange={(e) => setUsuario(e.target.value)}
+          className="h-9 rounded-xl text-xs"
+        />
+      </div>
+      <Button onClick={load} disabled={loading} className="w-full rounded-xl gradient-primary">
+        <RefreshCw className={`mr-1 h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Cargar registros
+      </Button>
+      <div className="max-h-80 space-y-2 overflow-y-auto">
+        {logs.length === 0 && (
+          <div className="text-center text-xs text-muted-foreground">Sin registros</div>
+        )}
+        {logs.map((l) => (
+          <div key={l.id} className="rounded-xl border border-border bg-muted/30 p-2 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold">{l.accion}</span>
+              <span className="text-[10px] text-muted-foreground">
+                {format(new Date(l.fecha), "dd MMM yyyy HH:mm", { locale: es })}
+              </span>
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              {l.usuario_nombre ?? "Sistema"} · {l.entidad} {l.entidad_id ? `· ${l.entidad_id.slice(0, 8)}` : ""}
+            </div>
+            {l.detalle && Object.keys(l.detalle).length > 0 && (
+              <pre className="mt-1 max-h-24 overflow-auto rounded-lg bg-muted/60 p-1.5 text-[10px]">
+                {JSON.stringify(l.detalle, null, 2)}
+              </pre>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
