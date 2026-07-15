@@ -15,6 +15,7 @@ import Almacen from "./pages/Almacen";
 import Cobrar from "./pages/Cobrar";
 import ClienteDetalle from "./pages/ClienteDetalle";
 import Abonar from "./pages/Abonar";
+import Buscar from "./pages/Buscar";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import { usePinStore } from "@/store/pinStore";
@@ -65,6 +66,7 @@ const App = () => (
               }
             />
             <Route path="/historial" element={<Historial />} />
+            <Route path="/buscar" element={<Buscar />} />
             <Route path="/reportes" element={<Reportes />} />
             <Route
               path="/productos"

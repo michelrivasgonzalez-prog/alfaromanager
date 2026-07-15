@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -263,15 +263,28 @@ function StepInventario({
     desbloquearProducto,
   } = useCuadreStore();
   const current = currents[activePunto];
-  const [editing, setEditing] = useState<string | null>(null);
   const [unlockId, setUnlockId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<string | null>(null);
   const [unlockNote, setUnlockNote] = useState("");
+  const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   if (!current) return null;
 
   const previos = history.filter((h) => h.puntoVenta === activePunto);
   const isInicio = field === "inicio";
   const productoUnlock = current.productos.find((p) => p.id === unlockId);
+
+  const focusNext = (currentId: string) => {
+    const ids = current.productos
+      .filter((p) => !(isInicio && p.bloqueado))
+      .map((p) => p.id);
+    const idx = ids.indexOf(currentId);
+    const nextId = ids[idx + 1];
+    if (nextId) {
+      const next = inputRefs.current[nextId];
+      next?.focus();
+      next?.select?.();
+    }
+  };
 
   return (
     <StepShell title={title}>
@@ -355,16 +368,23 @@ function StepInventario({
                   )}
                 </td>
                 <td className="px-3 py-2 text-right">
-                  {editing === p.id && !(isInicio && p.bloqueado) ? (
+                  {isInicio && p.bloqueado ? (
+                    <span className="font-mono tabular-nums text-muted-foreground">{p[field]}</span>
+                  ) : (
                     <NumberInput
-                      autoFocus
                       value={p[field]}
                       onChange={(v) => updateProducto(p.id, { [field]: v } as any)}
-                      onBlur={() => setEditing(null)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          focusNext(p.id);
+                        }
+                      }}
+                      ref={(el) => {
+                        inputRefs.current[p.id] = el;
+                      }}
                       className="ml-auto h-9 w-24 rounded-lg text-right"
                     />
-                  ) : (
-                    <span className="font-mono tabular-nums">{p[field]}</span>
                   )}
                 </td>
                 <td className="px-2 py-2 text-right">
@@ -386,7 +406,11 @@ function StepInventario({
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 rounded-lg"
-                      onClick={() => setEditing(editing === p.id ? null : p.id)}
+                      onClick={() => {
+                        const input = inputRefs.current[p.id];
+                        input?.focus();
+                        input?.select?.();
+                      }}
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
@@ -398,7 +422,7 @@ function StepInventario({
         </table>
       </div>
       <p className="text-center text-xs text-muted-foreground">
-        Para agregar productos nuevos, ve al paso de Entradas y traslados.
+        Pulsa el botón "Siguiente" del teclado para avanzar de producto en producto.
       </p>
 
       <Dialog
