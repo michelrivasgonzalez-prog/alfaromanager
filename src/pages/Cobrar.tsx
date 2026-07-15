@@ -8,7 +8,6 @@ import {
   Users,
   Receipt,
   Plus,
-  Trash2,
   ChevronRight,
   Phone,
   PhoneOff,
@@ -39,7 +38,6 @@ import {
   Cliente,
   listClientes,
   upsertCliente,
-  softDeleteCliente,
   listDeudas,
   fmt,
 } from "@/lib/cobrar";
