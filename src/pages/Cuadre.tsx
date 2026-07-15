@@ -931,7 +931,9 @@ function Step6() {
     };
     if (baseId) updateGasto(baseId, payload);
     else addGasto(payload);
-    limpiar();
+    // En Cuentas por Cobrar mantenemos el cliente seleccionado para agregar
+    // varios gastos seguidos sin tener que elegirlo de nuevo.
+    limpiar({ keepCliente: isCredito });
     toast.success(baseId ? "Gasto actualizado" : "Gasto agregado");
   };
 
