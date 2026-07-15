@@ -73,11 +73,13 @@ function creditoPorCliente(c: Cuadre) {
 }
 
 export default function Historial() {
-  const { history, deleteHistory } = useCuadreStore();
+  const { history, deleteHistory, editCuadre } = useCuadreStore();
+  const nav = useNavigate();
   const { role } = useAuth();
   const canDelete = role === "admin";
   const canPDF = role === "admin" || role === "duena";
   const canDeuda = role === "admin" || role === "duena";
+  const canEdit = role === "admin";
   const [detalle, setDetalle] = useState<Cuadre | null>(null);
   const [deudaFor, setDeudaFor] = useState<Cuadre | null>(null);
 
