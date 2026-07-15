@@ -90,7 +90,9 @@ export default function ClienteDetalle() {
         <Button variant="ghost" size="icon" onClick={() => nav(-1)}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <Avatar nombre={cliente.nombre} size={52} />
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted text-foreground shrink-0">
+          <UserIcon className="h-5 w-5" />
+        </div>
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-xl font-bold text-primary">{cliente.nombre}</h1>
           {cliente.telefono ? (
