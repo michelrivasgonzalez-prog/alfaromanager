@@ -26,7 +26,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
 export default function Ajustes() {
-  const { history, settings, setSalarioBasePunto, updateSettings } = useCuadreStore();
+  const { history, settings, setSalarioBasePunto, updateSettings, importCuadresBulk } = useCuadreStore();
   const { role } = useAuth();
   const { logout } = usePinStore();
   const isAdmin = role === "admin";
@@ -34,7 +34,10 @@ export default function Ajustes() {
   const [busy, setBusy] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [importingCuadres, setImportingCuadres] = useState(false);
+  const [cuadresResult, setCuadresResult] = useState<CuadresImportResult | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const fileCuadresRef = useRef<HTMLInputElement>(null);
 
   // Auto conectar a la nube al abrir Ajustes
   useEffect(() => {
