@@ -156,7 +156,7 @@ export function generarPDF(c: Cuadre) {
       )}</strong> (${c.diasTrabajados.length})</div>
     </div>
     <div class="meta">
-      ${format(new Date(c.fecha), "dd MMM yyyy · HH:mm", { locale: es })}<br/>
+      ${format(new Date(fechaTrabajada(c)), "dd MMM yyyy", { locale: es })}<br/>
       ${c.diasTrabajados.length} día(s) trabajado(s)
     </div>
   </header>
