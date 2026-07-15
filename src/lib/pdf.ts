@@ -287,11 +287,16 @@ export function generarPDF(c: Cuadre) {
             )}</span></div>`
           : ""
       }
-      <div class="row total ${tieneFaltante ? "bad" : "ok"}"><span>${
-        tieneFaltante ? "Deuda del dependiente" : "Salario real (pagado)"
-      }</span><span class="v">${fmt(
-        tieneFaltante ? Math.abs(r.salarioReal) : r.salarioReal
+      <div class="row total ok"><span>Salario real (pagado)</span><span class="v">${fmt(
+        Math.max(0, r.salarioReal)
       )}</span></div>
+      ${
+        r.deudaDependiente > 0
+          ? `<div class="row total bad"><span>Deuda del dependiente</span><span class="v">${fmt(
+              r.deudaDependiente
+            )}</span></div>`
+          : ""
+      }
     </div>
     <div class="card">
       <h3>Pago — billetes entregados</h3>
