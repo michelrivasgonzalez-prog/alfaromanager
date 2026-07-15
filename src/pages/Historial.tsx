@@ -4,6 +4,7 @@ import {
   calcCuadre,
   Cuadre,
   DENOMINACIONES,
+  catLabel,
 } from "@/store/cuadreStore";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
