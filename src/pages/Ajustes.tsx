@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Coffee, Store as StoreIcon, Percent, Cloud, RefreshCw, Trash2, Wifi, Upload, ShieldCheck } from "lucide-react";
+import { Coffee, Store as StoreIcon, Percent, Cloud, RefreshCw, Trash2, Wifi, Upload, ShieldCheck, FileDown, ClipboardList } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { NumberInput } from "@/components/NumberInput";
 import {
@@ -19,12 +19,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { fullSync } from "@/lib/sync";
 import { ensureCloudSession } from "@/lib/cloudBootstrap";
 import { importFromAppsheet, type ImportResult } from "@/lib/appsheetImport";
+import { importCuadresFromFile, downloadPlantillaCuadres, type CuadresImportResult } from "@/lib/cuadresImport";
+import { pushCuadre } from "@/lib/sync";
 import { listAuditoria, AuditoriaRow } from "@/lib/auditoria";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
 export default function Ajustes() {
-  const { history, settings, setSalarioBasePunto, updateSettings } = useCuadreStore();
+  const { history, settings, setSalarioBasePunto, updateSettings, importCuadresBulk } = useCuadreStore();
   const { role } = useAuth();
   const { logout } = usePinStore();
   const isAdmin = role === "admin";
@@ -32,7 +34,10 @@ export default function Ajustes() {
   const [busy, setBusy] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [importingCuadres, setImportingCuadres] = useState(false);
+  const [cuadresResult, setCuadresResult] = useState<CuadresImportResult | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const fileCuadresRef = useRef<HTMLInputElement>(null);
 
   // Auto conectar a la nube al abrir Ajustes
   useEffect(() => {
@@ -79,9 +84,33 @@ export default function Ajustes() {
     }
   };
 
+  const onImportCuadres = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportingCuadres(true);
+    setCuadresResult(null);
+    try {
+      const { cuadres, result } = await importCuadresFromFile(file);
+      if (cuadres.length === 0) throw new Error("No se encontraron cuadres válidos");
+      importCuadresBulk(cuadres);
+      // Empuja a la nube (silencioso si falla)
+      for (const c of cuadres) {
+        pushCuadre(c).catch(console.warn);
+      }
+      setCuadresResult(result);
+      toast.success(`${result.creados} cuadre(s) importado(s)`);
+    } catch (err: any) {
+      toast.error("Error al importar: " + (err.message || ""));
+    } finally {
+      setImportingCuadres(false);
+      if (fileCuadresRef.current) fileCuadresRef.current.value = "";
+    }
+  };
+
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">Ajustes</h1>
+
 
       {/* Estado de conexión */}
       <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-2">
@@ -158,7 +187,58 @@ export default function Ajustes() {
         </div>
       )}
 
+      {/* Importar cuadres desde plantilla */}
+      {isAdmin && (
+        <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3">
+          <div className="flex items-center gap-2">
+            <ClipboardList className="h-4 w-4 text-primary" />
+            <div className="text-sm font-semibold">Importar cuadres desde plantilla</div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Descarga la plantilla, complétala con tus cuadres (hojas <strong>Cuadres</strong>,{" "}
+            <strong>Productos</strong> y <strong>Gastos</strong>) y súbela aquí. Los cuadres se
+            añaden al historial y se envían a la nube.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <Button variant="outline" onClick={downloadPlantillaCuadres} className="rounded-xl">
+              <FileDown className="mr-1 h-4 w-4" /> Plantilla
+            </Button>
+            <input
+              ref={fileCuadresRef}
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={onImportCuadres}
+              className="hidden"
+            />
+            <Button
+              onClick={() => fileCuadresRef.current?.click()}
+              disabled={importingCuadres}
+              className="rounded-xl gradient-primary"
+            >
+              <Upload className={`mr-1 h-4 w-4 ${importingCuadres ? "animate-pulse" : ""}`} />
+              {importingCuadres ? "Importando…" : "Subir"}
+            </Button>
+          </div>
+          {cuadresResult && (
+            <div className="rounded-xl bg-muted/60 p-3 text-xs space-y-1">
+              <div>Cuadres importados: <strong>{cuadresResult.creados}</strong></div>
+              {cuadresResult.errores.length > 0 && (
+                <details>
+                  <summary className="cursor-pointer text-destructive">
+                    {cuadresResult.errores.length} advertencia(s)
+                  </summary>
+                  <ul className="mt-1 max-h-32 list-disc overflow-auto pl-5">
+                    {cuadresResult.errores.slice(0, 20).map((e, i) => <li key={i}>{e}</li>)}
+                  </ul>
+                </details>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {isAdmin && <AuditoriaPanel />}
+
 
       {isAdmin && (
         <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3">

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   useCuadreStore,
   calcCuadre,
@@ -15,6 +16,7 @@ import {
   History as HistoryIcon,
   Eye,
   Receipt,
+  Pencil,
 } from "lucide-react";
 import { generarPDF } from "@/lib/pdf";
 import { deleteCuadreRemote } from "@/lib/sync";
@@ -71,11 +73,13 @@ function creditoPorCliente(c: Cuadre) {
 }
 
 export default function Historial() {
-  const { history, deleteHistory } = useCuadreStore();
+  const { history, deleteHistory, editCuadre } = useCuadreStore();
+  const nav = useNavigate();
   const { role } = useAuth();
   const canDelete = role === "admin";
   const canPDF = role === "admin" || role === "duena";
   const canDeuda = role === "admin" || role === "duena";
+  const canEdit = role === "admin";
   const [detalle, setDetalle] = useState<Cuadre | null>(null);
   const [deudaFor, setDeudaFor] = useState<Cuadre | null>(null);
 
@@ -168,6 +172,21 @@ export default function Historial() {
                 onClick={() => generarPDF(c)}
               >
                 <FileDown className="mr-1.5 h-3.5 w-3.5" /> PDF
+              </Button>
+              )}
+              {canEdit && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-xl"
+                onClick={() => {
+                  if (!confirm("Al editar este cuadre se saldrá del historial y podrás modificar sus datos. Al finalizar se volverá a guardar. ¿Continuar?")) return;
+                  editCuadre(c.id);
+                  toast.info("Cuadre en edición. Ve a Cuadre para modificar.");
+                  nav("/cuadre/1");
+                }}
+              >
+                <Pencil className="h-3.5 w-3.5" />
               </Button>
               )}
               {canDelete && (

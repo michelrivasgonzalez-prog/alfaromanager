@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { ArrowLeft, Wallet, Share2, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Wallet, Share2, CheckCircle2, Image as ImageIcon, Download } from "lucide-react";
 import { toast } from "sonner";
+import { toPng } from "html-to-image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,6 +47,56 @@ export default function Abonar() {
     aplicaciones: { deuda: Deuda; monto: number }[];
     saldoRestante: number;
   }>(null);
+  const receiptRef = useRef<HTMLDivElement>(null);
+
+  const generarImagen = async (): Promise<Blob | null> => {
+    if (!receiptRef.current) return null;
+    const dataUrl = await toPng(receiptRef.current, { pixelRatio: 2, backgroundColor: "#ffffff" });
+    const res = await fetch(dataUrl);
+    return await res.blob();
+  };
+
+  const descargarImagen = async () => {
+    try {
+      const blob = await generarImagen();
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `comprobante-${cliente?.nombre?.replace(/\s+/g, "_") || "abono"}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Imagen descargada");
+    } catch (e: any) {
+      toast.error("No se pudo generar la imagen");
+    }
+  };
+
+  const compartirWhatsApp = async () => {
+    try {
+      const blob = await generarImagen();
+      if (!blob) return;
+      const file = new File([blob], "comprobante.png", { type: "image/png" });
+      const texto = comprobanteTexto();
+      const nav: any = navigator;
+      if (nav.canShare && nav.canShare({ files: [file] })) {
+        await nav.share({ files: [file], text: texto, title: "Comprobante de abono" });
+        return;
+      }
+      // Fallback: descargar imagen + abrir WhatsApp con texto
+      await descargarImagen();
+      if (cliente?.telefono) {
+        window.open(
+          `https://wa.me/${cliente.telefono.replace(/[^\d]/g, "")}?text=${encodeURIComponent(texto)}`,
+          "_blank"
+        );
+      }
+      toast.info("Adjunta la imagen descargada al chat de WhatsApp");
+    } catch (e: any) {
+      toast.error("No se pudo compartir");
+    }
+  };
+
 
   // Auto-distribuir al más antiguo
   useEffect(() => {
@@ -207,9 +258,54 @@ export default function Abonar() {
           {comprobante && (
             <div className="space-y-2">
               <pre className="whitespace-pre-wrap rounded-xl bg-muted/60 p-3 text-xs">{comprobanteTexto()}</pre>
+              {/* Receipt visual para exportar como imagen */}
+              <div className="fixed left-[-9999px] top-0" aria-hidden>
+                <div
+                  ref={receiptRef}
+                  style={{
+                    width: 420,
+                    padding: 20,
+                    background: "white",
+                    fontFamily: "system-ui, -apple-system, sans-serif",
+                    color: "#1a1a1a",
+                  }}
+                >
+                  <div style={{ borderBottom: "2px solid #4B3621", paddingBottom: 8, marginBottom: 10 }}>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: "#4B3621" }}>AlFaroCafé</div>
+                    <div style={{ fontSize: 11, color: "#666" }}>Comprobante de abono</div>
+                  </div>
+                  <div style={{ fontSize: 12, marginBottom: 4 }}><strong>Cliente:</strong> {cliente.nombre}</div>
+                  <div style={{ fontSize: 12, marginBottom: 4 }}><strong>Fecha:</strong> {format(new Date(), "dd MMM yyyy HH:mm", { locale: es })}</div>
+                  <div style={{ fontSize: 14, margin: "10px 0", padding: "8px 10px", background: "#065F46", color: "white", borderRadius: 8, textAlign: "center", fontWeight: 700 }}>
+                    Monto abonado: {fmt(comprobante.monto)}
+                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 4, color: "#4B3621" }}>Distribución</div>
+                  {comprobante.aplicaciones.map((a, i) => (
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 11, borderBottom: "1px solid #eee", padding: "4px 0" }}>
+                      <span>{a.deuda.cuadre_label ?? format(new Date(a.deuda.fecha), "dd/MM/yyyy", { locale: es })}</span>
+                      <span style={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{fmt(a.monto)}</span>
+                    </div>
+                  ))}
+                  <div style={{ marginTop: 10, padding: "6px 10px", background: "#f5efe6", borderRadius: 6, fontSize: 12, display: "flex", justifyContent: "space-between" }}>
+                    <span>Saldo pendiente</span>
+                    <strong>{fmt(comprobante.saldoRestante)}</strong>
+                  </div>
+                  {nombre && (
+                    <div style={{ marginTop: 8, fontSize: 10, color: "#666", textAlign: "right" }}>
+                      Registrado por: {nombre}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
-          <DialogFooter className="gap-2">
+          <DialogFooter className="flex-wrap gap-2">
+            <Button variant="outline" onClick={descargarImagen}>
+              <Download className="mr-2 h-4 w-4" /> Imagen
+            </Button>
+            <Button variant="outline" onClick={compartirWhatsApp}>
+              <ImageIcon className="mr-2 h-4 w-4" /> WhatsApp con imagen
+            </Button>
             {cliente.telefono && (
               <Button
                 variant="outline"
@@ -220,7 +316,7 @@ export default function Abonar() {
                   );
                 }}
               >
-                <Share2 className="mr-2 h-4 w-4" /> WhatsApp
+                <Share2 className="mr-2 h-4 w-4" /> Solo texto
               </Button>
             )}
             <Button onClick={() => { setComprobante(null); nav(`/cobrar/clientes/${id}`); }}>Cerrar</Button>
