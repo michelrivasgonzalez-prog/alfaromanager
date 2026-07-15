@@ -3,8 +3,9 @@ import { useCuadreStore, PUNTOS, SALARIO_MODOS, SalarioModo } from "@/store/cuad
 import { usePinStore } from "@/store/pinStore";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Coffee, Store as StoreIcon, Percent, Cloud, RefreshCw, Trash2, Wifi, Upload } from "lucide-react";
+import { Coffee, Store as StoreIcon, Percent, Cloud, RefreshCw, Trash2, Wifi, Upload, ShieldCheck } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { NumberInput } from "@/components/NumberInput";
 import {
@@ -18,6 +19,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { fullSync } from "@/lib/sync";
 import { ensureCloudSession } from "@/lib/cloudBootstrap";
 import { importFromAppsheet, type ImportResult } from "@/lib/appsheetImport";
+import { listAuditoria, AuditoriaRow } from "@/lib/auditoria";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 
 export default function Ajustes() {
   const { history, settings, setSalarioBasePunto, updateSettings } = useCuadreStore();
