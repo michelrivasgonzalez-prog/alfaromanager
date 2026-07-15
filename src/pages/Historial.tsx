@@ -88,7 +88,7 @@ export default function Historial() {
               <div>
                 <div className="font-semibold">{c.dependiente || "Sin nombre"}</div>
                 <div className="text-xs text-muted-foreground">
-                  {format(new Date(c.fecha), "dd MMM yyyy · HH:mm", { locale: es })} ·{" "}
+                  {format(new Date(fechaTrabajada(c)), "dd MMM yyyy", { locale: es })} ·{" "}
                   {c.diasTrabajados.length} día(s)
                 </div>
               </div>
