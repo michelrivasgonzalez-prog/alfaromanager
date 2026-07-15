@@ -51,6 +51,14 @@ export default function Index() {
         </div>
       </div>
 
+      <button
+        onClick={() => nav("/buscar")}
+        className="flex h-12 w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 text-left shadow-soft transition-smooth hover:bg-muted/50"
+      >
+        <Search className="h-4 w-4 text-muted-foreground" />
+        <span className="text-sm text-muted-foreground">Buscar clientes, productos, cuadres…</span>
+      </button>
+
       <div className="grid grid-cols-1 gap-3">
         {canStart && PUNTOS.map((p) => {
           const c = currents[p];
