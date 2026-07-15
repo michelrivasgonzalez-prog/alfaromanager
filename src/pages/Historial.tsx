@@ -48,6 +48,26 @@ function gastosCredito(c: Cuadre) {
 function totalCredito(c: Cuadre) {
   return gastosCredito(c).reduce((s, g) => s + g.monto, 0);
 }
+export function fechaTrabajada(c: Cuadre): string {
+  return c.diasTrabajados?.[0] ?? c.fecha;
+}
+// Agrupa los gastos de crédito por cliente (o "Sin asignar" si no lo tiene)
+function creditoPorCliente(c: Cuadre) {
+  const map = new Map<string, { clienteId?: string; nombre: string; gastos: typeof c.gastos; total: number }>();
+  for (const g of gastosCredito(c)) {
+    const key = g.clienteId || `__nn__${g.clienteNombre || g.nombre || "Sin asignar"}`;
+    const entry = map.get(key) ?? {
+      clienteId: g.clienteId,
+      nombre: g.clienteNombre || g.nombre || "Sin asignar",
+      gastos: [] as typeof c.gastos,
+      total: 0,
+    };
+    entry.gastos.push(g);
+    entry.total += g.monto;
+    map.set(key, entry);
+  }
+  return Array.from(map.values());
+}
 
 export default function Historial() {
   const { history, deleteHistory } = useCuadreStore();
