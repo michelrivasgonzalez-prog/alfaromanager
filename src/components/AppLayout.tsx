@@ -77,17 +77,47 @@ export default function AppLayout() {
             </span>
           )}
         </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={async () => {
-            await signOut();
-            navigate("/auth", { replace: true });
-          }}
-          className="h-7 px-2 text-xs"
-        >
-          <LogOut className="mr-1 h-3 w-3" /> Salir
-        </Button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => doSync(true)}
+            title={
+              syncState === "syncing"
+                ? "Sincronizando..."
+                : syncState === "error"
+                ? "Error de sincronización — toca para reintentar"
+                : lastSync
+                ? `Sincronizado ${new Date(lastSync).toLocaleTimeString()}`
+                : "Sincronizar ahora"
+            }
+            className={`flex h-7 items-center gap-1 rounded-full px-2 text-[10px] font-semibold ${
+              syncState === "error"
+                ? "bg-destructive/10 text-destructive"
+                : syncState === "syncing"
+                ? "bg-primary/10 text-primary"
+                : "bg-secondary/10 text-secondary"
+            }`}
+          >
+            {syncState === "syncing" ? (
+              <RefreshCw className="h-3 w-3 animate-spin" />
+            ) : syncState === "error" ? (
+              <CloudOff className="h-3 w-3" />
+            ) : (
+              <Cloud className="h-3 w-3" />
+            )}
+            {syncState === "syncing" ? "Sync" : syncState === "error" ? "Sin nube" : "En nube"}
+          </button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={async () => {
+              await signOut();
+              navigate("/auth", { replace: true });
+            }}
+            className="h-7 px-2 text-xs"
+          >
+            <LogOut className="mr-1 h-3 w-3" /> Salir
+          </Button>
+        </div>
       </div>
       <motion.main
         key={location.pathname}
