@@ -24,6 +24,48 @@ export default function AppLayout() {
   const navigate = useNavigate();
   const { role, signOut, nombre } = useAuth();
   const tabs = ALL_TABS.filter((t) => !role || t.allow.includes(role));
+  const qc = useQueryClient();
+  const [syncState, setSyncState] = useState<"idle" | "syncing" | "ok" | "error">("idle");
+  const [lastSync, setLastSync] = useState<number | null>(null);
+  const running = useRef(false);
+
+  const doSync = async (manual = false) => {
+    if (running.current || !role) return;
+    running.current = true;
+    setSyncState("syncing");
+    try {
+      await fullSync(role);
+      setSyncState("ok");
+      setLastSync(Date.now());
+      qc.invalidateQueries();
+      if (manual) toast.success("Sincronizado con la nube");
+    } catch (e: any) {
+      console.warn("sync error", e);
+      setSyncState("error");
+      if (manual) toast.error("No se pudo sincronizar");
+    } finally {
+      running.current = false;
+    }
+  };
+
+  useEffect(() => {
+    if (!role) return;
+    doSync();
+    const iv = setInterval(() => doSync(), 30_000);
+    const onVis = () => { if (document.visibilityState === "visible") doSync(); };
+    const onOnline = () => doSync();
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("focus", onVis);
+    window.addEventListener("online", onOnline);
+    return () => {
+      clearInterval(iv);
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("focus", onVis);
+      window.removeEventListener("online", onOnline);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role]);
+
   return (
     <div className="min-h-screen gradient-warm">
       <div className="mx-auto flex max-w-2xl items-center justify-between px-4 pt-3 text-xs text-muted-foreground">
