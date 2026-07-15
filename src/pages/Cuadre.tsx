@@ -58,6 +58,8 @@ import { NumberInput } from "@/components/NumberInput";
 import {
   DENOMINACIONES,
   Gasto,
+  GastoCategoria,
+  catLabel,
   PUNTOS,
   PuntoVenta,
   SALARIO_MODOS,
@@ -68,6 +70,8 @@ import {
   useCuadreStore,
 } from "@/store/cuadreStore";
 import { generarPDF } from "@/lib/pdf";
+import { listClientes, upsertCliente, type Cliente } from "@/lib/cobrar";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { pushCuadre } from "@/lib/sync";
 
