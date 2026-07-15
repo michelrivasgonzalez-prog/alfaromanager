@@ -1,7 +1,8 @@
 import { useNavigate } from "react-router-dom";
-import { Coffee, Play, ArrowRight, Store, X } from "lucide-react";
+import { Coffee, Play, ArrowRight, Store, X, Search } from "lucide-react";
 import coffeeHero from "@/assets/coffee-hero.jpg";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useCuadreStore, PUNTOS, PuntoVenta } from "@/store/cuadreStore";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
