@@ -1,7 +1,9 @@
-import { Cuadre, calcCuadre, DENOMINACIONES } from "@/store/cuadreStore";
+import { Cuadre, calcCuadre, DENOMINACIONES, catLabel } from "@/store/cuadreStore";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import logoUrl from "@/assets/alfaro-logo.jpg";
+
+const fechaTrabajada = (c: Cuadre) => c.diasTrabajados?.[0] ?? c.fecha;
 
 const fmt = (n: number) =>
   `$${n.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
