@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Coffee, Store as StoreIcon, Percent, Cloud, RefreshCw, Trash2, Wifi, Upload, ShieldCheck } from "lucide-react";
+import { Coffee, Store as StoreIcon, Percent, Cloud, RefreshCw, Trash2, Wifi, Upload, ShieldCheck, FileDown, ClipboardList } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { NumberInput } from "@/components/NumberInput";
 import {
