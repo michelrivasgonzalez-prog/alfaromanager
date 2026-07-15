@@ -16,9 +16,74 @@ import { Cuadre, normalizeCatalogoOrden, useCuadreStore } from "@/store/cuadreSt
 export async function fullSync(role: "admin" | "duena" | "dependiente" | null) {
   if (!role) return;
   const isAdmin = role === "admin";
+  await ensureCloudSession();
+  await syncPinUsers(isAdmin);
   await syncCatalogo(isAdmin);
   await syncDependientes(isAdmin);
   await syncCuadres(isAdmin);
+}
+
+/**
+ * Sincroniza usuarios PIN (nombre, rol, hash del PIN, correo de recuperación)
+ * con la nube. Estrategia: last-write-wins simple (upsert por id).
+ * Usa soft-delete vía `deleted_at`.
+ */
+export async function syncPinUsers(isAdmin: boolean) {
+  const { usePinStore } = await import("@/store/pinStore");
+  const state = usePinStore.getState();
+
+  const { data: remote } = await (supabase as any)
+    .from("pin_users")
+    .select("*")
+    .is("deleted_at", null);
+  const remoteRows: any[] = remote ?? [];
+
+  // Push locales -> nube (cualquier dispositivo puede escribir)
+  if (state.users.length > 0) {
+    await (supabase as any).from("pin_users").upsert(
+      state.users.map((u) => ({
+        id: u.id,
+        nombre: u.nombre,
+        role: u.role,
+        pin_hash: u.pinHash,
+        recovery_email: u.recoveryEmail ?? null,
+        deleted_at: null,
+      }))
+    );
+  }
+
+  // Merge nube -> local
+  const byId = new Map(state.users.map((u) => [u.id, u]));
+  for (const r of remoteRows) {
+    byId.set(r.id, {
+      id: r.id,
+      nombre: r.nombre,
+      role: r.role as any,
+      pinHash: r.pin_hash,
+      recoveryEmail: r.recovery_email ?? undefined,
+    });
+  }
+  usePinStore.setState({ users: Array.from(byId.values()) });
+}
+
+/**
+ * Descarga usuarios PIN desde la nube. Se usa al abrir la app en un
+ * dispositivo nuevo (local vacío) para saber si ya hay una cuenta creada
+ * y mostrar la pantalla de PIN en lugar del registro.
+ */
+export async function pullPinUsers() {
+  await ensureCloudSession();
+  const { data } = await (supabase as any)
+    .from("pin_users")
+    .select("*")
+    .is("deleted_at", null);
+  return (data ?? []).map((r: any) => ({
+    id: r.id,
+    nombre: r.nombre,
+    role: r.role as any,
+    pinHash: r.pin_hash,
+    recoveryEmail: r.recovery_email ?? undefined,
+  }));
 }
 
 // ---------- Catálogo ----------
