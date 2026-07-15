@@ -658,9 +658,13 @@ export const calcCuadre = (c: Cuadre) => {
       : modo === "mixto"
       ? Math.max(salarioBasePeriodo, salarioPorPorcentaje)
       : salarioBasePeriodo;
-  const descuentoFalta = diferencia < 0 ? Math.abs(diferencia) : 0;
+  const faltanteBruto = diferencia < 0 ? Math.abs(diferencia) : 0;
   const propina = diferencia > 0 ? diferencia : 0;
-  // Salario real = bruto + propina - descuento por faltante
+  // El faltante primero se descuenta del salario. Si aún queda faltante
+  // por cubrir después de agotar el salario, ESE excedente es deuda real
+  // del dependiente. Si el salario cubre el faltante, no hay deuda.
+  const descuentoFalta = Math.min(faltanteBruto, salarioBruto);
+  const deudaDependiente = Math.max(0, faltanteBruto - salarioBruto);
   const salarioReal = salarioBruto + propina - descuentoFalta;
 
   // Ganancia Neta = Ganancia Bruta - Gastos Local - Gastos Yanitza - Salario Base
@@ -684,6 +688,7 @@ export const calcCuadre = (c: Cuadre) => {
     porcentajeVenta: pct,
     salarioReal,
     descuentoFalta,
+    deudaDependiente,
     propina,
     gananciaNeta,
   };

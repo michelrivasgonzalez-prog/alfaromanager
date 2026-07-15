@@ -182,6 +182,12 @@ export default function Almacen() {
             movimientos={movimientos.data ?? []}
             productos={productosList}
             onCorregir={async (mov) => {
+              if (
+                !confirm(
+                  "Se generará una reversión que ANULA este movimiento. Esta acción no se puede deshacer. ¿Continuar?"
+                )
+              )
+                return;
               const obs = prompt("Observación de la corrección (opcional):") ?? undefined;
               try {
                 await corregirMovimiento(mov, obs || undefined);

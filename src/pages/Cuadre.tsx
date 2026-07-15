@@ -70,6 +70,7 @@ import {
   useCuadreStore,
 } from "@/store/cuadreStore";
 import { generarPDF } from "@/lib/pdf";
+import { formatGastoDetalle } from "@/lib/dias";
 import { listClientes, upsertCliente, type Cliente } from "@/lib/cobrar";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -303,12 +304,14 @@ function StepInventario({
               <SelectValue placeholder="Selecciona un turno previo" />
             </SelectTrigger>
             <SelectContent>
-              {previos.map((h) => (
-                <SelectItem key={h.id} value={h.id}>
-                  {format(new Date(h.fecha), "dd MMM yyyy HH:mm", { locale: es })}
-                  {h.dependiente ? ` · ${h.dependiente}` : ""}
-                </SelectItem>
-              ))}
+              {previos.map((h) => {
+                const dia = h.diasTrabajados?.[h.diasTrabajados.length - 1] ?? h.fecha;
+                return (
+                  <SelectItem key={h.id} value={h.id}>
+                    {h.dependiente || "Sin nombre"}, {format(new Date(dia), "dd 'de' MMMM 'de' yyyy", { locale: es })}
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
           <p className="text-[11px] text-muted-foreground">
@@ -824,7 +827,7 @@ function Step6() {
   const productoSel = current.productos.find((p) => p.id === productoId);
   const clienteSel = clientesQ.data?.find((c) => c.id === clienteId);
 
-  const limpiar = () => {
+  const limpiar = (opts?: { keepCliente?: boolean }) => {
     setEditingGastoId(null);
     setNombre("");
     setDesc("");
@@ -832,8 +835,10 @@ function Step6() {
     setCantidad(0);
     setPrecio(0);
     setProductoId("");
-    setClienteId("");
-    setNuevoCliente("");
+    if (!opts?.keepCliente) {
+      setClienteId("");
+      setNuevoCliente("");
+    }
     setTrTransaccion("");
     setTrImporte(0);
     setTrFecha(new Date());
@@ -927,7 +932,9 @@ function Step6() {
     };
     if (baseId) updateGasto(baseId, payload);
     else addGasto(payload);
-    limpiar();
+    // En Cuentas por Cobrar mantenemos el cliente seleccionado para agregar
+    // varios gastos seguidos sin tener que elegirlo de nuevo.
+    limpiar({ keepCliente: isCredito });
     toast.success(baseId ? "Gasto actualizado" : "Gasto agregado");
   };
 
@@ -1077,19 +1084,21 @@ function Step6() {
           </>
         ) : (
           <>
-            <div>
-              <Label className="text-xs">Nombre (quién recibe)</Label>
-              <Input
-                placeholder="Nombre"
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
-                className="mt-1 h-11 rounded-xl"
-              />
-            </div>
+            {!isCredito && (
+              <div>
+                <Label className="text-xs">Nombre (quién recibe)</Label>
+                <Input
+                  placeholder="Nombre"
+                  value={nombre}
+                  onChange={(e) => setNombre(e.target.value)}
+                  className="mt-1 h-11 rounded-xl"
+                />
+              </div>
+            )}
             <div>
               <Label className="text-xs">Descripción</Label>
               <Input
-                placeholder="Descripción"
+                placeholder={isCredito ? "Nota (opcional, aparece entre paréntesis)" : "Descripción"}
                 value={desc}
                 onChange={(e) => setDesc(e.target.value)}
                 className="mt-1 h-11 rounded-xl"
@@ -1194,7 +1203,7 @@ function Step6() {
         {editingGastoId && (
           <Button
             variant="outline"
-            onClick={limpiar}
+            onClick={() => limpiar()}
             className="h-10 w-full rounded-xl"
           >
             Cancelar edición
@@ -1239,12 +1248,7 @@ function Step6() {
                 </td>
                 <td className="px-3 py-2 text-xs font-medium whitespace-nowrap">{g.nombre}</td>
                 <td className="px-3 py-2 text-xs whitespace-nowrap">
-                  <div>{g.descripcion}</div>
-                  {g.tipo === "Producto" && (
-                    <div className="text-[10px] text-muted-foreground">
-                      {g.cantidad} × {fmt(g.precio || 0)}
-                    </div>
-                  )}
+                  <div>{formatGastoDetalle(g)}</div>
                 </td>
                 <td className="px-3 py-2 text-right font-mono font-semibold tabular-nums whitespace-nowrap">
                   {fmt(g.monto)}

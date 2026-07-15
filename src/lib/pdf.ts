@@ -2,11 +2,14 @@ import { Cuadre, calcCuadre, DENOMINACIONES, catLabel } from "@/store/cuadreStor
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import logoUrl from "@/assets/alfaro-logo.jpg";
+import { formatDiasTrabajados, formatGastoDetalle } from "@/lib/dias";
 
 const fechaTrabajada = (c: Cuadre) => c.diasTrabajados?.[0] ?? c.fecha;
 
 const fmt = (n: number) =>
-  `$${n.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `$${Number(n || 0).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const n2 = (n: number) =>
+  Number(n || 0).toLocaleString("es-ES", { maximumFractionDigits: 2 });
 
 /**
  * Genera un reporte imprimible (HTML) en una nueva ventana con
@@ -21,12 +24,12 @@ export function generarPDF(c: Cuadre) {
       (p) => `
       <tr>
         <td class="l">${escape(p.nombre)}</td>
-        <td class="r">${p.inicio}</td>
-        <td class="r">${p.entradas}</td>
-        <td class="r">${p.traslados}</td>
-        <td class="r">${p.total}</td>
-        <td class="r">${p.final}</td>
-        <td class="r b">${p.venta}</td>
+        <td class="r">${n2(p.inicio)}</td>
+        <td class="r">${n2(p.entradas)}</td>
+        <td class="r">${n2(p.traslados)}</td>
+        <td class="r">${n2(p.total)}</td>
+        <td class="r">${n2(p.final)}</td>
+        <td class="r b">${n2(p.venta)}</td>
         <td class="r">${fmt(p.precio)}</td>
         <td class="r b">${fmt(p.importe)}</td>
         <td class="r">${fmt(p.costo)}</td>
@@ -43,13 +46,7 @@ export function generarPDF(c: Cuadre) {
         <td>${escape(catLabel(g.categoria))}</td>
         <td>${escape(g.tipo)}</td>
         <td>${escape(g.nombre || "—")}</td>
-        <td>${escape(
-          g.tipo === "Producto"
-            ? `${g.productoNombre ?? g.descripcion} (${g.cantidad} × ${fmt(
-                g.precio || 0
-              )})`
-            : g.descripcion
-        )}</td>
+        <td>${escape(formatGastoDetalle(g))}</td>
         <td class="r b">${fmt(g.monto)}</td>
       </tr>`
     )
@@ -76,9 +73,7 @@ export function generarPDF(c: Cuadre) {
     0
   );
 
-  const diasTrabajadosStr = (c.diasTrabajados || [])
-    .map((d) => format(new Date(d), "dd MMM", { locale: es }))
-    .join(", ");
+  const diasTrabajadosStr = formatDiasTrabajados(c.diasTrabajados);
 
   const productosBloqueados = c.productos.filter((p) => p.notaDesbloqueo);
   const notasRows = productosBloqueados
@@ -292,11 +287,16 @@ export function generarPDF(c: Cuadre) {
             )}</span></div>`
           : ""
       }
-      <div class="row total ${tieneFaltante ? "bad" : "ok"}"><span>${
-        tieneFaltante ? "Deuda del dependiente" : "Salario real (pagado)"
-      }</span><span class="v">${fmt(
-        tieneFaltante ? Math.abs(r.salarioReal) : r.salarioReal
+      <div class="row total ok"><span>Salario real (pagado)</span><span class="v">${fmt(
+        Math.max(0, r.salarioReal)
       )}</span></div>
+      ${
+        r.deudaDependiente > 0
+          ? `<div class="row total bad"><span>Deuda del dependiente</span><span class="v">${fmt(
+              r.deudaDependiente
+            )}</span></div>`
+          : ""
+      }
     </div>
     <div class="card">
       <h3>Pago — billetes entregados</h3>
