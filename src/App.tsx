@@ -66,6 +66,7 @@ const App = () => (
               }
             />
             <Route path="/historial" element={<Historial />} />
+            <Route path="/buscar" element={<Buscar />} />
             <Route path="/reportes" element={<Reportes />} />
             <Route
               path="/productos"
