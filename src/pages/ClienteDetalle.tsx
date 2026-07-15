@@ -62,25 +62,35 @@ export default function ClienteDetalle() {
   if (!cliente) return <div className="p-4 text-sm text-muted-foreground">Cliente no encontrado</div>;
 
   const mensajeWhatsApp = () => {
+    const primerNombre = cliente.nombre.split(" ")[0] || cliente.nombre;
     const lines: string[] = [];
-    lines.push(`Hola, ${cliente.nombre}.`);
-    lines.push("");
-    lines.push("Resumen de cuenta en AlFaroCafé:");
-    for (const d of pend) {
-      lines.push("");
-      lines.push(d.cuadre_label ?? format(new Date(d.fecha), "dd MMM yyyy", { locale: es }));
+    lines.push(`☕ *AlFaroCafé* · Resumen de cuenta`);
+    lines.push(``);
+    lines.push(`Hola *${primerNombre}*, esperamos que estés muy bien 🌿`);
+    lines.push(`Este es el detalle actualizado de tu cuenta con nosotros:`);
+    lines.push(``);
+    pend.forEach((d, idx) => {
+      const etiqueta =
+        d.cuadre_label ?? format(new Date(d.fecha), "dd 'de' MMMM yyyy", { locale: es });
+      lines.push(`━━━━━━━━━━━━━━━`);
+      lines.push(`*${idx + 1}. ${etiqueta}*`);
+      lines.push(`_${format(new Date(d.fecha), "dd MMM yyyy", { locale: es })}_`);
       if (d.productos && d.productos.length) {
         for (const p of d.productos) {
           const total = Number(p.precio) * Number(p.cantidad);
-          lines.push(`${p.nombre} ${p.cantidad} × ${p.precio} = ${Math.round(total * 100) / 100}`);
+          lines.push(`  • ${p.nombre}  _${p.cantidad} × ${fmt(p.precio)}_  →  ${fmt(total)}`);
         }
       }
-      lines.push(`Saldo: ${fmt(d.saldo)}`);
-    }
-    lines.push("");
-    lines.push(`TOTAL A PAGAR: ${fmt(totalDeuda)}`);
-    lines.push("");
-    lines.push("Saludos de AlFaroCafé.");
+      lines.push(`  💵 Saldo: *${fmt(d.saldo)}*`);
+    });
+    lines.push(`━━━━━━━━━━━━━━━`);
+    lines.push(``);
+    lines.push(`🧾 *TOTAL PENDIENTE: ${fmt(totalDeuda)}*`);
+    lines.push(``);
+    lines.push(`Cuando puedas, pásate por el local para saldar. Cualquier duda estamos a la orden 💬`);
+    lines.push(``);
+    lines.push(`Gracias por tu preferencia ☕`);
+    lines.push(`_AlFaroCafé — Tu cafetería de confianza_`);
     return lines.join("\n");
   };
 
