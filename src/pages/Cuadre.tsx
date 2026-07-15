@@ -808,6 +808,8 @@ function Step6() {
     setCantidad(0);
     setPrecio(0);
     setProductoId("");
+    setClienteId("");
+    setNuevoCliente("");
     setTrTransaccion("");
     setTrImporte(0);
     setTrFecha(new Date());
@@ -820,6 +822,7 @@ function Step6() {
     setTipo(g.tipo);
     setNombre(g.nombre || "");
     setDesc(g.descripcion || "");
+    setClienteId(g.clienteId || "");
     if (g.categoria === "Transferencia") {
       setTrFecha(g.fecha ? new Date(g.fecha) : new Date());
       setTrTransaccion(g.transaccion || "");
@@ -835,7 +838,7 @@ function Step6() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const guardar = () => {
+  const guardar = async () => {
     const baseId = editingGastoId;
     if (isTransfer) {
       if (!trImporte) return;
@@ -857,21 +860,45 @@ function Step6() {
       toast.success(baseId ? "Transferencia actualizada" : "Transferencia agregada");
       return;
     }
+    // Cuentas por Cobrar: exigir cliente y resolver (existente o nuevo)
+    let cliId: string | undefined;
+    let cliNombre: string | undefined;
+    if (isCredito) {
+      if (clienteId) {
+        cliId = clienteId;
+        cliNombre = clienteSel?.nombre;
+      } else if (nuevoCliente.trim()) {
+        try {
+          const c = await upsertCliente({ nombre: nuevoCliente.trim() });
+          cliId = c.id;
+          cliNombre = c.nombre;
+          qc.invalidateQueries({ queryKey: ["clientes"] });
+        } catch (e: any) {
+          toast.error("No se pudo crear el cliente: " + e.message);
+          return;
+        }
+      } else {
+        toast.error("Selecciona o crea un cliente para la cuenta por cobrar");
+        return;
+      }
+    }
     if (tipo === "Efectivo" && !monto) return;
     if (tipo === "Producto" && (!productoId || !cantidad || !precio)) return;
     const payload: Omit<Gasto, "id"> = {
       categoria: cat,
-      nombre: nombre || "—",
+      nombre: cliNombre || nombre || "—",
       tipo,
       descripcion:
         desc ||
         (tipo === "Producto"
           ? `${productoSel?.nombre ?? "Producto"} x${cantidad}`
-          : cat),
+          : catLabel(cat)),
       productoId: tipo === "Producto" ? productoId : undefined,
       productoNombre: tipo === "Producto" ? productoSel?.nombre : undefined,
       cantidad: tipo === "Producto" ? cantidad : undefined,
       precio: tipo === "Producto" ? precio : undefined,
+      clienteId: cliId,
+      clienteNombre: cliNombre,
       monto: tipo === "Producto" ? importeProducto : monto,
     };
     if (baseId) updateGasto(baseId, payload);
