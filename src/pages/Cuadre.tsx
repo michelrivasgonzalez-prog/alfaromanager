@@ -303,12 +303,14 @@ function StepInventario({
               <SelectValue placeholder="Selecciona un turno previo" />
             </SelectTrigger>
             <SelectContent>
-              {previos.map((h) => (
-                <SelectItem key={h.id} value={h.id}>
-                  {format(new Date(h.fecha), "dd MMM yyyy HH:mm", { locale: es })}
-                  {h.dependiente ? ` · ${h.dependiente}` : ""}
-                </SelectItem>
-              ))}
+              {previos.map((h) => {
+                const dia = h.diasTrabajados?.[h.diasTrabajados.length - 1] ?? h.fecha;
+                return (
+                  <SelectItem key={h.id} value={h.id}>
+                    {h.dependiente || "Sin nombre"}, {format(new Date(dia), "dd 'de' MMMM 'de' yyyy", { locale: es })}
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
           <p className="text-[11px] text-muted-foreground">
@@ -824,7 +826,7 @@ function Step6() {
   const productoSel = current.productos.find((p) => p.id === productoId);
   const clienteSel = clientesQ.data?.find((c) => c.id === clienteId);
 
-  const limpiar = () => {
+  const limpiar = (opts?: { keepCliente?: boolean }) => {
     setEditingGastoId(null);
     setNombre("");
     setDesc("");
@@ -832,8 +834,10 @@ function Step6() {
     setCantidad(0);
     setPrecio(0);
     setProductoId("");
-    setClienteId("");
-    setNuevoCliente("");
+    if (!opts?.keepCliente) {
+      setClienteId("");
+      setNuevoCliente("");
+    }
     setTrTransaccion("");
     setTrImporte(0);
     setTrFecha(new Date());
