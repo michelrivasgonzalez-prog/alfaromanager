@@ -101,7 +101,7 @@ export async function syncPinUsers(isAdmin: boolean) {
   const finalAlive = allRows.filter(
     (r) => !r.deleted_at && !toSoftDelete.includes(r.id)
   );
-  const merged = finalAlive.map((r: any) => ({
+  const merged: any[] = finalAlive.map((r: any) => ({
     id: r.id,
     nombre: r.nombre,
     role: r.role as any,
@@ -109,7 +109,7 @@ export async function syncPinUsers(isAdmin: boolean) {
     recoveryEmail: r.recovery_email ?? undefined,
   }));
   // Añade brand-new no-admin que aún no se pudieron subir, para no perderlos localmente.
-  if (!isAdmin) for (const u of brandNew) merged.push({ ...u, recoveryEmail: u.recoveryEmail });
+  if (!isAdmin) for (const u of brandNew) merged.push(u);
 
   // 5) Si el currentUserId apunta a un id eliminado, remapear al canónico.
   let nextCurrent = state.currentUserId;
