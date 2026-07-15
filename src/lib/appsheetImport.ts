@@ -3,15 +3,18 @@ import { supabase } from "@/integrations/supabase/client";
 import { ensureCloudSession } from "@/lib/cloudBootstrap";
 
 /**
- * Importación desde AppSheet.
+ * Importación desde AppSheet — schema real del usuario.
  *
- * Formato esperado: un archivo .xlsx con hasta tres hojas:
- *   - "Clientes" (columnas: Nombre / Cliente / Name; Teléfono / Telefono / Phone; Observaciones / Notas)
- *   - "Deudas"   (columnas: Cliente, Fecha, Detalle/Concepto/Producto, Cantidad, Precio, Total, Saldo, Estado)
- *   - "Abonos"   (columnas: Cliente, Fecha, Monto, Nota)
+ * Hoja "Clientes":
+ *   ID_Cliente, Nombre Completo, Teléfono, (Foto opcional)
+ * Hoja "Deudas":
+ *   PK_Deuda, ID_Deuda, ID_Cliente, Procedencia, Fecha, Monto Total, Descripción
+ * Hoja "Abonos":
+ *   ID_Abono, Numero de Recibo, ID_Deuda, Monto Pagado, Fecha de Pago
  *
- * El importador tolera nombres alternativos y saltos de mayúsculas.
- * Todo se inserta con soft-delete = null y se enlaza por nombre de cliente.
+ * Los IDs de AppSheet NO se guardan; se usan sólo para enlazar filas durante
+ * la importación. Los abonos se aplican a la deuda correspondiente vía el
+ * RPC `registrar_abono` para que el saldo y el estado se actualicen bien.
  */
 
 type Row = Record<string, any>;
@@ -45,7 +48,6 @@ const parseDate = (v: any): string => {
   if (!v) return new Date().toISOString();
   if (v instanceof Date) return v.toISOString();
   if (typeof v === "number") {
-    // Excel serial date
     const ms = Math.round((v - 25569) * 86400 * 1000);
     return new Date(ms).toISOString();
   }
@@ -82,108 +84,156 @@ export async function importFromAppsheet(file: File): Promise<ImportResult> {
   const abonosRows = sheetByName(["abono", "pago"]);
 
   // 1) Clientes: crear si no existen (case-insensitive por nombre)
-  const { data: existentes } = await supabase.from("clientes").select("id, nombre").is("deleted_at", null);
+  //    Guardamos mapa: ID_Cliente AppSheet -> uuid Supabase
+  const { data: existentes } = await supabase
+    .from("clientes")
+    .select("id, nombre")
+    .is("deleted_at", null);
   const byName = new Map<string, string>();
   for (const c of existentes ?? []) byName.set(norm(c.nombre), c.id);
 
+  const appsheetClienteId = new Map<string, string>(); // ID_Cliente -> uuid
+
   for (const r of clientesRows) {
-    const nombre = pick(r, ["nombre", "cliente", "name", "customer"]);
+    const nombre = pick(r, ["nombre completo", "nombre", "cliente", "name", "customer"]);
+    const idAppsheet = pick(r, ["id_cliente", "id", "pk_cliente"]);
     if (!nombre) continue;
-    if (byName.has(norm(nombre))) {
-      result.clientes.existentes++;
-      continue;
-    }
     const telefono = pick(r, ["telefono", "teléfono", "phone", "celular"]);
     const observaciones = pick(r, ["observaciones", "notas", "notes", "comentarios"]);
-    const { data, error } = await supabase
-      .from("clientes")
-      .insert({
-        nombre: String(nombre).trim(),
-        telefono: telefono ? String(telefono).trim() : null,
-        observaciones: observaciones ? String(observaciones).trim() : null,
-      })
-      .select("id, nombre")
-      .single();
-    if (error) {
-      result.errores.push(`Cliente "${nombre}": ${error.message}`);
-      continue;
+
+    let uuid = byName.get(norm(nombre));
+    if (uuid) {
+      result.clientes.existentes++;
+      // Si el existente no tiene teléfono y en el excel viene, lo actualizamos.
+      if (telefono) {
+        await supabase
+          .from("clientes")
+          .update({ telefono: String(telefono).trim() })
+          .eq("id", uuid)
+          .is("telefono", null);
+      }
+    } else {
+      const { data, error } = await supabase
+        .from("clientes")
+        .insert({
+          nombre: String(nombre).trim(),
+          telefono: telefono ? String(telefono).trim() : null,
+          observaciones: observaciones ? String(observaciones).trim() : null,
+        })
+        .select("id, nombre")
+        .single();
+      if (error) {
+        result.errores.push(`Cliente "${nombre}": ${error.message}`);
+        continue;
+      }
+      uuid = data.id;
+      byName.set(norm(data.nombre), uuid);
+      result.clientes.creados++;
     }
-    byName.set(norm(data.nombre), data.id);
-    result.clientes.creados++;
+    if (idAppsheet) appsheetClienteId.set(String(idAppsheet).trim(), uuid!);
   }
 
-  // Descarga clientes de nuevo por si algún nombre difería
-  const resolveCliente = (nombre: any): string | null => {
-    const id = byName.get(norm(nombre));
-    return id ?? null;
-  };
+  // 2) Deudas
+  //    Guardamos mapa: ID_Deuda AppSheet -> uuid Supabase
+  const appsheetDeudaId = new Map<string, string>();
 
-  // 2) Deudas: una fila = una deuda
   for (const r of deudasRows) {
-    const nomCli = pick(r, ["cliente", "nombre", "customer"]);
-    const cliId = resolveCliente(nomCli);
+    const idDeudaAS = pick(r, ["id_deuda", "pk_deuda"]);
+    const idCliAS = pick(r, ["id_cliente"]);
+    let cliId: string | null | undefined = idCliAS ? appsheetClienteId.get(String(idCliAS).trim()) : undefined;
+    if (!cliId) {
+      // fallback por nombre si trae la columna cliente
+      const nomCli = pick(r, ["nombre completo", "cliente", "nombre"]);
+      if (nomCli) cliId = byName.get(norm(nomCli)) ?? null;
+    }
     if (!cliId) {
       result.deudas.omitidas++;
-      if (nomCli) result.errores.push(`Deuda omitida: cliente "${nomCli}" no encontrado`);
+      result.errores.push(`Deuda ${idDeudaAS ?? ""}: cliente no encontrado`);
       continue;
     }
-    const total = parseNumber(pick(r, ["total", "importe", "monto"]));
-    const saldoRaw = pick(r, ["saldo", "pendiente", "balance"]);
-    const saldo = saldoRaw !== undefined ? parseNumber(saldoRaw) : total;
-    if (total <= 0 && saldo <= 0) {
+
+    const total = parseNumber(pick(r, ["monto total", "total", "importe", "monto"]));
+    if (total <= 0) {
       result.deudas.omitidas++;
       continue;
     }
     const fecha = parseDate(pick(r, ["fecha", "date"]));
-    const detalle =
-      pick(r, ["detalle", "concepto", "producto", "descripcion", "descripción"]) ?? "Importado";
-    const cantidad = parseNumber(pick(r, ["cantidad", "qty"])) || 1;
-    const precio = parseNumber(pick(r, ["precio", "unitario"])) || total / (cantidad || 1);
-    const estado =
-      saldo <= 0.001 ? "pagada" : saldo < total ? "parcial" : "pendiente";
-    const { error } = await supabase.from("deudas").insert({
-      cliente_id: cliId,
-      cuadre_id: null,
-      cuadre_label: "Importado desde AppSheet",
-      fecha,
-      productos: [{ nombre: String(detalle), cantidad, precio }] as any,
-      total,
-      saldo,
-      estado,
-    });
-    if (error) {
-      result.errores.push(`Deuda "${nomCli}": ${error.message}`);
-      result.deudas.omitidas++;
-    } else {
-      result.deudas.creadas++;
-    }
-  }
+    const procedencia = pick(r, ["procedencia", "origen"]);
+    const detalle = pick(r, ["descripción", "descripcion", "detalle", "concepto"]) ?? procedencia ?? "Importado";
 
-  // 3) Abonos: histórico plano
-  for (const r of abonosRows) {
-    const nomCli = pick(r, ["cliente", "nombre", "customer"]);
-    const cliId = resolveCliente(nomCli);
-    if (!cliId) {
-      result.abonos.omitidos++;
-      if (nomCli) result.errores.push(`Abono omitido: cliente "${nomCli}" no encontrado`);
+    const { data, error } = await supabase
+      .from("deudas")
+      .insert({
+        cliente_id: cliId,
+        cuadre_id: null,
+        cuadre_label: procedencia ? `Importado · ${procedencia}` : "Importado desde AppSheet",
+        fecha,
+        productos: [{ nombre: String(detalle), cantidad: 1, precio: total }] as any,
+        total,
+        saldo: total,
+        estado: "pendiente",
+      })
+      .select("id")
+      .single();
+
+    if (error) {
+      result.errores.push(`Deuda ${idDeudaAS ?? ""}: ${error.message}`);
+      result.deudas.omitidas++;
       continue;
     }
-    const monto = parseNumber(pick(r, ["monto", "importe", "total", "pago"]));
+    if (idDeudaAS) appsheetDeudaId.set(String(idDeudaAS).trim(), data.id);
+    result.deudas.creadas++;
+  }
+
+  // 3) Abonos: usan RPC para aplicar correctamente al saldo/estado.
+  for (const r of abonosRows) {
+    const idDeudaAS = pick(r, ["id_deuda"]);
+    if (!idDeudaAS) {
+      result.abonos.omitidos++;
+      continue;
+    }
+    const deudaUuid = appsheetDeudaId.get(String(idDeudaAS).trim());
+    if (!deudaUuid) {
+      result.abonos.omitidos++;
+      result.errores.push(`Abono omitido: no encuentro deuda ${idDeudaAS}`);
+      continue;
+    }
+    const monto = parseNumber(pick(r, ["monto pagado", "monto", "importe", "pago"]));
     if (monto <= 0) {
       result.abonos.omitidos++;
       continue;
     }
-    const fecha = parseDate(pick(r, ["fecha", "date"]));
-    const nota = pick(r, ["nota", "notas", "descripcion", "descripción", "detalle"]);
-    const { error } = await supabase.from("abonos").insert({
-      cliente_id: cliId,
-      monto,
-      fecha,
-      usuario_nombre: "Importación AppSheet",
-      nota: nota ? String(nota) : "Abono histórico importado",
-    });
+    const fecha = parseDate(pick(r, ["fecha de pago", "fecha", "date"]));
+    const recibo = pick(r, ["numero de recibo", "número de recibo", "recibo"]);
+    const nota = recibo ? `Recibo #${recibo}` : "Abono histórico importado";
+
+    // Necesitamos cliente_id de la deuda
+    const { data: deudaRow } = await supabase
+      .from("deudas")
+      .select("cliente_id, saldo")
+      .eq("id", deudaUuid)
+      .single();
+    if (!deudaRow) {
+      result.abonos.omitidos++;
+      continue;
+    }
+    // Aplicamos como mucho el saldo actual (para no romper el RPC).
+    const aplicar = Math.min(monto, Number((deudaRow as any).saldo));
+    if (aplicar <= 0) {
+      result.abonos.omitidos++;
+      continue;
+    }
+    const { error } = await supabase.rpc("registrar_abono" as any, {
+      _cliente_id: (deudaRow as any).cliente_id,
+      _monto: aplicar,
+      _aplicaciones: [{ deuda_id: deudaUuid, monto: aplicar }] as any,
+      _usuario_id: null,
+      _usuario_nombre: "Importación AppSheet",
+      _nota: nota,
+      _fecha: fecha,
+    } as any);
     if (error) {
-      result.errores.push(`Abono "${nomCli}": ${error.message}`);
+      result.errores.push(`Abono deuda ${idDeudaAS}: ${error.message}`);
       result.abonos.omitidos++;
     } else {
       result.abonos.creados++;
