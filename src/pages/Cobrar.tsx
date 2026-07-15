@@ -8,13 +8,14 @@ import {
   Users,
   Receipt,
   Plus,
-  Pencil,
   Trash2,
   ChevronRight,
   Phone,
+  PhoneOff,
   ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Avatar } from "@/components/Avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -105,19 +106,30 @@ export default function Cobrar() {
           {clientes.data?.map((c) => {
             const cliDeudas = (deudas.data ?? []).filter((d) => d.cliente_id === c.id);
             const saldo = cliDeudas.filter((d) => d.estado !== "pagada").reduce((s, d) => s + Number(d.saldo), 0);
+            const sinTelefono = !c.telefono || !c.telefono.trim();
             return (
-              <div key={c.id} className="rounded-2xl border border-border bg-card p-3 shadow-soft">
-                <div className="flex items-center justify-between gap-2">
-                  <button
-                    onClick={() => nav(`/cobrar/clientes/${c.id}`)}
-                    className="flex-1 min-w-0 text-left"
-                  >
+              <button
+                key={c.id}
+                onClick={() => nav(`/cobrar/clientes/${c.id}`)}
+                className="w-full rounded-2xl border border-border bg-card p-3 text-left shadow-soft transition-colors hover:bg-muted/40"
+              >
+                <div className="flex items-center gap-3">
+                  <Avatar nombre={c.nombre} size={44} />
+                  <div className="flex-1 min-w-0">
                     <div className="truncate text-sm font-semibold">{c.nombre}</div>
-                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                      {c.telefono && (<><Phone className="h-3 w-3" /> {c.telefono}</>)}
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                      {c.telefono ? (
+                        <span className="inline-flex items-center gap-1">
+                          <Phone className="h-3 w-3" /> {c.telefono}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-1.5 py-0.5 font-semibold text-destructive">
+                          <PhoneOff className="h-3 w-3" /> Sin teléfono
+                        </span>
+                      )}
                       <span>· {cliDeudas.length} deuda(s)</span>
                     </div>
-                  </button>
+                  </div>
                   <div className="text-right">
                     <div className="text-[10px] uppercase text-muted-foreground">Saldo</div>
                     <div className={`font-mono text-sm font-bold tabular-nums ${saldo > 0 ? "text-destructive" : "text-secondary"}`}>
@@ -126,28 +138,7 @@ export default function Cobrar() {
                   </div>
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </div>
-                <div className="mt-2 flex gap-2">
-                  <Button size="sm" variant="ghost" className="flex-1" onClick={() => setCliDialog(c)}>
-                    <Pencil className="mr-1 h-3 w-3" /> Editar
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-destructive"
-                    onClick={async () => {
-                      if (cliDeudas.some((d) => d.estado !== "pagada")) {
-                        return toast.error("El cliente tiene deudas activas");
-                      }
-                      if (!confirm(`¿Eliminar cliente "${c.nombre}"?`)) return;
-                      await softDeleteCliente(c.id);
-                      toast.success("Cliente eliminado");
-                      qc.invalidateQueries({ queryKey: ["clientes"] });
-                    }}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
+              </button>
             );
           })}
         </TabsContent>
