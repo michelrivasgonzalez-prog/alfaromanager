@@ -383,7 +383,7 @@ function CuadreDetalle({ c }: { c: Cuadre }) {
             <tbody>
               {c.gastos.map((g) => (
                 <tr key={g.id} className="border-t border-border">
-                  <td className="px-2 py-1.5">{g.categoria}</td>
+                  <td className="px-2 py-1.5">{catLabel(g.categoria)}</td>
                   <td className="px-2 py-1.5">{g.tipo}</td>
                   <td className="px-2 py-1.5">{g.nombre || "—"}</td>
                   <td className="px-2 py-1.5">
