@@ -29,9 +29,22 @@ export type CatalogoItem = {
 
 export type GastoTipo = "Efectivo" | "Producto";
 
+// "Compras" queda por compatibilidad con cuadres antiguos guardados en local;
+// las nuevas UI usan "Salida de efectivo".
+export type GastoCategoria =
+  | "Local"
+  | "Yanitza"
+  | "Salida de efectivo"
+  | "Compras"
+  | "Cuentas por Cobrar"
+  | "Transferencia";
+
+export const catLabel = (c: GastoCategoria) =>
+  c === "Compras" ? "Salida de efectivo" : c;
+
 export type Gasto = {
   id: string;
-  categoria: "Local" | "Yanitza" | "Compras" | "Cuentas por Cobrar" | "Transferencia";
+  categoria: GastoCategoria;
   nombre: string; // quién recibe
   tipo: GastoTipo;
   descripcion: string;
@@ -46,6 +59,9 @@ export type Gasto = {
   importe?: number;        // monto base ingresado
   porcentaje?: number;     // % cargo aplicado
   montoRecibido?: number;  // importe + (importe * porcentaje/100)
+  // Para Cuentas por Cobrar: cliente asignado (se usa al crear la deuda desde el historial)
+  clienteId?: string;
+  clienteNombre?: string;
   // Importe final
   monto: number;
 };

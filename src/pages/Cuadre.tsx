@@ -58,6 +58,8 @@ import { NumberInput } from "@/components/NumberInput";
 import {
   DENOMINACIONES,
   Gasto,
+  GastoCategoria,
+  catLabel,
   PUNTOS,
   PuntoVenta,
   SALARIO_MODOS,
@@ -68,11 +70,15 @@ import {
   useCuadreStore,
 } from "@/store/cuadreStore";
 import { generarPDF } from "@/lib/pdf";
+import { listClientes, upsertCliente, type Cliente } from "@/lib/cobrar";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { pushCuadre } from "@/lib/sync";
 
 const fmt = (n: number) =>
   `$${n.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const n2 = (n: number) =>
+  Number(n || 0).toLocaleString("es-ES", { maximumFractionDigits: 2 });
 
 export default function Cuadre() {
   const { step } = useParams();
@@ -674,15 +680,15 @@ function Step5() {
               return (
                 <tr key={p.id} className="border-t border-border">
                   <td className="px-2 py-2 font-medium">{p.nombre}</td>
-                  <td className="px-2 py-2 text-right tabular-nums">{p.inicio}</td>
-                  <td className="px-2 py-2 text-right tabular-nums">{p.entradas}</td>
-                  <td className="px-2 py-2 text-right tabular-nums">{p.traslados}</td>
+                  <td className="px-2 py-2 text-right tabular-nums">{n2(p.inicio)}</td>
+                  <td className="px-2 py-2 text-right tabular-nums">{n2(p.entradas)}</td>
+                  <td className="px-2 py-2 text-right tabular-nums">{n2(p.traslados)}</td>
                   <td className="px-2 py-2 text-right tabular-nums font-semibold">
-                    {c.total}
+                    {n2(c.total)}
                   </td>
-                  <td className="px-2 py-2 text-right tabular-nums">{p.final}</td>
+                  <td className="px-2 py-2 text-right tabular-nums">{n2(p.final)}</td>
                   <td className="px-2 py-2 text-right tabular-nums font-semibold">
-                    {c.venta}
+                    {n2(c.venta)}
                   </td>
                   {isAdmin && (
                     <td className="px-2 py-2 text-right tabular-nums">
@@ -748,10 +754,10 @@ function SummaryTile({
 }
 
 /* ================== Step 6: Gastos ================== */
-const CATEGORIAS: Gasto["categoria"][] = [
+const CATEGORIAS: GastoCategoria[] = [
   "Local",
   "Yanitza",
-  "Compras",
+  "Salida de efectivo",
   "Cuentas por Cobrar",
   "Transferencia",
 ];
@@ -760,7 +766,7 @@ function Step6() {
   const { currents, activePunto, addGasto, updateGasto, removeGasto, settings } =
     useCuadreStore();
   const current = currents[activePunto];
-  const [cat, setCat] = useState<Gasto["categoria"]>("Local");
+  const [cat, setCat] = useState<GastoCategoria>("Local");
   const [tipo, setTipo] = useState<"Efectivo" | "Producto">("Efectivo");
   const [nombre, setNombre] = useState("");
   const [desc, setDesc] = useState("");
@@ -770,6 +776,11 @@ function Step6() {
   const [productoId, setProductoId] = useState<string>("");
   const [editingGastoId, setEditingGastoId] = useState<string | null>(null);
   const [productoOpen, setProductoOpen] = useState(false);
+  // Cuentas por Cobrar: cliente asignado + creación rápida
+  const qc = useQueryClient();
+  const clientesQ = useQuery({ queryKey: ["clientes"], queryFn: listClientes });
+  const [clienteId, setClienteId] = useState<string>("");
+  const [nuevoCliente, setNuevoCliente] = useState("");
   // Estado específico para Transferencia
   const [trFecha, setTrFecha] = useState<Date | undefined>(new Date());
   const [trTransaccion, setTrTransaccion] = useState("");
@@ -781,11 +792,13 @@ function Step6() {
     if (cat === "Transferencia") setTrPorcentaje(settings.porcentajeTransferencia);
   }, [cat, settings.porcentajeTransferencia]);
   const isTransfer = cat === "Transferencia";
+  const isCredito = cat === "Cuentas por Cobrar";
   if (!current) return null;
 
   const importeProducto = cantidad * precio;
   const total = current.gastos.reduce((s, g) => s + g.monto, 0);
   const productoSel = current.productos.find((p) => p.id === productoId);
+  const clienteSel = clientesQ.data?.find((c) => c.id === clienteId);
 
   const limpiar = () => {
     setEditingGastoId(null);
@@ -795,6 +808,8 @@ function Step6() {
     setCantidad(0);
     setPrecio(0);
     setProductoId("");
+    setClienteId("");
+    setNuevoCliente("");
     setTrTransaccion("");
     setTrImporte(0);
     setTrFecha(new Date());
@@ -807,6 +822,7 @@ function Step6() {
     setTipo(g.tipo);
     setNombre(g.nombre || "");
     setDesc(g.descripcion || "");
+    setClienteId(g.clienteId || "");
     if (g.categoria === "Transferencia") {
       setTrFecha(g.fecha ? new Date(g.fecha) : new Date());
       setTrTransaccion(g.transaccion || "");
@@ -822,7 +838,7 @@ function Step6() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const guardar = () => {
+  const guardar = async () => {
     const baseId = editingGastoId;
     if (isTransfer) {
       if (!trImporte) return;
@@ -844,21 +860,45 @@ function Step6() {
       toast.success(baseId ? "Transferencia actualizada" : "Transferencia agregada");
       return;
     }
+    // Cuentas por Cobrar: exigir cliente y resolver (existente o nuevo)
+    let cliId: string | undefined;
+    let cliNombre: string | undefined;
+    if (isCredito) {
+      if (clienteId) {
+        cliId = clienteId;
+        cliNombre = clienteSel?.nombre;
+      } else if (nuevoCliente.trim()) {
+        try {
+          const c = await upsertCliente({ nombre: nuevoCliente.trim() });
+          cliId = c.id;
+          cliNombre = c.nombre;
+          qc.invalidateQueries({ queryKey: ["clientes"] });
+        } catch (e: any) {
+          toast.error("No se pudo crear el cliente: " + e.message);
+          return;
+        }
+      } else {
+        toast.error("Selecciona o crea un cliente para la cuenta por cobrar");
+        return;
+      }
+    }
     if (tipo === "Efectivo" && !monto) return;
     if (tipo === "Producto" && (!productoId || !cantidad || !precio)) return;
     const payload: Omit<Gasto, "id"> = {
       categoria: cat,
-      nombre: nombre || "—",
+      nombre: cliNombre || nombre || "—",
       tipo,
       descripcion:
         desc ||
         (tipo === "Producto"
           ? `${productoSel?.nombre ?? "Producto"} x${cantidad}`
-          : cat),
+          : catLabel(cat)),
       productoId: tipo === "Producto" ? productoId : undefined,
       productoNombre: tipo === "Producto" ? productoSel?.nombre : undefined,
       cantidad: tipo === "Producto" ? cantidad : undefined,
       precio: tipo === "Producto" ? precio : undefined,
+      clienteId: cliId,
+      clienteNombre: cliNombre,
       monto: tipo === "Producto" ? importeProducto : monto,
     };
     if (baseId) updateGasto(baseId, payload);
@@ -880,7 +920,7 @@ function Step6() {
               <SelectContent>
                 {CATEGORIAS.map((c) => (
                   <SelectItem key={c} value={c}>
-                    {c}
+                    {catLabel(c)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -899,6 +939,47 @@ function Step6() {
             </Select>
           </div>
         </div>
+
+        {isCredito && (
+          <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-2">
+            <div className="text-[11px] font-semibold text-primary">
+              Cliente de la cuenta por cobrar
+            </div>
+            <Select
+              value={clienteId || "__new__"}
+              onValueChange={(v) => {
+                if (v === "__new__") setClienteId("");
+                else {
+                  setClienteId(v);
+                  setNuevoCliente("");
+                }
+              }}
+            >
+              <SelectTrigger className="h-10 rounded-xl">
+                <SelectValue placeholder="Selecciona un cliente" />
+              </SelectTrigger>
+              <SelectContent>
+                {(clientesQ.data ?? []).map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
+                ))}
+                <SelectItem value="__new__">+ Nuevo cliente…</SelectItem>
+              </SelectContent>
+            </Select>
+            {!clienteId && (
+              <Input
+                placeholder="Nombre del nuevo cliente"
+                value={nuevoCliente}
+                onChange={(e) => setNuevoCliente(e.target.value)}
+                className="h-10 rounded-xl"
+              />
+            )}
+            <p className="text-[11px] text-muted-foreground">
+              Al terminar el turno se generará una deuda por cliente sumando
+              todos los gastos que le hayas asignado en este cuadre.
+            </p>
+          </div>
+        )}
+
 
         {isTransfer ? (
           <>
@@ -1128,7 +1209,7 @@ function Step6() {
               <tr key={g.id} className="border-t border-border align-top">
                 <td className="px-3 py-2 text-xs whitespace-nowrap">
                   <span className="rounded-full bg-muted px-2 py-0.5 font-medium">
-                    {g.categoria}
+                    {catLabel(g.categoria)}
                   </span>
                   <div className="mt-0.5 text-[10px] text-muted-foreground">{g.tipo}</div>
                 </td>

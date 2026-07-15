@@ -3,11 +3,12 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Coffee, Shield, Mail } from "lucide-react";
+import { Coffee, Mail, Cloud, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { PinPad } from "@/components/PinPad";
 import { usePinStore } from "@/store/pinStore";
-import { supabase } from "@/integrations/supabase/client";
+import { ensureCloudSession } from "@/lib/cloudBootstrap";
+import { pullPinUsers, syncPinUsers } from "@/lib/sync";
 
 export default function Auth() {
   const nav = useNavigate();
@@ -15,6 +16,7 @@ export default function Auth() {
   const hasAdmin = users.some((u) => u.role === "admin");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [checkingCloud, setCheckingCloud] = useState(true);
 
   // onboarding state
   const [step, setStep] = useState<"form" | "pin" | "confirm">("form");
@@ -23,13 +25,50 @@ export default function Auth() {
   const [firstPin, setFirstPin] = useState("");
   const [showRecover, setShowRecover] = useState(false);
 
+  // Al arrancar: si el dispositivo está vacío, intenta traer usuarios PIN
+  // desde la nube. Si ya hay una cuenta creada allá, saltamos el onboarding
+  // y mostramos la pantalla de PIN.
+  useEffect(() => {
+    (async () => {
+      if (users.length > 0) {
+        setCheckingCloud(false);
+        return;
+      }
+      try {
+        const ok = await ensureCloudSession();
+        if (!ok) return;
+        const remote = await pullPinUsers();
+        if (remote.length > 0) {
+          usePinStore.setState({ users: remote });
+          toast.success("Cuenta encontrada en la nube. Ingresa tu PIN.");
+        }
+      } catch {
+        // silencioso: sin red, seguirá el flujo local
+      } finally {
+        setCheckingCloud(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (currentUserId) nav("/", { replace: true });
   }, [currentUserId, nav]);
 
   if (currentUserId) return <Navigate to="/" replace />;
 
-  // ---- Onboarding (no admin yet) ----
+  if (checkingCloud && users.length === 0) {
+    return (
+      <Wrapper subtitle="Buscando cuenta en la nube…">
+        <div className="flex flex-col items-center gap-3 py-6 text-muted-foreground">
+          <RefreshCw className="h-6 w-6 animate-spin" />
+          <p className="text-xs">Un momento…</p>
+        </div>
+      </Wrapper>
+    );
+  }
+
+  // ---- Onboarding (no admin yet, local + cloud vacíos) ----
   if (!hasAdmin) {
     if (step === "form") {
       return (
@@ -105,6 +144,8 @@ export default function Auth() {
                 recoveryEmail: recoveryEmail.trim(),
               });
               await login(p);
+              // Sube el nuevo usuario a la nube para que otros dispositivos lo vean
+              syncPinUsers(true).catch(console.warn);
               toast.success(`Bienvenido, ${u.nombre}`);
             } catch (err: any) {
               setError(err.message || "Error");
@@ -124,6 +165,10 @@ export default function Auth() {
 
   return (
     <Wrapper subtitle="Ingresa tu PIN">
+      <div className="mb-2 flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground">
+        <Cloud className="h-3 w-3" />
+        Sincronización automática activa
+      </div>
       <PinPad
         busy={busy}
         error={error}
@@ -187,26 +232,12 @@ function Recovery({ onClose }: { onClose: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      // Verificación local: el email de recuperación coincide
       const localOk =
         admin.recoveryEmail &&
         admin.recoveryEmail.trim().toLowerCase() === email.trim().toLowerCase();
       if (!localOk) {
         setError("Email no coincide con el registrado");
         return;
-      }
-      // Si hay internet, también enviamos un OTP por email para mayor seguridad
-      if (navigator.onLine) {
-        const { error: authErr } = await supabase.auth.signInWithOtp({
-          email: admin.recoveryEmail!,
-          options: { shouldCreateUser: true },
-        });
-        if (authErr) {
-          // Sin red real, seguimos con verificación local
-          console.warn("OTP no enviado:", authErr.message);
-        } else {
-          toast.message("Te enviamos un correo de verificación (opcional)");
-        }
       }
       setStage("newpin");
     } finally {

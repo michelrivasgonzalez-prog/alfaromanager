@@ -1,11 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCuadreStore, PUNTOS, SALARIO_MODOS, SalarioModo } from "@/store/cuadreStore";
 import { usePinStore } from "@/store/pinStore";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Coffee, Store as StoreIcon, Percent, Cloud, CloudOff, RefreshCw, Trash2, Wifi } from "lucide-react";
+import { Coffee, Store as StoreIcon, Percent, Cloud, RefreshCw, Trash2, Wifi, Upload } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { NumberInput } from "@/components/NumberInput";
 import {
@@ -17,75 +16,62 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { fullSync } from "@/lib/sync";
+import { ensureCloudSession } from "@/lib/cloudBootstrap";
+import { importFromAppsheet, type ImportResult } from "@/lib/appsheetImport";
 
 export default function Ajustes() {
   const { history, settings, setSalarioBasePunto, updateSettings } = useCuadreStore();
   const { role } = useAuth();
   const { logout } = usePinStore();
   const isAdmin = role === "admin";
-
-  const [cloudUser, setCloudUser] = useState<string | null>(null);
+  const [cloudOk, setCloudOk] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [showCloudForm, setShowCloudForm] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  // Detect existing cloud session
+  // Auto conectar a la nube al abrir Ajustes
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setCloudUser(data.session?.user.email ?? null);
-    });
+    (async () => {
+      const ok = await ensureCloudSession();
+      setCloudOk(ok);
+      // Auto-sync silencioso al abrir
+      if (ok) fullSync("admin").catch(console.warn);
+    })();
   }, []);
 
-  const connectCloud = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    try {
-      let { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error && error.message.toLowerCase().includes("invalid")) {
-        // Intentar registrar
-        const r = await supabase.auth.signUp({
-          email,
-          password,
-          options: { emailRedirectTo: window.location.origin },
-        });
-        if (r.error) throw r.error;
-        toast.success("Cuenta creada en la nube. Revisa tu correo si pide confirmación.");
-      } else if (error) throw error;
-      const { data } = await supabase.auth.getSession();
-      setCloudUser(data.session?.user.email ?? email);
-      setShowCloudForm(false);
-      toast.success("Conectado a la nube");
-    } catch (err: any) {
-      toast.error(err.message || "Error");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const disconnectCloud = async () => {
-    await supabase.auth.signOut();
-    setCloudUser(null);
-    toast.success("Desconectado de la nube");
-  };
-
   const sync = async () => {
-    if (!navigator.onLine) {
-      toast.error("Sin conexión a internet");
-      return;
-    }
-    if (!cloudUser) {
-      toast.error("Conecta tu cuenta de nube primero");
-      return;
-    }
+    if (!navigator.onLine) return toast.error("Sin conexión a internet");
     setBusy(true);
     try {
+      const ok = await ensureCloudSession();
+      setCloudOk(ok);
+      if (!ok) throw new Error("No se pudo conectar a la nube");
       await fullSync("admin");
       toast.success("Sincronización completa");
     } catch (err: any) {
       toast.error("Error de sync: " + (err.message || ""));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const onImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const res = await importFromAppsheet(file);
+      setImportResult(res);
+      toast.success(
+        `Importación completa: ${res.clientes.creados} clientes, ${res.deudas.creadas} deudas, ${res.abonos.creados} abonos`
+      );
+    } catch (err: any) {
+      toast.error("Error al importar: " + (err.message || ""));
+    } finally {
+      setImporting(false);
+      if (fileRef.current) fileRef.current.value = "";
     }
   };
 
@@ -98,66 +84,72 @@ export default function Ajustes() {
         <div className="flex items-center gap-2 text-sm">
           <Wifi className={`h-4 w-4 ${navigator.onLine ? "text-secondary" : "text-muted-foreground"}`} />
           <span className="font-semibold">{navigator.onLine ? "En línea" : "Sin conexión"}</span>
-          <span className="ml-auto text-xs text-muted-foreground">Modo offline siempre activo</span>
+          <span className="ml-auto text-xs text-muted-foreground">Offline siempre activo</span>
         </div>
       </div>
 
-      {/* Nube (solo admin) */}
+      {/* Nube (auto, sin correo) */}
       {isAdmin && (
         <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3">
           <div className="flex items-center gap-2">
-            {cloudUser ? <Cloud className="h-4 w-4 text-secondary" /> : <CloudOff className="h-4 w-4 text-muted-foreground" />}
+            <Cloud className={`h-4 w-4 ${cloudOk ? "text-secondary" : "text-muted-foreground"}`} />
             <div className="text-sm font-semibold">Sincronización con la nube</div>
           </div>
-          {cloudUser ? (
-            <>
-              <div className="text-xs text-muted-foreground">
-                Conectado como <span className="font-medium text-foreground">{cloudUser}</span>
-              </div>
-              <div className="flex gap-2">
-                <Button onClick={sync} disabled={busy} className="flex-1 rounded-xl gradient-emerald">
-                  <RefreshCw className={`mr-1 h-4 w-4 ${busy ? "animate-spin" : ""}`} /> Sincronizar
-                </Button>
-                <Button variant="outline" onClick={disconnectCloud} className="rounded-xl">
-                  Desconectar
-                </Button>
-              </div>
-            </>
-          ) : showCloudForm ? (
-            <form onSubmit={connectCloud} className="space-y-2">
-              <Input
-                type="email"
-                placeholder="Email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-              <Input
-                type="password"
-                placeholder="Contraseña (mín 6)"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                minLength={6}
-                required
-              />
-              <div className="flex gap-2">
-                <Button type="submit" disabled={busy} className="flex-1 rounded-xl gradient-primary">
-                  Conectar
-                </Button>
-                <Button type="button" variant="ghost" onClick={() => setShowCloudForm(false)}>
-                  Cancelar
-                </Button>
-              </div>
-            </form>
-          ) : (
-            <>
-              <p className="text-xs text-muted-foreground">
-                Opcional. Solo el admin lo necesita. Sirve para respaldar y compartir entre dispositivos.
-              </p>
-              <Button onClick={() => setShowCloudForm(true)} className="w-full rounded-xl gradient-primary">
-                Conectar a la nube
-              </Button>
-            </>
+          <p className="text-xs text-muted-foreground">
+            La sincronización es <strong>automática</strong> al abrir la app. Todos tus dispositivos
+            comparten los mismos datos. Puedes forzar una sincronización manual aquí.
+          </p>
+          <Button onClick={sync} disabled={busy} className="w-full rounded-xl gradient-emerald">
+            <RefreshCw className={`mr-1 h-4 w-4 ${busy ? "animate-spin" : ""}`} /> Sincronizar ahora
+          </Button>
+        </div>
+      )}
+
+      {/* Importación desde AppSheet */}
+      {isAdmin && (
+        <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3">
+          <div className="flex items-center gap-2">
+            <Upload className="h-4 w-4 text-primary" />
+            <div className="text-sm font-semibold">Importar desde AppSheet</div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Sube un archivo <code>.xlsx</code> con las hojas <strong>Clientes</strong>,{" "}
+            <strong>Deudas</strong> y <strong>Abonos</strong>. Los clientes se enlazan por nombre y
+            los datos se cargan directamente a la nube.
+          </p>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".xlsx,.xls"
+            onChange={onImportFile}
+            className="hidden"
+          />
+          <Button
+            onClick={() => fileRef.current?.click()}
+            disabled={importing}
+            className="w-full rounded-xl gradient-primary"
+          >
+            <Upload className={`mr-1 h-4 w-4 ${importing ? "animate-pulse" : ""}`} />
+            {importing ? "Importando…" : "Elegir archivo .xlsx"}
+          </Button>
+          {importResult && (
+            <div className="rounded-xl bg-muted/60 p-3 text-xs space-y-1">
+              <div>Clientes creados: <strong>{importResult.clientes.creados}</strong> (ya existían: {importResult.clientes.existentes})</div>
+              <div>Deudas creadas: <strong>{importResult.deudas.creadas}</strong> (omitidas: {importResult.deudas.omitidas})</div>
+              <div>Abonos creados: <strong>{importResult.abonos.creados}</strong> (omitidos: {importResult.abonos.omitidos})</div>
+              {importResult.errores.length > 0 && (
+                <details className="mt-1">
+                  <summary className="cursor-pointer text-destructive">
+                    {importResult.errores.length} advertencia(s)
+                  </summary>
+                  <ul className="mt-1 max-h-32 list-disc overflow-auto pl-5">
+                    {importResult.errores.slice(0, 20).map((e, i) => (
+                      <li key={i}>{e}</li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -167,7 +159,7 @@ export default function Ajustes() {
           <div>
             <div className="text-sm font-semibold">Salario de dependientes</div>
             <div className="text-xs text-muted-foreground">
-              Configura modo, base por día y % de venta por punto. Se aplica al iniciar nuevos cuadres.
+              Configura modo, base por día y % de venta por punto.
             </div>
           </div>
           <div className="space-y-4">
@@ -242,16 +234,13 @@ export default function Ajustes() {
               onChange={(v) => updateSettings({ porcentajeTransferencia: v })}
               className="mt-1 h-11 rounded-xl"
             />
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              Predeterminado al registrar un gasto tipo Transferencia.
-            </p>
           </div>
         </div>
       )}
 
       <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3">
         <Row label="Cuadres en historial" value={String(history.length)} />
-        <Row label="Versión" value="1.0.0" />
+        <Row label="Versión" value="1.1.0" />
       </div>
 
       {isAdmin && (
@@ -268,7 +257,7 @@ export default function Ajustes() {
             }
           }}
         >
-          <Trash2 className="mr-1 h-4 w-4" /> Borrar todos los datos
+          <Trash2 className="mr-1 h-4 w-4" /> Borrar todos los datos locales
         </Button>
       )}
     </div>

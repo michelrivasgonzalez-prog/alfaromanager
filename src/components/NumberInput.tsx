@@ -8,15 +8,16 @@ type Props = Omit<React.ComponentProps<"input">, "value" | "onChange" | "type"> 
 };
 
 /**
- * Number input that shows the current value (or empty placeholder "0")
- * but on focus clears the leading "0" so the user can type without
- * having to delete it. Stores numbers, not strings.
+ * Number input that:
+ *  - Clears leading "0" on focus for easy typing
+ *  - On Enter / keyboard "Next" (enterKeyHint=next), advances focus to the
+ *    next visible NumberInput in the DOM (data-num-nav="true"), so the user
+ *    can capture inicios/finales de todos los productos usando el teclado.
  */
 export const NumberInput = React.forwardRef<HTMLInputElement, Props>(
-  ({ value, onChange, className, placeholder = "0", onFocus, onBlur, ...props }, ref) => {
+  ({ value, onChange, className, placeholder = "0", onFocus, onBlur, onKeyDown, ...props }, ref) => {
     const [text, setText] = React.useState<string>(value === 0 ? "" : String(value));
 
-    // Keep text in sync if external value changes (and we're not focused)
     const focusedRef = React.useRef(false);
     React.useEffect(() => {
       if (!focusedRef.current) {
@@ -24,11 +25,27 @@ export const NumberInput = React.forwardRef<HTMLInputElement, Props>(
       }
     }, [value]);
 
+    const focusNext = (current: HTMLInputElement) => {
+      const inputs = Array.from(
+        document.querySelectorAll<HTMLInputElement>('input[data-num-nav="true"]')
+      ).filter((el) => !el.disabled && !el.readOnly && el.offsetParent !== null);
+      const i = inputs.indexOf(current);
+      if (i >= 0 && i < inputs.length - 1) {
+        const next = inputs[i + 1];
+        next.focus();
+        next.select?.();
+      } else {
+        current.blur();
+      }
+    };
+
     return (
       <Input
         ref={ref}
         type="number"
         inputMode="decimal"
+        enterKeyHint="next"
+        data-num-nav="true"
         placeholder={placeholder}
         value={text}
         onFocus={(e) => {
@@ -40,6 +57,13 @@ export const NumberInput = React.forwardRef<HTMLInputElement, Props>(
           focusedRef.current = false;
           if (text === "") onChange(0);
           onBlur?.(e);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            focusNext(e.currentTarget);
+          }
+          onKeyDown?.(e);
         }}
         onChange={(e) => {
           const v = e.target.value;

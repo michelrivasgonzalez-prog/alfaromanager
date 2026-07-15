@@ -1,7 +1,9 @@
-import { Cuadre, calcCuadre, DENOMINACIONES } from "@/store/cuadreStore";
+import { Cuadre, calcCuadre, DENOMINACIONES, catLabel } from "@/store/cuadreStore";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import logoUrl from "@/assets/alfaro-logo.jpg";
+
+const fechaTrabajada = (c: Cuadre) => c.diasTrabajados?.[0] ?? c.fecha;
 
 const fmt = (n: number) =>
   `$${n.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -38,7 +40,7 @@ export function generarPDF(c: Cuadre) {
     .map(
       (g) => `
       <tr>
-        <td>${escape(g.categoria)}</td>
+        <td>${escape(catLabel(g.categoria))}</td>
         <td>${escape(g.tipo)}</td>
         <td>${escape(g.nombre || "—")}</td>
         <td>${escape(
@@ -96,7 +98,7 @@ export function generarPDF(c: Cuadre) {
 <head>
 <meta charset="utf-8" />
 <title>Cuadre · ${escape(c.dependiente || "AlFaroCafé")} · ${format(
-    new Date(c.fecha),
+    new Date(fechaTrabajada(c)),
     "dd-MM-yyyy"
   )}</title>
 <style>
@@ -154,7 +156,7 @@ export function generarPDF(c: Cuadre) {
       )}</strong> (${c.diasTrabajados.length})</div>
     </div>
     <div class="meta">
-      ${format(new Date(c.fecha), "dd MMM yyyy · HH:mm", { locale: es })}<br/>
+      ${format(new Date(fechaTrabajada(c)), "dd MMM yyyy", { locale: es })}<br/>
       ${c.diasTrabajados.length} día(s) trabajado(s)
     </div>
   </header>
