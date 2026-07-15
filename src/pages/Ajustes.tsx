@@ -19,6 +19,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { fullSync } from "@/lib/sync";
 import { ensureCloudSession } from "@/lib/cloudBootstrap";
 import { importFromAppsheet, type ImportResult } from "@/lib/appsheetImport";
+import { importCuadresFromFile, downloadPlantillaCuadres, type CuadresImportResult } from "@/lib/cuadresImport";
+import { pushCuadre } from "@/lib/sync";
 import { listAuditoria, AuditoriaRow } from "@/lib/auditoria";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
