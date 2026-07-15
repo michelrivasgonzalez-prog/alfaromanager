@@ -603,6 +603,7 @@ export const useCuadreStore = create<State>()(
           return {
             currents: { ...s.currents, [s.activePunto]: { ...c, productos } },
           };
+        }),
       editCuadre: (cuadreId) =>
         set((s) => {
           const src = s.history.find((h) => h.id === cuadreId);
@@ -619,7 +620,6 @@ export const useCuadreStore = create<State>()(
         set((s) => ({
           history: [...cuadres.map((c) => ({ ...c, finalizado: true })), ...s.history],
         })),
-    }),
     }),
     { name: "alfarocafe-store" }
   )
