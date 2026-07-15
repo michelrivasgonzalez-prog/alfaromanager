@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { Cuadre, normalizeCatalogoOrden, useCuadreStore } from "@/store/cuadreStore";
+import { ensureCloudSession } from "@/lib/cloudBootstrap";
 
 /**
  * Sincronización con SOFT-DELETE / TOMBSTONES.
