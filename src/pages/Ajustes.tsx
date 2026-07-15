@@ -84,7 +84,30 @@ export default function Ajustes() {
     }
   };
 
-  return (
+  const onImportCuadres = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportingCuadres(true);
+    setCuadresResult(null);
+    try {
+      const { cuadres, result } = await importCuadresFromFile(file);
+      if (cuadres.length === 0) throw new Error("No se encontraron cuadres válidos");
+      importCuadresBulk(cuadres);
+      // Empuja a la nube (silencioso si falla)
+      for (const c of cuadres) {
+        pushCuadre(c).catch(console.warn);
+      }
+      setCuadresResult(result);
+      toast.success(`${result.creados} cuadre(s) importado(s)`);
+    } catch (err: any) {
+      toast.error("Error al importar: " + (err.message || ""));
+    } finally {
+      setImportingCuadres(false);
+      if (fileCuadresRef.current) fileCuadresRef.current.value = "";
+    }
+  };
+
+
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">Ajustes</h1>
 
