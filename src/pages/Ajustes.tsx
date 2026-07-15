@@ -107,9 +107,10 @@ export default function Ajustes() {
     }
   };
 
-
+  return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">Ajustes</h1>
+
 
       {/* Estado de conexión */}
       <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-2">
