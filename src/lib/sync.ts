@@ -33,38 +33,91 @@ export async function syncPinUsers(isAdmin: boolean) {
   const { usePinStore } = await import("@/store/pinStore");
   const state = usePinStore.getState();
 
-  const { data: remote } = await (supabase as any)
-    .from("pin_users")
-    .select("*")
-    .is("deleted_at", null);
-  const remoteRows: any[] = remote ?? [];
+  // 1) Trae TODO (incluye eliminados) para desduplicar y detectar borrados remotos.
+  const { data: all } = await (supabase as any).from("pin_users").select("*");
+  const allRows: any[] = all ?? [];
+  const remoteAlive = allRows.filter((r) => !r.deleted_at);
+  const remoteDeletedIds = new Set(
+    allRows.filter((r) => r.deleted_at).map((r) => r.id)
+  );
 
-  // Push locales -> nube (cualquier dispositivo puede escribir)
-  if (state.users.length > 0) {
+  // 2) Dedupe: mismo (nombre|correo|rol) => conserva el más antiguo (created_at)
+  //    y marca los demás como eliminados.
+  const key = (r: any) =>
+    `${(r.nombre || "").trim().toLowerCase()}|${(r.recovery_email || "").trim().toLowerCase()}|${r.role}`;
+  const groups = new Map<string, any[]>();
+  for (const r of remoteAlive) {
+    const k = key(r);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k)!.push(r);
+  }
+  const canonicalById = new Map<string, any>();
+  const toSoftDelete: string[] = [];
+  for (const rows of groups.values()) {
+    rows.sort(
+      (a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
+    );
+    const winner = rows[0];
+    for (const r of rows) canonicalById.set(r.id, winner);
+    for (const r of rows.slice(1)) toSoftDelete.push(r.id);
+  }
+  if (toSoftDelete.length > 0) {
+    await (supabase as any)
+      .from("pin_users")
+      .update({ deleted_at: new Date().toISOString() })
+      .in("id", toSoftDelete);
+    for (const id of toSoftDelete) remoteDeletedIds.add(id);
+  }
+
+  // 3) Push locales -> nube: solo si su id ya existe en la nube (evita duplicar).
+  const remoteIds = new Set(allRows.map((r) => r.id));
+  const existing = state.users.filter((u) => remoteIds.has(u.id));
+  if (existing.length > 0) {
     await (supabase as any).from("pin_users").upsert(
-      state.users.map((u) => ({
+      existing.map((u) => ({
         id: u.id,
         nombre: u.nombre,
         role: u.role,
         pin_hash: u.pinHash,
         recovery_email: u.recoveryEmail ?? null,
-        deleted_at: null,
+      }))
+    );
+  }
+  // Nuevos locales que aún NO están en la nube: solo un admin puede crearlos.
+  const brandNew = state.users.filter((u) => !remoteIds.has(u.id));
+  if (brandNew.length > 0 && isAdmin) {
+    await (supabase as any).from("pin_users").upsert(
+      brandNew.map((u) => ({
+        id: u.id,
+        nombre: u.nombre,
+        role: u.role,
+        pin_hash: u.pinHash,
+        recovery_email: u.recoveryEmail ?? null,
       }))
     );
   }
 
-  // Merge nube -> local
-  const byId = new Map(state.users.map((u) => [u.id, u]));
-  for (const r of remoteRows) {
-    byId.set(r.id, {
-      id: r.id,
-      nombre: r.nombre,
-      role: r.role as any,
-      pinHash: r.pin_hash,
-      recoveryEmail: r.recovery_email ?? undefined,
-    });
+  // 4) Reconstruye local desde la nube (canónicos vivos).
+  const finalAlive = allRows.filter(
+    (r) => !r.deleted_at && !toSoftDelete.includes(r.id)
+  );
+  const merged: any[] = finalAlive.map((r: any) => ({
+    id: r.id,
+    nombre: r.nombre,
+    role: r.role as any,
+    pinHash: r.pin_hash,
+    recoveryEmail: r.recovery_email ?? undefined,
+  }));
+  // Añade brand-new no-admin que aún no se pudieron subir, para no perderlos localmente.
+  if (!isAdmin) for (const u of brandNew) merged.push(u);
+
+  // 5) Si el currentUserId apunta a un id eliminado, remapear al canónico.
+  let nextCurrent = state.currentUserId;
+  if (nextCurrent && remoteDeletedIds.has(nextCurrent)) {
+    const canonical = canonicalById.get(nextCurrent);
+    nextCurrent = canonical ? canonical.id : null;
   }
-  usePinStore.setState({ users: Array.from(byId.values()) });
+  usePinStore.setState({ users: merged, currentUserId: nextCurrent });
 }
 
 /**

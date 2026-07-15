@@ -1,8 +1,12 @@
+import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Home, History, BarChart3, Package, Users, Settings, LogOut, Warehouse, Wallet } from "lucide-react";
+import { Home, History, BarChart3, Package, Users, Settings, LogOut, Warehouse, Wallet, Cloud, CloudOff, RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth, AppRole } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { fullSync } from "@/lib/sync";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 const ALL_TABS: { to: string; icon: any; label: string; allow: AppRole[] }[] = [
   { to: "/", icon: Home, label: "Inicio", allow: ["admin", "duena", "dependiente"] },
@@ -20,6 +24,48 @@ export default function AppLayout() {
   const navigate = useNavigate();
   const { role, signOut, nombre } = useAuth();
   const tabs = ALL_TABS.filter((t) => !role || t.allow.includes(role));
+  const qc = useQueryClient();
+  const [syncState, setSyncState] = useState<"idle" | "syncing" | "ok" | "error">("idle");
+  const [lastSync, setLastSync] = useState<number | null>(null);
+  const running = useRef(false);
+
+  const doSync = async (manual = false) => {
+    if (running.current || !role) return;
+    running.current = true;
+    setSyncState("syncing");
+    try {
+      await fullSync(role);
+      setSyncState("ok");
+      setLastSync(Date.now());
+      qc.invalidateQueries();
+      if (manual) toast.success("Sincronizado con la nube");
+    } catch (e: any) {
+      console.warn("sync error", e);
+      setSyncState("error");
+      if (manual) toast.error("No se pudo sincronizar");
+    } finally {
+      running.current = false;
+    }
+  };
+
+  useEffect(() => {
+    if (!role) return;
+    doSync();
+    const iv = setInterval(() => doSync(), 30_000);
+    const onVis = () => { if (document.visibilityState === "visible") doSync(); };
+    const onOnline = () => doSync();
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("focus", onVis);
+    window.addEventListener("online", onOnline);
+    return () => {
+      clearInterval(iv);
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("focus", onVis);
+      window.removeEventListener("online", onOnline);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role]);
+
   return (
     <div className="min-h-screen gradient-warm">
       <div className="mx-auto flex max-w-2xl items-center justify-between px-4 pt-3 text-xs text-muted-foreground">
@@ -31,17 +77,47 @@ export default function AppLayout() {
             </span>
           )}
         </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={async () => {
-            await signOut();
-            navigate("/auth", { replace: true });
-          }}
-          className="h-7 px-2 text-xs"
-        >
-          <LogOut className="mr-1 h-3 w-3" /> Salir
-        </Button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => doSync(true)}
+            title={
+              syncState === "syncing"
+                ? "Sincronizando..."
+                : syncState === "error"
+                ? "Error de sincronización — toca para reintentar"
+                : lastSync
+                ? `Sincronizado ${new Date(lastSync).toLocaleTimeString()}`
+                : "Sincronizar ahora"
+            }
+            className={`flex h-7 items-center gap-1 rounded-full px-2 text-[10px] font-semibold ${
+              syncState === "error"
+                ? "bg-destructive/10 text-destructive"
+                : syncState === "syncing"
+                ? "bg-primary/10 text-primary"
+                : "bg-secondary/10 text-secondary"
+            }`}
+          >
+            {syncState === "syncing" ? (
+              <RefreshCw className="h-3 w-3 animate-spin" />
+            ) : syncState === "error" ? (
+              <CloudOff className="h-3 w-3" />
+            ) : (
+              <Cloud className="h-3 w-3" />
+            )}
+            {syncState === "syncing" ? "Sync" : syncState === "error" ? "Sin nube" : "En nube"}
+          </button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={async () => {
+              await signOut();
+              navigate("/auth", { replace: true });
+            }}
+            className="h-7 px-2 text-xs"
+          >
+            <LogOut className="mr-1 h-3 w-3" /> Salir
+          </Button>
+        </div>
       </div>
       <motion.main
         key={location.pathname}

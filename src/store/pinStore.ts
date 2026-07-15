@@ -77,6 +77,11 @@ export const usePinStore = create<PinState>()(
           if (h === u.pinHash) {
             set({ currentUserId: u.id });
             applyRole(u.role);
+            // Sincroniza en segundo plano tras el login para reflejar
+            // cambios de otros dispositivos de inmediato.
+            import("@/lib/sync")
+              .then((m) => m.fullSync(u.role === "admin" ? "admin" : "dependiente"))
+              .catch(console.warn);
             return u;
           }
         }
