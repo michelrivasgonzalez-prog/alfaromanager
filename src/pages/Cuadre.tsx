@@ -940,6 +940,47 @@ function Step6() {
           </div>
         </div>
 
+        {isCredito && (
+          <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-2">
+            <div className="text-[11px] font-semibold text-primary">
+              Cliente de la cuenta por cobrar
+            </div>
+            <Select
+              value={clienteId || "__new__"}
+              onValueChange={(v) => {
+                if (v === "__new__") setClienteId("");
+                else {
+                  setClienteId(v);
+                  setNuevoCliente("");
+                }
+              }}
+            >
+              <SelectTrigger className="h-10 rounded-xl">
+                <SelectValue placeholder="Selecciona un cliente" />
+              </SelectTrigger>
+              <SelectContent>
+                {(clientesQ.data ?? []).map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
+                ))}
+                <SelectItem value="__new__">+ Nuevo cliente…</SelectItem>
+              </SelectContent>
+            </Select>
+            {!clienteId && (
+              <Input
+                placeholder="Nombre del nuevo cliente"
+                value={nuevoCliente}
+                onChange={(e) => setNuevoCliente(e.target.value)}
+                className="h-10 rounded-xl"
+              />
+            )}
+            <p className="text-[11px] text-muted-foreground">
+              Al terminar el turno se generará una deuda por cliente sumando
+              todos los gastos que le hayas asignado en este cuadre.
+            </p>
+          </div>
+        )}
+
+
         {isTransfer ? (
           <>
             <div>
