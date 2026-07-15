@@ -70,6 +70,7 @@ import {
   useCuadreStore,
 } from "@/store/cuadreStore";
 import { generarPDF } from "@/lib/pdf";
+import { formatGastoDetalle } from "@/lib/dias";
 import { listClientes, upsertCliente, type Cliente } from "@/lib/cobrar";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
