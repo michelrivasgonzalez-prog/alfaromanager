@@ -158,6 +158,8 @@ export default function Ajustes() {
         </div>
       )}
 
+      {isAdmin && <AuditoriaPanel />}
+
       {isAdmin && (
         <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3">
           <div>
