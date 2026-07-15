@@ -98,7 +98,7 @@ export function generarPDF(c: Cuadre) {
 <head>
 <meta charset="utf-8" />
 <title>Cuadre · ${escape(c.dependiente || "AlFaroCafé")} · ${format(
-    new Date(c.fecha),
+    new Date(fechaTrabajada(c)),
     "dd-MM-yyyy"
   )}</title>
 <style>
