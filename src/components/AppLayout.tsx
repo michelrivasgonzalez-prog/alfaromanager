@@ -1,8 +1,12 @@
+import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Home, History, BarChart3, Package, Users, Settings, LogOut, Warehouse, Wallet } from "lucide-react";
+import { Home, History, BarChart3, Package, Users, Settings, LogOut, Warehouse, Wallet, Cloud, CloudOff, RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth, AppRole } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { fullSync } from "@/lib/sync";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 const ALL_TABS: { to: string; icon: any; label: string; allow: AppRole[] }[] = [
   { to: "/", icon: Home, label: "Inicio", allow: ["admin", "duena", "dependiente"] },
