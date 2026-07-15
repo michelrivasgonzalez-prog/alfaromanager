@@ -920,7 +920,7 @@ function Step6() {
               <SelectContent>
                 {CATEGORIAS.map((c) => (
                   <SelectItem key={c} value={c}>
-                    {c}
+                    {catLabel(c)}
                   </SelectItem>
                 ))}
               </SelectContent>
