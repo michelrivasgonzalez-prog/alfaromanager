@@ -754,10 +754,10 @@ function SummaryTile({
 }
 
 /* ================== Step 6: Gastos ================== */
-const CATEGORIAS: Gasto["categoria"][] = [
+const CATEGORIAS: GastoCategoria[] = [
   "Local",
   "Yanitza",
-  "Compras",
+  "Salida de efectivo",
   "Cuentas por Cobrar",
   "Transferencia",
 ];
@@ -766,7 +766,7 @@ function Step6() {
   const { currents, activePunto, addGasto, updateGasto, removeGasto, settings } =
     useCuadreStore();
   const current = currents[activePunto];
-  const [cat, setCat] = useState<Gasto["categoria"]>("Local");
+  const [cat, setCat] = useState<GastoCategoria>("Local");
   const [tipo, setTipo] = useState<"Efectivo" | "Producto">("Efectivo");
   const [nombre, setNombre] = useState("");
   const [desc, setDesc] = useState("");
@@ -776,6 +776,11 @@ function Step6() {
   const [productoId, setProductoId] = useState<string>("");
   const [editingGastoId, setEditingGastoId] = useState<string | null>(null);
   const [productoOpen, setProductoOpen] = useState(false);
+  // Cuentas por Cobrar: cliente asignado + creación rápida
+  const qc = useQueryClient();
+  const clientesQ = useQuery({ queryKey: ["clientes"], queryFn: listClientes });
+  const [clienteId, setClienteId] = useState<string>("");
+  const [nuevoCliente, setNuevoCliente] = useState("");
   // Estado específico para Transferencia
   const [trFecha, setTrFecha] = useState<Date | undefined>(new Date());
   const [trTransaccion, setTrTransaccion] = useState("");
@@ -787,11 +792,13 @@ function Step6() {
     if (cat === "Transferencia") setTrPorcentaje(settings.porcentajeTransferencia);
   }, [cat, settings.porcentajeTransferencia]);
   const isTransfer = cat === "Transferencia";
+  const isCredito = cat === "Cuentas por Cobrar";
   if (!current) return null;
 
   const importeProducto = cantidad * precio;
   const total = current.gastos.reduce((s, g) => s + g.monto, 0);
   const productoSel = current.productos.find((p) => p.id === productoId);
+  const clienteSel = clientesQ.data?.find((c) => c.id === clienteId);
 
   const limpiar = () => {
     setEditingGastoId(null);
