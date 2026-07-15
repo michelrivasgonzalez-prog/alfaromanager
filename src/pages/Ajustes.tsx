@@ -187,7 +187,58 @@ export default function Ajustes() {
         </div>
       )}
 
+      {/* Importar cuadres desde plantilla */}
+      {isAdmin && (
+        <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3">
+          <div className="flex items-center gap-2">
+            <ClipboardList className="h-4 w-4 text-primary" />
+            <div className="text-sm font-semibold">Importar cuadres desde plantilla</div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Descarga la plantilla, complétala con tus cuadres (hojas <strong>Cuadres</strong>,{" "}
+            <strong>Productos</strong> y <strong>Gastos</strong>) y súbela aquí. Los cuadres se
+            añaden al historial y se envían a la nube.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <Button variant="outline" onClick={downloadPlantillaCuadres} className="rounded-xl">
+              <FileDown className="mr-1 h-4 w-4" /> Plantilla
+            </Button>
+            <input
+              ref={fileCuadresRef}
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={onImportCuadres}
+              className="hidden"
+            />
+            <Button
+              onClick={() => fileCuadresRef.current?.click()}
+              disabled={importingCuadres}
+              className="rounded-xl gradient-primary"
+            >
+              <Upload className={`mr-1 h-4 w-4 ${importingCuadres ? "animate-pulse" : ""}`} />
+              {importingCuadres ? "Importando…" : "Subir"}
+            </Button>
+          </div>
+          {cuadresResult && (
+            <div className="rounded-xl bg-muted/60 p-3 text-xs space-y-1">
+              <div>Cuadres importados: <strong>{cuadresResult.creados}</strong></div>
+              {cuadresResult.errores.length > 0 && (
+                <details>
+                  <summary className="cursor-pointer text-destructive">
+                    {cuadresResult.errores.length} advertencia(s)
+                  </summary>
+                  <ul className="mt-1 max-h-32 list-disc overflow-auto pl-5">
+                    {cuadresResult.errores.slice(0, 20).map((e, i) => <li key={i}>{e}</li>)}
+                  </ul>
+                </details>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {isAdmin && <AuditoriaPanel />}
+
 
       {isAdmin && (
         <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3">
