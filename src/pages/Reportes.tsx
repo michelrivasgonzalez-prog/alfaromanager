@@ -1,17 +1,23 @@
-import { useCuadreStore, calcCuadre } from "@/store/cuadreStore";
+import { useCuadreStore, calcCuadre, Cuadre } from "@/store/cuadreStore";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
 const fmt = (n: number) => `$${Math.round(n).toLocaleString("es-ES")}`;
+const fechaTrabajada = (c: Cuadre) => c.diasTrabajados?.[0] ?? c.fecha;
 
 export default function Reportes() {
   const { history } = useCuadreStore();
 
-  const data = [...history].reverse().slice(-10).map((c) => {
+  // Ordena por fecha trabajada (no por fecha de creación del cuadre)
+  const ordenados = [...history].sort(
+    (a, b) => new Date(fechaTrabajada(a)).getTime() - new Date(fechaTrabajada(b)).getTime()
+  );
+
+  const data = ordenados.slice(-10).map((c) => {
     const r = calcCuadre(c);
     return {
-      name: format(new Date(c.fecha), "dd/MM", { locale: es }),
+      name: format(new Date(fechaTrabajada(c)), "dd/MM", { locale: es }),
       Venta: Math.round(r.totalVenta),
       Ganancia: Math.round(r.gananciaNeta),
     };
@@ -36,7 +42,7 @@ export default function Reportes() {
       </div>
 
       <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
-        <div className="mb-2 text-sm font-semibold">Últimos cuadres</div>
+        <div className="mb-2 text-sm font-semibold">Últimos cuadres (por fecha trabajada)</div>
         {data.length === 0 ? (
           <div className="py-10 text-center text-sm text-muted-foreground">
             Sin datos todavía
