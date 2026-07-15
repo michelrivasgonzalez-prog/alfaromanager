@@ -224,41 +224,51 @@ function RegistrarDeudaDialog({
   onSaved: () => void;
 }) {
   const qc = useQueryClient();
-  const [clienteId, setClienteId] = useState<string>("");
-  const [nuevoNombre, setNuevoNombre] = useState("");
   const [busy, setBusy] = useState(false);
+  // Para grupos sin cliente asignado, mapa: nombreGrupo -> {clienteId?, nuevoNombre?}
+  const [asign, setAsign] = useState<Record<string, { clienteId?: string; nuevo?: string }>>({});
 
   if (!cuadre) return null;
-  const gastos = gastosCredito(cuadre);
-  const total = totalCredito(cuadre);
-  const productos = gastos.map((g) => ({
-    nombre: g.tipo === "Producto" ? (g.productoNombre ?? g.descripcion) : g.descripcion || g.nombre || "Venta",
-    cantidad: g.tipo === "Producto" ? (g.cantidad ?? 1) : 1,
-    precio: g.tipo === "Producto" ? (g.precio ?? g.monto) : g.monto,
-  }));
+  const grupos = creditoPorCliente(cuadre);
+  const totalTodo = grupos.reduce((s, g) => s + g.total, 0);
 
   const submit = async () => {
     setBusy(true);
     try {
-      let finalId = clienteId;
-      if (!finalId) {
-        if (!nuevoNombre.trim()) {
-          toast.error("Selecciona o crea un cliente");
-          setBusy(false);
-          return;
+      for (const grupo of grupos) {
+        // Resolver cliente id
+        let cliId = grupo.clienteId;
+        let cliNombre = grupo.nombre;
+        if (!cliId) {
+          const map = asign[grupo.nombre] ?? {};
+          if (map.clienteId) {
+            cliId = map.clienteId;
+            cliNombre = clientes.find((c) => c.id === map.clienteId)?.nombre ?? cliNombre;
+          } else if (map.nuevo?.trim()) {
+            const nuevo = await upsertCliente({ nombre: map.nuevo.trim() });
+            cliId = nuevo.id;
+            cliNombre = nuevo.nombre;
+          } else {
+            toast.error(`Asigna un cliente para "${grupo.nombre}"`);
+            setBusy(false);
+            return;
+          }
         }
-        const c = await upsertCliente({ nombre: nuevoNombre.trim() });
-        finalId = c.id;
+        const productos = grupo.gastos.map((g) => ({
+          nombre: g.tipo === "Producto" ? (g.productoNombre ?? g.descripcion) : g.descripcion || g.nombre || "Venta",
+          cantidad: g.tipo === "Producto" ? (g.cantidad ?? 1) : 1,
+          precio: g.tipo === "Producto" ? (g.precio ?? g.monto) : g.monto,
+        }));
+        await crearDeuda({
+          cliente_id: cliId!,
+          cuadre_id: cuadre.id,
+          cuadre_label: `${cuadre.puntoVenta} · ${format(new Date(fechaTrabajada(cuadre)), "dd MMM yyyy", { locale: es })}${cuadre.dependiente ? ` · ${cuadre.dependiente}` : ""}`,
+          productos,
+          total: grupo.total,
+          fecha: fechaTrabajada(cuadre),
+        });
       }
-      await crearDeuda({
-        cliente_id: finalId,
-        cuadre_id: cuadre.id,
-        cuadre_label: `${cuadre.puntoVenta} · ${format(new Date(cuadre.fecha), "dd MMM yyyy", { locale: es })}${cuadre.dependiente ? ` · ${cuadre.dependiente}` : ""}`,
-        productos,
-        total,
-        fecha: cuadre.fecha,
-      });
-      toast.success("Deuda registrada");
+      toast.success(`Se registraron ${grupos.length} deuda(s)`);
       qc.invalidateQueries({ queryKey: ["deudas-all"] });
       onSaved();
       onClose();
@@ -271,46 +281,70 @@ function RegistrarDeudaDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Registrar deuda del cuadre</DialogTitle>
+          <DialogTitle>Registrar deudas del cuadre</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <div className="rounded-xl bg-muted/60 p-3 text-xs">
-            <div className="mb-1 font-semibold">Detalle</div>
-            {productos.map((p, i) => (
-              <div key={i} className="flex justify-between">
-                <span>{p.nombre} × {p.cantidad}</span>
-                <span className="tabular-nums">{fmt(p.precio * p.cantidad)}</span>
+          <p className="text-xs text-muted-foreground">
+            Se creará <strong>una deuda por cliente</strong> vinculada a este cuadre. Total a
+            registrar: <strong>{fmt(totalTodo)}</strong>.
+          </p>
+          {grupos.map((g) => (
+            <div key={g.nombre} className="rounded-xl border border-border bg-muted/40 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold">{g.nombre}</div>
+                <div className="font-mono text-sm font-bold text-destructive tabular-nums">{fmt(g.total)}</div>
               </div>
-            ))}
-            <div className="mt-2 flex justify-between border-t border-border pt-1 font-semibold">
-              <span>Total</span>
-              <span className="tabular-nums">{fmt(total)}</span>
-            </div>
-          </div>
-          <div className="space-y-1">
-            <Label>Cliente existente</Label>
-            <Select value={clienteId} onValueChange={setClienteId}>
-              <SelectTrigger className="h-11 rounded-xl">
-                <SelectValue placeholder="Selecciona un cliente" />
-              </SelectTrigger>
-              <SelectContent>
-                {clientes.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
+              <div className="space-y-0.5 text-[11px] text-muted-foreground">
+                {g.gastos.map((gg) => (
+                  <div key={gg.id} className="flex justify-between">
+                    <span className="truncate">
+                      {gg.tipo === "Producto"
+                        ? `${gg.productoNombre ?? gg.descripcion} × ${gg.cantidad}`
+                        : gg.descripcion || gg.nombre}
+                    </span>
+                    <span className="tabular-nums">{fmt(gg.monto)}</span>
+                  </div>
                 ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="text-center text-[11px] text-muted-foreground">— o crear uno nuevo —</div>
-          <div className="space-y-1">
-            <Label>Nombre del nuevo cliente</Label>
-            <Input value={nuevoNombre} onChange={(e) => { setNuevoNombre(e.target.value); if (e.target.value) setClienteId(""); }} />
-          </div>
+              </div>
+              {!g.clienteId && (
+                <div className="space-y-1 border-t border-border pt-2">
+                  <Label className="text-[11px]">Asignar cliente</Label>
+                  <Select
+                    value={asign[g.nombre]?.clienteId ?? ""}
+                    onValueChange={(v) => setAsign((a) => ({ ...a, [g.nombre]: { clienteId: v } }))}
+                  >
+                    <SelectTrigger className="h-9 rounded-lg">
+                      <SelectValue placeholder="— o cliente existente —" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clientes.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    placeholder="…o crear un cliente nuevo"
+                    value={asign[g.nombre]?.nuevo ?? ""}
+                    onChange={(e) =>
+                      setAsign((a) => ({
+                        ...a,
+                        [g.nombre]: { nuevo: e.target.value },
+                      }))
+                    }
+                    className="h-9 rounded-lg"
+                  />
+                </div>
+              )}
+            </div>
+          ))}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button disabled={busy} onClick={submit}>Guardar deuda</Button>
+          <Button disabled={busy || grupos.length === 0} onClick={submit}>
+            Guardar {grupos.length > 1 ? `${grupos.length} deudas` : "deuda"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
