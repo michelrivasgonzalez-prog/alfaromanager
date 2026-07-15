@@ -299,11 +299,7 @@ function RegistrarDeudaDialog({
               <div className="space-y-0.5 text-[11px] text-muted-foreground">
                 {g.gastos.map((gg) => (
                   <div key={gg.id} className="flex justify-between">
-                    <span className="truncate">
-                      {gg.tipo === "Producto"
-                        ? `${gg.productoNombre ?? gg.descripcion} × ${gg.cantidad}`
-                        : gg.descripcion || gg.nombre}
-                    </span>
+                    <span className="truncate">{formatGastoDetalle(gg)}</span>
                     <span className="tabular-nums">{fmt(gg.monto)}</span>
                   </div>
                 ))}
