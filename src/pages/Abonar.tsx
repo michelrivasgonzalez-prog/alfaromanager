@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { ArrowLeft, Wallet, Share2, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Wallet, Share2, CheckCircle2, Image as ImageIcon, Download } from "lucide-react";
 import { toast } from "sonner";
+import { toPng } from "html-to-image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
