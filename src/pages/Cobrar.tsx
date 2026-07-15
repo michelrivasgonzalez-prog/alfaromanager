@@ -10,11 +10,10 @@ import {
   Plus,
   ChevronRight,
   Phone,
-  PhoneOff,
   ShieldCheck,
+  User as UserIcon,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Avatar } from "@/components/Avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
