@@ -1209,7 +1209,7 @@ function Step6() {
               <tr key={g.id} className="border-t border-border align-top">
                 <td className="px-3 py-2 text-xs whitespace-nowrap">
                   <span className="rounded-full bg-muted px-2 py-0.5 font-medium">
-                    {g.categoria}
+                    {catLabel(g.categoria)}
                   </span>
                   <div className="mt-0.5 text-[10px] text-muted-foreground">{g.tipo}</div>
                 </td>
