@@ -676,15 +676,15 @@ function Step5() {
               return (
                 <tr key={p.id} className="border-t border-border">
                   <td className="px-2 py-2 font-medium">{p.nombre}</td>
-                  <td className="px-2 py-2 text-right tabular-nums">{p.inicio}</td>
-                  <td className="px-2 py-2 text-right tabular-nums">{p.entradas}</td>
-                  <td className="px-2 py-2 text-right tabular-nums">{p.traslados}</td>
+                  <td className="px-2 py-2 text-right tabular-nums">{n2(p.inicio)}</td>
+                  <td className="px-2 py-2 text-right tabular-nums">{n2(p.entradas)}</td>
+                  <td className="px-2 py-2 text-right tabular-nums">{n2(p.traslados)}</td>
                   <td className="px-2 py-2 text-right tabular-nums font-semibold">
-                    {c.total}
+                    {n2(c.total)}
                   </td>
-                  <td className="px-2 py-2 text-right tabular-nums">{p.final}</td>
+                  <td className="px-2 py-2 text-right tabular-nums">{n2(p.final)}</td>
                   <td className="px-2 py-2 text-right tabular-nums font-semibold">
-                    {c.venta}
+                    {n2(c.venta)}
                   </td>
                   {isAdmin && (
                     <td className="px-2 py-2 text-right tabular-nums">
