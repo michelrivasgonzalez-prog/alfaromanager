@@ -47,6 +47,56 @@ export default function Abonar() {
     aplicaciones: { deuda: Deuda; monto: number }[];
     saldoRestante: number;
   }>(null);
+  const receiptRef = useRef<HTMLDivElement>(null);
+
+  const generarImagen = async (): Promise<Blob | null> => {
+    if (!receiptRef.current) return null;
+    const dataUrl = await toPng(receiptRef.current, { pixelRatio: 2, backgroundColor: "#ffffff" });
+    const res = await fetch(dataUrl);
+    return await res.blob();
+  };
+
+  const descargarImagen = async () => {
+    try {
+      const blob = await generarImagen();
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `comprobante-${cliente?.nombre?.replace(/\s+/g, "_") || "abono"}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Imagen descargada");
+    } catch (e: any) {
+      toast.error("No se pudo generar la imagen");
+    }
+  };
+
+  const compartirWhatsApp = async () => {
+    try {
+      const blob = await generarImagen();
+      if (!blob) return;
+      const file = new File([blob], "comprobante.png", { type: "image/png" });
+      const texto = comprobanteTexto();
+      const nav: any = navigator;
+      if (nav.canShare && nav.canShare({ files: [file] })) {
+        await nav.share({ files: [file], text: texto, title: "Comprobante de abono" });
+        return;
+      }
+      // Fallback: descargar imagen + abrir WhatsApp con texto
+      await descargarImagen();
+      if (cliente?.telefono) {
+        window.open(
+          `https://wa.me/${cliente.telefono.replace(/[^\d]/g, "")}?text=${encodeURIComponent(texto)}`,
+          "_blank"
+        );
+      }
+      toast.info("Adjunta la imagen descargada al chat de WhatsApp");
+    } catch (e: any) {
+      toast.error("No se pudo compartir");
+    }
+  };
+
 
   // Auto-distribuir al más antiguo
   useEffect(() => {
