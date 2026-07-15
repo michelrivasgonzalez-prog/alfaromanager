@@ -1083,19 +1083,21 @@ function Step6() {
           </>
         ) : (
           <>
-            <div>
-              <Label className="text-xs">Nombre (quién recibe)</Label>
-              <Input
-                placeholder="Nombre"
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
-                className="mt-1 h-11 rounded-xl"
-              />
-            </div>
+            {!isCredito && (
+              <div>
+                <Label className="text-xs">Nombre (quién recibe)</Label>
+                <Input
+                  placeholder="Nombre"
+                  value={nombre}
+                  onChange={(e) => setNombre(e.target.value)}
+                  className="mt-1 h-11 rounded-xl"
+                />
+              </div>
+            )}
             <div>
               <Label className="text-xs">Descripción</Label>
               <Input
-                placeholder="Descripción"
+                placeholder={isCredito ? "Nota (opcional, aparece entre paréntesis)" : "Descripción"}
                 value={desc}
                 onChange={(e) => setDesc(e.target.value)}
                 className="mt-1 h-11 rounded-xl"
@@ -1245,12 +1247,7 @@ function Step6() {
                 </td>
                 <td className="px-3 py-2 text-xs font-medium whitespace-nowrap">{g.nombre}</td>
                 <td className="px-3 py-2 text-xs whitespace-nowrap">
-                  <div>{g.descripcion}</div>
-                  {g.tipo === "Producto" && (
-                    <div className="text-[10px] text-muted-foreground">
-                      {g.cantidad} × {fmt(g.precio || 0)}
-                    </div>
-                  )}
+                  <div>{formatGastoDetalle(g)}</div>
                 </td>
                 <td className="px-3 py-2 text-right font-mono font-semibold tabular-nums whitespace-nowrap">
                   {fmt(g.monto)}
