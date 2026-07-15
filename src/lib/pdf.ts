@@ -52,25 +52,6 @@ export function generarPDF(c: Cuadre) {
     )
     .join("");
 
-  const gastosRows = c.gastos
-    .map(
-      (g) => `
-      <tr>
-        <td>${escape(catLabel(g.categoria))}</td>
-        <td>${escape(g.tipo)}</td>
-        <td>${escape(g.nombre || "—")}</td>
-        <td>${escape(
-          g.tipo === "Producto"
-            ? `${g.productoNombre ?? g.descripcion} (${g.cantidad} × ${fmt(
-                g.precio || 0
-              )})`
-            : g.descripcion
-        )}</td>
-        <td class="r b">${fmt(g.monto)}</td>
-      </tr>`
-    )
-    .join("");
-
   const denominacionCajaRows = DENOMINACIONES.map((d) => {
     const n = c.denominaciones[String(d)] || 0;
     if (!n) return "";
@@ -92,9 +73,7 @@ export function generarPDF(c: Cuadre) {
     0
   );
 
-  const diasTrabajadosStr = (c.diasTrabajados || [])
-    .map((d) => format(new Date(d), "dd MMM", { locale: es }))
-    .join(", ");
+  const diasTrabajadosStr = formatDiasTrabajados(c.diasTrabajados);
 
   const productosBloqueados = c.productos.filter((p) => p.notaDesbloqueo);
   const notasRows = productosBloqueados
