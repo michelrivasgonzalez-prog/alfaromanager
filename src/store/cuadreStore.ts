@@ -223,6 +223,8 @@ interface State {
   cancelar: (punto?: PuntoVenta) => void;
   deleteHistory: (id: string) => void;
   importarFinales: (cuadreId: string) => void;
+  editCuadre: (cuadreId: string) => void;
+  importCuadresBulk: (cuadres: Cuadre[]) => void;
   // Tombstones (uso interno de sincronización)
   addTombstone: (kind: "catalogo" | "dependientes" | "cuadres", key: string) => void;
   clearTombstone: (kind: "catalogo" | "dependientes" | "cuadres", key: string) => void;
