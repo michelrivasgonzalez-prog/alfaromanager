@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/select";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { listClientes, listDeudas, crearDeuda, upsertCliente } from "@/lib/cobrar";
+import { formatDiasTrabajados, formatGastoDetalle } from "@/lib/dias";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -108,8 +109,7 @@ export default function Historial() {
               <div>
                 <div className="font-semibold">{c.dependiente || "Sin nombre"}</div>
                 <div className="text-xs text-muted-foreground">
-                  {format(new Date(fechaTrabajada(c)), "dd MMM yyyy", { locale: es })} ·{" "}
-                  {c.diasTrabajados.length} día(s)
+                  {formatDiasTrabajados(c.diasTrabajados)}
                 </div>
               </div>
               <div className="text-right">
@@ -361,8 +361,7 @@ function CuadreDetalle({ c }: { c: Cuadre }) {
   return (
     <div className="space-y-4 text-sm">
       <div className="text-xs text-muted-foreground">
-        {format(new Date(fechaTrabajada(c)), "dd MMM yyyy", { locale: es })} ·{" "}
-        {c.puntoVenta} · {c.diasTrabajados.length} día(s)
+        {formatDiasTrabajados(c.diasTrabajados)} · {c.puntoVenta}
       </div>
 
       {/* IPV */}
@@ -441,13 +440,7 @@ function CuadreDetalle({ c }: { c: Cuadre }) {
                   <td className="px-2 py-1.5">{catLabel(g.categoria)}</td>
                   <td className="px-2 py-1.5">{g.tipo}</td>
                   <td className="px-2 py-1.5">{g.nombre || "—"}</td>
-                  <td className="px-2 py-1.5">
-                    {g.tipo === "Producto"
-                      ? `${g.productoNombre ?? g.descripcion} (${g.cantidad} × ${fmt(
-                          g.precio || 0
-                        )})`
-                      : g.descripcion}
-                  </td>
+                  <td className="px-2 py-1.5">{formatGastoDetalle(g)}</td>
                   <td className="px-2 py-1.5 text-right tabular-nums font-semibold">
                     {fmt(g.monto)}
                   </td>
