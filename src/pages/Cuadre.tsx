@@ -1198,7 +1198,7 @@ function Step6() {
         {editingGastoId && (
           <Button
             variant="outline"
-            onClick={limpiar}
+            onClick={() => limpiar()}
             className="h-10 w-full rounded-xl"
           >
             Cancelar edición
