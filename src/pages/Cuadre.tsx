@@ -73,6 +73,8 @@ import { pushCuadre } from "@/lib/sync";
 
 const fmt = (n: number) =>
   `$${n.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const n2 = (n: number) =>
+  Number(n || 0).toLocaleString("es-ES", { maximumFractionDigits: 2 });
 
 export default function Cuadre() {
   const { step } = useParams();
