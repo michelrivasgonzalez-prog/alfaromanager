@@ -40,7 +40,7 @@ export function generarPDF(c: Cuadre) {
     .map(
       (g) => `
       <tr>
-        <td>${escape(g.categoria)}</td>
+        <td>${escape(catLabel(g.categoria))}</td>
         <td>${escape(g.tipo)}</td>
         <td>${escape(g.nombre || "—")}</td>
         <td>${escape(
