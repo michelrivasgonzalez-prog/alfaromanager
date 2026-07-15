@@ -16,6 +16,7 @@ import {
   History as HistoryIcon,
   Eye,
   Receipt,
+  Pencil,
 } from "lucide-react";
 import { generarPDF } from "@/lib/pdf";
 import { deleteCuadreRemote } from "@/lib/sync";
