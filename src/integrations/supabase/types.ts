@@ -525,6 +525,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      deuda_estado_por_saldo: {
+        Args: { _saldo: number; _total: number }
+        Returns: Database["public"]["Enums"]["deuda_estado"]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
