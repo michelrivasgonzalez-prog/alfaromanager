@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { Cuadre, Settings, normalizeCatalogoOrden, useCuadreStore } from "@/store/cuadreStore";
+import { CatalogoItem, Cuadre, Settings, normalizeCatalogoOrden, useCuadreStore } from "@/store/cuadreStore";
 import { ensureCloudSession } from "@/lib/cloudBootstrap";
 
 /**
@@ -306,7 +306,7 @@ export async function pushCatalogItem(c: {
   if (error) throw error;
 }
 
-async function upsertCatalogItems(items: typeof useCuadreStore.getState extends () => infer S ? S extends { catalogo: infer C } ? C : never : never) {
+async function upsertCatalogItems(items: CatalogoItem[]) {
   const rows = (items as any[]).map((c) => ({
     id: c.id,
     nombre: c.nombre,
