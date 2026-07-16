@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { fullSync } from "@/lib/sync";
+import { fullSync, pushSettings } from "@/lib/sync";
 import { ensureCloudSession } from "@/lib/cloudBootstrap";
 import { importFromAppsheet, type ImportResult } from "@/lib/appsheetImport";
 import { importCuadresFromFile, downloadPlantillaCuadres, type CuadresImportResult } from "@/lib/cuadresImport";
@@ -64,6 +64,8 @@ export default function Ajustes() {
       setBusy(false);
     }
   };
+
+  const saveSettings = () => pushSettings().catch((err) => toast.error("No se guardó en la nube: " + err.message));
 
   const onImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -264,7 +266,8 @@ export default function Ajustes() {
                       onValueChange={(v) =>
                         updateSettings({
                           salarioModo: { ...settings.salarioModo, [p]: v as SalarioModo },
-                        })
+                        });
+                        saveSettings();
                       }
                     >
                       <SelectTrigger className="mt-1 h-11 rounded-xl">
@@ -287,7 +290,10 @@ export default function Ajustes() {
                       <Label className="text-xs">Base/día</Label>
                       <NumberInput
                         value={settings.salarioBase[p]}
-                        onChange={(v) => setSalarioBasePunto(p, v)}
+                        onChange={(v) => {
+                          setSalarioBasePunto(p, v);
+                          saveSettings();
+                        }}
                         className="mt-1 h-11 rounded-xl"
                         disabled={modo === "porcentaje"}
                       />
@@ -299,7 +305,8 @@ export default function Ajustes() {
                         onChange={(v) =>
                           updateSettings({
                             porcentajeVenta: { ...settings.porcentajeVenta, [p]: v },
-                          })
+                          });
+                          saveSettings();
                         }
                         className="mt-1 h-11 rounded-xl"
                         disabled={modo === "base"}
@@ -317,7 +324,10 @@ export default function Ajustes() {
             </Label>
             <NumberInput
               value={settings.porcentajeTransferencia}
-              onChange={(v) => updateSettings({ porcentajeTransferencia: v })}
+              onChange={(v) => {
+                updateSettings({ porcentajeTransferencia: v });
+                saveSettings();
+              }}
               className="mt-1 h-11 rounded-xl"
             />
           </div>
