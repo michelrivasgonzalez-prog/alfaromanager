@@ -1,48 +1,39 @@
 import { supabase } from "@/integrations/supabase/client";
-import { Cuadre, normalizeCatalogoOrden, useCuadreStore } from "@/store/cuadreStore";
+import { Cuadre, Settings, normalizeCatalogoOrden, useCuadreStore } from "@/store/cuadreStore";
 import { ensureCloudSession } from "@/lib/cloudBootstrap";
 
 /**
- * Sincronización con SOFT-DELETE / TOMBSTONES.
+ * Sincronización cloud-first con borrado real.
  *
  * Reglas clave:
- *  - Nada se borra de forma destructiva. Las eliminaciones se marcan con
- *    `deleted_at` en la nube y con `tombstones` en el local.
- *  - Un dispositivo nuevo (local vacío, sin tombstones) NO borra nada en la
- *    nube: solo descarga lo no eliminado.
- *  - Las eliminaciones se propagan en ambos sentidos a través de tombstones.
- *  - El merge conserva siempre los datos: si un id no está en ningún
- *    tombstone, se mantiene.
+ *  - La nube es la fuente de verdad al abrir/sincronizar.
+ *  - Las altas/ediciones se empujan en el momento de hacerlas.
+ *  - Las eliminaciones son DELETE reales, sin guardar tombstones en la nube.
+ *  - Si una tabla remota está vacía y el dispositivo tiene datos locales, el admin la siembra.
  */
 export async function fullSync(role: "admin" | "duena" | "dependiente" | null) {
   if (!role) return;
   const isAdmin = role === "admin";
   await ensureCloudSession();
   await syncPinUsers(isAdmin);
+  await syncSettings(isAdmin);
   await syncCatalogo(isAdmin);
   await syncDependientes(isAdmin);
   await syncCuadres(isAdmin);
 }
 
 /**
- * Sincroniza usuarios PIN (nombre, rol, hash del PIN, correo de recuperación)
- * con la nube. Estrategia: last-write-wins simple (upsert por id).
- * Usa soft-delete vía `deleted_at`.
+ * Sincroniza usuarios PIN y elimina duplicados reales.
  */
 export async function syncPinUsers(isAdmin: boolean) {
   const { usePinStore } = await import("@/store/pinStore");
   const state = usePinStore.getState();
 
-  // 1) Trae TODO (incluye eliminados) para desduplicar y detectar borrados remotos.
-  const { data: all } = await (supabase as any).from("pin_users").select("*");
+  const { data: all, error } = await (supabase as any).from("pin_users").select("*");
+  if (error) throw error;
   const allRows: any[] = all ?? [];
   const remoteAlive = allRows.filter((r) => !r.deleted_at);
-  const remoteDeletedIds = new Set(
-    allRows.filter((r) => r.deleted_at).map((r) => r.id)
-  );
 
-  // 2) Dedupe: mismo (nombre|correo|rol) => conserva el más antiguo (created_at)
-  //    y marca los demás como eliminados.
   const key = (r: any) =>
     `${(r.nombre || "").trim().toLowerCase()}|${(r.recovery_email || "").trim().toLowerCase()}|${r.role}`;
   const groups = new Map<string, any[]>();
@@ -52,28 +43,25 @@ export async function syncPinUsers(isAdmin: boolean) {
     groups.get(k)!.push(r);
   }
   const canonicalById = new Map<string, any>();
-  const toSoftDelete: string[] = [];
+  const toDelete: string[] = allRows.filter((r) => r.deleted_at).map((r) => r.id);
   for (const rows of groups.values()) {
     rows.sort(
       (a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
     );
     const winner = rows[0];
     for (const r of rows) canonicalById.set(r.id, winner);
-    for (const r of rows.slice(1)) toSoftDelete.push(r.id);
+    for (const r of rows.slice(1)) toDelete.push(r.id);
   }
-  if (toSoftDelete.length > 0) {
-    await (supabase as any)
-      .from("pin_users")
-      .update({ deleted_at: new Date().toISOString() })
-      .in("id", toSoftDelete);
-    for (const id of toSoftDelete) remoteDeletedIds.add(id);
+  if (toDelete.length > 0) {
+    const { error: delError } = await (supabase as any).from("pin_users").delete().in("id", toDelete);
+    if (delError) throw delError;
   }
 
-  // 3) Push locales -> nube: solo si su id ya existe en la nube (evita duplicar).
-  const remoteIds = new Set(allRows.map((r) => r.id));
+  const aliveAfterDedupe = remoteAlive.filter((r) => !toDelete.includes(r.id));
+  const remoteIds = new Set(aliveAfterDedupe.map((r) => r.id));
   const existing = state.users.filter((u) => remoteIds.has(u.id));
   if (existing.length > 0) {
-    await (supabase as any).from("pin_users").upsert(
+    const { error: upError } = await (supabase as any).from("pin_users").upsert(
       existing.map((u) => ({
         id: u.id,
         nombre: u.nombre,
@@ -82,11 +70,11 @@ export async function syncPinUsers(isAdmin: boolean) {
         recovery_email: u.recoveryEmail ?? null,
       }))
     );
+    if (upError) throw upError;
   }
-  // Nuevos locales que aún NO están en la nube: solo un admin puede crearlos.
   const brandNew = state.users.filter((u) => !remoteIds.has(u.id));
   if (brandNew.length > 0 && isAdmin) {
-    await (supabase as any).from("pin_users").upsert(
+    const { error: newError } = await (supabase as any).from("pin_users").upsert(
       brandNew.map((u) => ({
         id: u.id,
         nombre: u.nombre,
@@ -95,25 +83,27 @@ export async function syncPinUsers(isAdmin: boolean) {
         recovery_email: u.recoveryEmail ?? null,
       }))
     );
+    if (newError) throw newError;
   }
 
-  // 4) Reconstruye local desde la nube (canónicos vivos).
-  const finalAlive = allRows.filter(
-    (r) => !r.deleted_at && !toSoftDelete.includes(r.id)
-  );
-  const merged: any[] = finalAlive.map((r: any) => ({
+  const finalRows = [...aliveAfterDedupe, ...(isAdmin ? brandNew.map((u) => ({
+    id: u.id,
+    nombre: u.nombre,
+    role: u.role,
+    pin_hash: u.pinHash,
+    recovery_email: u.recoveryEmail ?? null,
+  })) : [])];
+  const merged: any[] = finalRows.map((r: any) => ({
     id: r.id,
     nombre: r.nombre,
     role: r.role as any,
     pinHash: r.pin_hash,
     recoveryEmail: r.recovery_email ?? undefined,
   }));
-  // Añade brand-new no-admin que aún no se pudieron subir, para no perderlos localmente.
   if (!isAdmin) for (const u of brandNew) merged.push(u);
 
-  // 5) Si el currentUserId apunta a un id eliminado, remapear al canónico.
   let nextCurrent = state.currentUserId;
-  if (nextCurrent && remoteDeletedIds.has(nextCurrent)) {
+  if (nextCurrent && toDelete.includes(nextCurrent)) {
     const canonical = canonicalById.get(nextCurrent);
     nextCurrent = canonical ? canonical.id : null;
   }
@@ -127,10 +117,11 @@ export async function syncPinUsers(isAdmin: boolean) {
  */
 export async function pullPinUsers() {
   await ensureCloudSession();
-  const { data } = await (supabase as any)
+  const { data, error } = await (supabase as any)
     .from("pin_users")
     .select("*")
     .is("deleted_at", null);
+  if (error) throw error;
   return (data ?? []).map((r: any) => ({
     id: r.id,
     nombre: r.nombre,
@@ -140,206 +131,158 @@ export async function pullPinUsers() {
   }));
 }
 
+// ---------- Ajustes ----------
+async function syncSettings(isAdmin: boolean) {
+  const state = useCuadreStore.getState() as any;
+  const localUpdated = new Date(state.settingsUpdatedAt ?? "1970-01-01T00:00:00.000Z").getTime();
+  const { data, error } = await (supabase as any)
+    .from("app_settings")
+    .select("settings, updated_at")
+    .eq("id", "global")
+    .maybeSingle();
+  if (error) throw error;
+
+  if (!data) {
+    if (isAdmin) await pushSettings(state.settings);
+    return;
+  }
+
+  const remoteUpdated = new Date(data.updated_at ?? 0).getTime();
+  if (isAdmin && localUpdated > remoteUpdated + 1000) {
+    await pushSettings(state.settings);
+    return;
+  }
+
+  useCuadreStore.setState({
+    settings: { ...state.settings, ...(data.settings ?? {}) },
+    settingsUpdatedAt: data.updated_at,
+  } as any);
+}
+
+export async function pushSettings(settings?: Settings) {
+  await ensureCloudSession();
+  const next = settings ?? useCuadreStore.getState().settings;
+  const { error } = await (supabase as any).from("app_settings").upsert({
+    id: "global",
+    settings: next as any,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) throw error;
+}
+
 // ---------- Catálogo ----------
 async function syncCatalogo(isAdmin: boolean) {
   const state = useCuadreStore.getState();
-  const { data: remote } = await (supabase as any)
+  const { data: remote, error } = await (supabase as any)
     .from("catalogo")
-    .select("id, nombre, precio, costo, punto, orden, deleted_at");
+    .select("id, nombre, precio, costo, punto, orden")
+    .is("deleted_at", null);
+  if (error) throw error;
   const remoteRows: any[] = remote ?? [];
 
-  // 1) Aplicar tombstones remotos al local
-  const newTomb = { ...state.tombstones.catalogo };
-  const removedLocally = new Set<string>();
-  for (const r of remoteRows) {
-    if (r.deleted_at) {
-      newTomb[r.id] = newTomb[r.id] ?? r.deleted_at;
-      removedLocally.add(r.id);
-    }
+  if (remoteRows.length === 0 && isAdmin && state.catalogo.length > 0) {
+    await upsertCatalogItems(state.catalogo);
+    return;
   }
 
-  // 2) Empujar tombstones locales al remoto (solo admin)
-  if (isAdmin) {
-    const remoteById = new Map(remoteRows.map((r) => [r.id, r]));
-    const idsToTomb = Object.keys(state.tombstones.catalogo).filter((id) => {
-      const r = remoteById.get(id);
-      return r && !r.deleted_at;
-    });
-    if (idsToTomb.length > 0) {
-      await (supabase as any)
-        .from("catalogo")
-        .update({ deleted_at: new Date().toISOString() })
-        .in("id", idsToTomb);
-    }
-  }
-
-  // 3) Construir catálogo local mergeado
-  const localById = new Map(state.catalogo.map((c) => [c.id, c]));
-  // Quitar locales que la nube marca como eliminados
-  for (const id of removedLocally) localById.delete(id);
-
-  // Añadir/actualizar desde la nube los no eliminados y no tombstoneados localmente
-  for (const r of remoteRows) {
-    if (r.deleted_at) continue;
-    if (newTomb[r.id]) continue; // eliminado localmente: no re-añadir
-    localById.set(r.id, {
+  const merged = normalizeCatalogoOrden(
+    remoteRows.map((r: any) => ({
       id: r.id,
       nombre: r.nombre,
       precio: Number(r.precio),
       costo: Number(r.costo),
       orden: Number(r.orden ?? 0),
       punto: (r.punto as "Cafetería" | "Mipyme" | undefined) || undefined,
-    });
-  }
-  const merged = normalizeCatalogoOrden([...localById.values()]);
-
-  // 4) Upsert local → nube (solo admin, y solo los no tombstoneados)
-  if (isAdmin && merged.length > 0) {
-    await (supabase as any).from("catalogo").upsert(
-      merged.map((c) => ({
-        id: c.id,
-        nombre: c.nombre,
-        precio: c.precio,
-        costo: c.costo,
-        orden: c.orden ?? 0,
-        punto: c.punto ?? null,
-        deleted_at: null,
-      })) as any
-    );
-  }
+    }))
+  );
 
   useCuadreStore.setState({
     catalogo: merged,
-    tombstones: { ...state.tombstones, catalogo: newTomb },
+    tombstones: { ...state.tombstones, catalogo: {} },
   });
 }
 
 // ---------- Dependientes ----------
 async function syncDependientes(isAdmin: boolean) {
   const state = useCuadreStore.getState();
-  const { data: remote } = await (supabase as any)
+  const { data: remote, error } = await (supabase as any)
     .from("dependientes")
-    .select("nombre, deleted_at");
+    .select("nombre")
+    .is("deleted_at", null);
+  if (error) throw error;
   const remoteRows: any[] = remote ?? [];
 
-  const newTomb = { ...state.tombstones.dependientes };
-  const removedLocally = new Set<string>();
-  for (const r of remoteRows) {
-    if (r.deleted_at) {
-      newTomb[r.nombre] = newTomb[r.nombre] ?? r.deleted_at;
-      removedLocally.add(r.nombre);
-    }
-  }
-
-  if (isAdmin) {
-    const remoteByName = new Map(remoteRows.map((r) => [r.nombre, r]));
-    const namesToTomb = Object.keys(state.tombstones.dependientes).filter((n) => {
-      const r = remoteByName.get(n);
-      return r && !r.deleted_at;
-    });
-    if (namesToTomb.length > 0) {
-      await (supabase as any)
-        .from("dependientes")
-        .update({ deleted_at: new Date().toISOString() })
-        .in("nombre", namesToTomb);
-    }
-  }
-
-  const localSet = new Set(state.dependientes);
-  for (const n of removedLocally) localSet.delete(n);
-  for (const r of remoteRows) {
-    if (r.deleted_at) continue;
-    if (newTomb[r.nombre]) continue;
-    localSet.add(r.nombre);
-  }
-  const merged = Array.from(localSet).sort((a, b) => a.localeCompare(b));
-
-  if (isAdmin && merged.length > 0) {
-    await (supabase as any)
+  if (remoteRows.length === 0 && isAdmin && state.dependientes.length > 0) {
+    const { error: upError } = await (supabase as any)
       .from("dependientes")
-      .upsert(
-        merged.map((n) => ({ nombre: n, deleted_at: null })),
-        { onConflict: "nombre" }
-      );
+      .upsert(state.dependientes.map((n) => ({ nombre: n })), { onConflict: "nombre" });
+    if (upError) throw upError;
+    return;
   }
+
+  const merged = Array.from(new Set(remoteRows.map((r) => String(r.nombre)))).sort((a, b) =>
+    a.localeCompare(b)
+  );
 
   useCuadreStore.setState({
     dependientes: merged,
-    tombstones: { ...state.tombstones, dependientes: newTomb },
+    tombstones: { ...state.tombstones, dependientes: {} },
   });
 }
 
 // ---------- Cuadres ----------
 async function syncCuadres(isAdmin: boolean) {
   const state = useCuadreStore.getState();
-  const { data: remote } = await (supabase as any)
+  const { data: remote, error } = await (supabase as any)
     .from("cuadres")
-    .select("id, data, deleted_at");
+    .select("id, data")
+    .is("deleted_at", null);
+  if (error) throw error;
   const remoteRows: any[] = remote ?? [];
 
-  const newTomb = { ...state.tombstones.cuadres };
-  const removedLocally = new Set<string>();
-  for (const r of remoteRows) {
-    if (r.deleted_at) {
-      newTomb[r.id] = newTomb[r.id] ?? r.deleted_at;
-      removedLocally.add(r.id);
-    }
+  if (remoteRows.length === 0 && isAdmin && state.history.length > 0) {
+    await upsertCuadres(state.history);
+    return;
   }
 
-  if (isAdmin) {
-    const remoteById = new Map(remoteRows.map((r) => [r.id, r]));
-    const idsToTomb = Object.keys(state.tombstones.cuadres).filter((id) => {
-      const r = remoteById.get(id);
-      return r && !r.deleted_at;
-    });
-    if (idsToTomb.length > 0) {
-      await (supabase as any)
-        .from("cuadres")
-        .update({ deleted_at: new Date().toISOString() })
-        .in("id", idsToTomb);
-    }
-  }
-
-  const localById = new Map(state.history.map((c) => [c.id, c]));
-  for (const id of removedLocally) localById.delete(id);
-  for (const r of remoteRows) {
-    if (r.deleted_at) continue;
-    if (newTomb[r.id]) continue;
-    localById.set(r.id, r.data as Cuadre);
-  }
-  const merged: Cuadre[] = [...localById.values()].sort(
+  const merged: Cuadre[] = remoteRows.map((r) => r.data as Cuadre).sort(
     (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
   );
 
-  if (isAdmin && merged.length > 0) {
-    await (supabase as any).from("cuadres").upsert(
-      merged.map((c) => ({
-        id: c.id,
-        punto_venta: c.puntoVenta,
-        fecha: c.fecha,
-        dependiente: c.dependiente || null,
-        finalizado: c.finalizado,
-        data: c as any,
-        deleted_at: null,
-      }))
-    );
-  }
-
   useCuadreStore.setState({
     history: merged,
-    tombstones: { ...state.tombstones, cuadres: newTomb },
+    tombstones: { ...state.tombstones, cuadres: {} },
   });
 }
 
 export async function pushCuadre(c: Cuadre) {
-  await supabase.from("cuadres").upsert({
+  await ensureCloudSession();
+  const { error } = await supabase.from("cuadres").upsert({
     id: c.id,
     punto_venta: c.puntoVenta,
     fecha: c.fecha,
     dependiente: c.dependiente || null,
     finalizado: c.finalizado,
     data: c as any,
+    deleted_at: null,
   });
+  if (error) throw error;
+}
+
+async function upsertCuadres(cuadres: Cuadre[]) {
+  if (cuadres.length === 0) return;
+  const { error } = await (supabase as any).from("cuadres").upsert(
+    cuadres.map((c) => ({
+      id: c.id,
+      punto_venta: c.puntoVenta,
+      fecha: c.fecha,
+      dependiente: c.dependiente || null,
+      finalizado: c.finalizado,
+      data: c as any,
+      deleted_at: null,
+    }))
+  );
+  if (error) throw error;
 }
 
 export async function pushCatalogItem(c: {
@@ -350,38 +293,59 @@ export async function pushCatalogItem(c: {
   orden?: number;
   punto?: string;
 }) {
-  await (supabase as any).from("catalogo").upsert({
+  await ensureCloudSession();
+  const { error } = await (supabase as any).from("catalogo").upsert({
     id: c.id,
     nombre: c.nombre,
     precio: c.precio,
     costo: c.costo,
     orden: c.orden ?? 0,
     punto: c.punto ?? null,
+    deleted_at: null,
   } as any);
+  if (error) throw error;
+}
+
+async function upsertCatalogItems(items: typeof useCuadreStore.getState extends () => infer S ? S extends { catalogo: infer C } ? C : never : never) {
+  const rows = (items as any[]).map((c) => ({
+    id: c.id,
+    nombre: c.nombre,
+    precio: c.precio,
+    costo: c.costo,
+    orden: c.orden ?? 0,
+    punto: c.punto ?? null,
+    deleted_at: null,
+  }));
+  if (rows.length === 0) return;
+  const { error } = await (supabase as any).from("catalogo").upsert(rows);
+  if (error) throw error;
 }
 
 export async function deleteCatalogItem(id: string) {
-  // Soft-delete: marca tombstone en la nube en lugar de borrar.
-  await (supabase as any)
-    .from("catalogo")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("id", id);
+  await ensureCloudSession();
+  const { error } = await (supabase as any).from("catalogo").delete().eq("id", id);
+  if (error) throw error;
 }
 
 export async function pushDependiente(nombre: string) {
-  await supabase.from("dependientes").upsert({ nombre }, { onConflict: "nombre" });
+  await ensureCloudSession();
+  const { error } = await supabase.from("dependientes").upsert({ nombre }, { onConflict: "nombre" });
+  if (error) throw error;
 }
 
 export async function deleteDependiente(nombre: string) {
-  await (supabase as any)
-    .from("dependientes")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("nombre", nombre);
+  await ensureCloudSession();
+  const { error } = await (supabase as any).from("dependientes").delete().eq("nombre", nombre);
+  if (error) throw error;
 }
 
 export async function deleteCuadreRemote(id: string) {
-  await (supabase as any)
-    .from("cuadres")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("id", id);
+  await ensureCloudSession();
+  const { error } = await (supabase as any).from("cuadres").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function pushAllCatalogo() {
+  await ensureCloudSession();
+  await upsertCatalogItems(useCuadreStore.getState().catalogo);
 }
