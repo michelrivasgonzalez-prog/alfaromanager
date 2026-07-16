@@ -57,6 +57,7 @@ export type Database = {
         Row: {
           cliente_id: string
           created_at: string
+          credito_generado: number
           deleted_at: string | null
           fecha: string
           id: string
@@ -70,6 +71,7 @@ export type Database = {
         Insert: {
           cliente_id: string
           created_at?: string
+          credito_generado?: number
           deleted_at?: string | null
           fecha?: string
           id?: string
@@ -83,6 +85,7 @@ export type Database = {
         Update: {
           cliente_id?: string
           created_at?: string
+          credito_generado?: number
           deleted_at?: string | null
           fecha?: string
           id?: string
@@ -203,6 +206,24 @@ export type Database = {
         }
         Relationships: []
       }
+      app_settings: {
+        Row: {
+          id: string
+          settings: Json
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          settings?: Json
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          settings?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       auditoria: {
         Row: {
           accion: string
@@ -275,6 +296,7 @@ export type Database = {
       clientes: {
         Row: {
           created_at: string
+          credito: number
           deleted_at: string | null
           id: string
           nombre: string
@@ -285,6 +307,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          credito?: number
           deleted_at?: string | null
           id?: string
           nombre: string
@@ -295,6 +318,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          credito?: number
           deleted_at?: string | null
           id?: string
           nombre?: string
