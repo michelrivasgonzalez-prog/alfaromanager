@@ -22,6 +22,7 @@ import {
 import { Plus, Trash2, Users as UsersIcon, Lock, Pencil, Shield, Crown, User as UserIcon, KeyRound, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { PinPad } from "@/components/PinPad";
+import { deleteDependiente, deletePinUserRemote, pushDependiente, pushPinUser } from "@/lib/sync";
 
 const ROLE_INFO: Record<PinRole, { label: string; Icon: any; cls: string }> = {
   admin: { label: "Admin", Icon: Shield, cls: "gradient-primary text-primary-foreground" },
@@ -104,7 +105,11 @@ export default function Usuarios() {
                 title="Renombrar"
                 onClick={() => {
                   const v = prompt("Nuevo nombre", u.nombre);
-                  if (v && v.trim()) updateUser(u.id, { nombre: v.trim() });
+                  if (v && v.trim()) {
+                    updateUser(u.id, { nombre: v.trim() });
+                    const next = { ...u, nombre: v.trim() };
+                    pushPinUser(next).catch((e) => toast.error(e.message));
+                  }
                 }}
               >
                 <Pencil className="h-4 w-4" />
@@ -115,7 +120,9 @@ export default function Usuarios() {
                   variant="ghost"
                   className="h-8 w-8 text-destructive"
                   onClick={() => {
-                    if (confirm(`¿Eliminar a ${u.nombre}?`)) removeUser(u.id);
+                    if (!confirm(`¿Eliminar a ${u.nombre}?`)) return;
+                    removeUser(u.id);
+                    deletePinUserRemote(u.id).catch((e) => toast.error(e.message));
                   }}
                 >
                   <Trash2 className="h-4 w-4" />
@@ -144,6 +151,7 @@ export default function Usuarios() {
               return;
             }
             addDependiente(n);
+            pushDependiente(n).catch((e) => toast.error(e.message));
             setNuevoDep("");
             toast.success("Dependiente agregado");
           }}
@@ -180,7 +188,12 @@ export default function Usuarios() {
                 title="Renombrar"
                 onClick={() => {
                   const v = prompt("Nuevo nombre", d);
-                  if (v && v.trim() && v.trim() !== d) updateDependiente(d, v.trim());
+                  if (v && v.trim() && v.trim() !== d) {
+                    updateDependiente(d, v.trim());
+                    Promise.all([deleteDependiente(d), pushDependiente(v.trim())]).catch((e) =>
+                      toast.error(e.message)
+                    );
+                  }
                 }}
               >
                 <Pencil className="h-4 w-4" />
@@ -190,7 +203,9 @@ export default function Usuarios() {
                 variant="ghost"
                 className="h-8 w-8 text-destructive"
                 onClick={() => {
-                  if (confirm(`¿Eliminar a ${d}?`)) removeDependiente(d);
+                  if (!confirm(`¿Eliminar a ${d}?`)) return;
+                  removeDependiente(d);
+                  deleteDependiente(d).catch((e) => toast.error(e.message));
                 }}
               >
                 <Trash2 className="h-4 w-4" />
@@ -294,7 +309,8 @@ function NewUserForm({ onDone }: { onDone: () => void }) {
             setStage("pin");
             return;
           }
-          await createUser({ nombre: nombre.trim(), role, pin: p });
+          const created = await createUser({ nombre: nombre.trim(), role, pin: p });
+          pushPinUser(created).catch((e) => toast.error(e.message));
           toast.success("Usuario creado");
           onDone();
         }}
@@ -329,6 +345,12 @@ function ChangePinForm({ user, onDone }: { user: PinUser; onDone: (pin: string) 
           return;
         }
         onDone(p);
+        const nextHash = crypto.subtle
+          ? import("@/store/pinStore").then((m) => m.hashPin(p, user.id))
+          : Promise.resolve(user.pinHash);
+        nextHash
+          .then((pinHash) => pushPinUser({ ...user, pinHash }))
+          .catch((e) => toast.error(e.message));
       }}
     />
   );

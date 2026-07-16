@@ -177,6 +177,7 @@ interface State {
   dependientes: string[];
   role: "admin" | "dependiente";
   settings: Settings;
+  settingsUpdatedAt: string;
   // Tombstones para propagar eliminaciones de forma segura entre dispositivos.
   // Clave -> fecha ISO de la eliminación.
   tombstones: {
@@ -252,17 +253,22 @@ export const useCuadreStore = create<State>()(
       dependientes: [],
       role: "admin",
       settings: DEFAULT_SETTINGS,
+      settingsUpdatedAt: new Date(0).toISOString(),
       tombstones: { catalogo: {}, dependientes: {}, cuadres: {} },
 
       setRole: (r) => set({ role: r }),
       updateSettings: (patch) =>
-        set((s) => ({ settings: { ...s.settings, ...patch } })),
+        set((s) => ({
+          settings: { ...s.settings, ...patch },
+          settingsUpdatedAt: new Date().toISOString(),
+        })),
       setSalarioBasePunto: (p, v) =>
         set((s) => ({
           settings: {
             ...s.settings,
             salarioBase: { ...s.settings.salarioBase, [p]: v },
           },
+          settingsUpdatedAt: new Date().toISOString(),
         })),
       setActivePunto: (p) => set({ activePunto: p }),
       setLastStep: (p, step) =>
@@ -295,10 +301,6 @@ export const useCuadreStore = create<State>()(
       removeCatalogItem: (id) =>
         set((s) => ({
           catalogo: s.catalogo.filter((c) => c.id !== id),
-          tombstones: {
-            ...s.tombstones,
-            catalogo: { ...s.tombstones.catalogo, [id]: new Date().toISOString() },
-          },
         })),
       importCatalog: (items) =>
         set((s) => {
@@ -318,12 +320,6 @@ export const useCuadreStore = create<State>()(
         }),
       importCatalogReplace: (items, punto) =>
         set((s) => {
-          const eliminados = s.catalogo.filter(
-            (c) => (c.punto ?? "Cafetería") === punto
-          );
-          const now = new Date().toISOString();
-          const tomb = { ...s.tombstones.catalogo };
-          eliminados.forEach((c) => (tomb[c.id] = now));
           return {
             catalogo: normalizeCatalogoOrden([
               ...s.catalogo.filter((c) => (c.punto ?? "Cafetería") !== punto),
@@ -334,22 +330,14 @@ export const useCuadreStore = create<State>()(
                 orden: i.orden ?? idx + 1,
               })),
             ]),
-            tombstones: { ...s.tombstones, catalogo: tomb },
           };
         }),
       clearCatalog: (punto) =>
         set((s) => {
-          const eliminados = punto
-            ? s.catalogo.filter((c) => (c.punto ?? "Cafetería") === punto)
-            : s.catalogo;
-          const now = new Date().toISOString();
-          const tomb = { ...s.tombstones.catalogo };
-          eliminados.forEach((c) => (tomb[c.id] = now));
           return {
             catalogo: punto
               ? s.catalogo.filter((c) => (c.punto ?? "Cafetería") !== punto)
               : [],
-            tombstones: { ...s.tombstones, catalogo: tomb },
           };
         }),
       moveCatalogItem: (id, dir) =>
@@ -411,13 +399,6 @@ export const useCuadreStore = create<State>()(
       removeDependiente: (nombre) =>
         set((s) => ({
           dependientes: s.dependientes.filter((d) => d !== nombre),
-          tombstones: {
-            ...s.tombstones,
-            dependientes: {
-              ...s.tombstones.dependientes,
-              [nombre]: new Date().toISOString(),
-            },
-          },
         })),
 
       startCuadre: (punto) =>
@@ -544,10 +525,6 @@ export const useCuadreStore = create<State>()(
       deleteHistory: (id) =>
         set((s) => ({
           history: s.history.filter((c) => c.id !== id),
-          tombstones: {
-            ...s.tombstones,
-            cuadres: { ...s.tombstones.cuadres, [id]: new Date().toISOString() },
-          },
         })),
       addTombstone: (kind, key) =>
         set((s) => ({

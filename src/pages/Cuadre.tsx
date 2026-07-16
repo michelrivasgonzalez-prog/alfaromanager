@@ -74,7 +74,7 @@ import { formatGastoDetalle } from "@/lib/dias";
 import { listClientes, upsertCliente, type Cliente } from "@/lib/cobrar";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { pushCuadre } from "@/lib/sync";
+import { pushAllCatalogo, pushCuadre } from "@/lib/sync";
 
 const fmt = (n: number) =>
   `$${n.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -1651,7 +1651,7 @@ function Step10({ onClose }: { onClose: () => void }) {
     // Snapshot ANTES de finalizar (finalizar limpia currents)
     const snap = { ...current, finalizado: true, fecha: new Date().toISOString() };
     finalizar();
-    pushCuadre(snap).catch((e) => {
+    Promise.all([pushCuadre(snap), pushAllCatalogo()]).catch((e) => {
       console.error(e);
       toast.warning("Guardado local. Se sincronizará cuando haya conexión.");
     });
