@@ -263,12 +263,12 @@ export default function Ajustes() {
                     <Label className="text-xs">Modo de cálculo</Label>
                     <Select
                       value={modo}
-                      onValueChange={(v) =>
+                      onValueChange={(v) => {
                         updateSettings({
                           salarioModo: { ...settings.salarioModo, [p]: v as SalarioModo },
                         });
                         saveSettings();
-                      }
+                      }}
                     >
                       <SelectTrigger className="mt-1 h-11 rounded-xl">
                         <SelectValue />
@@ -302,12 +302,12 @@ export default function Ajustes() {
                       <Label className="text-xs">% de venta</Label>
                       <NumberInput
                         value={settings.porcentajeVenta?.[p] ?? 3}
-                        onChange={(v) =>
+                        onChange={(v) => {
                           updateSettings({
                             porcentajeVenta: { ...settings.porcentajeVenta, [p]: v },
                           });
                           saveSettings();
-                        }
+                        }}
                         className="mt-1 h-11 rounded-xl"
                         disabled={modo === "base"}
                       />
