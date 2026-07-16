@@ -120,7 +120,8 @@ export default function Usuarios() {
                   variant="ghost"
                   className="h-8 w-8 text-destructive"
                   onClick={() => {
-                    if (confirm(`¿Eliminar a ${u.nombre}?`)) removeUser(u.id);
+                    if (!confirm(`¿Eliminar a ${u.nombre}?`)) return;
+                    removeUser(u.id);
                     deletePinUserRemote(u.id).catch((e) => toast.error(e.message));
                   }}
                 >
@@ -202,7 +203,8 @@ export default function Usuarios() {
                 variant="ghost"
                 className="h-8 w-8 text-destructive"
                 onClick={() => {
-                  if (confirm(`¿Eliminar a ${d}?`)) removeDependiente(d);
+                  if (!confirm(`¿Eliminar a ${d}?`)) return;
+                  removeDependiente(d);
                   deleteDependiente(d).catch((e) => toast.error(e.message));
                 }}
               >
