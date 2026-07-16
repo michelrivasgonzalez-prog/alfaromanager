@@ -5,6 +5,7 @@ export type Cliente = {
   nombre: string;
   telefono: string | null;
   observaciones: string | null;
+  credito: number;
   uso_count: number;
   created_at: string;
   updated_at: string;
@@ -37,6 +38,14 @@ export type Abono = {
   nota: string | null;
   reversa_de: string | null;
   created_at: string;
+};
+
+export type AbonoAplicacion = {
+  id: string;
+  abono_id: string;
+  deuda_id: string;
+  monto: number;
+  abono?: Abono | null;
 };
 
 export async function listClientes(): Promise<Cliente[]> {
@@ -122,6 +131,32 @@ export async function listAbonos(clienteId: string): Promise<Abono[]> {
     .order("fecha", { ascending: false });
   if (error) throw error;
   return (data ?? []) as any;
+}
+
+export async function listAbonosPorDeuda(clienteId: string): Promise<Record<string, AbonoAplicacion[]>> {
+  const { data: abonos, error: abonosError } = await supabase
+    .from("abonos")
+    .select("*")
+    .is("deleted_at", null)
+    .eq("cliente_id", clienteId)
+    .order("fecha", { ascending: false });
+  if (abonosError) throw abonosError;
+
+  const ids = (abonos ?? []).map((a: any) => a.id);
+  if (ids.length === 0) return {};
+
+  const { data: apps, error } = await (supabase as any)
+    .from("abono_aplicaciones")
+    .select("*")
+    .in("abono_id", ids);
+  if (error) throw error;
+
+  const abonoById = new Map((abonos ?? []).map((a: any) => [a.id, a]));
+  return (apps ?? []).reduce((acc: Record<string, AbonoAplicacion[]>, app: any) => {
+    const row = { ...app, abono: abonoById.get(app.abono_id) ?? null } as AbonoAplicacion;
+    acc[row.deuda_id] = [...(acc[row.deuda_id] ?? []), row];
+    return acc;
+  }, {});
 }
 
 export async function registrarAbono(input: {
