@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { CatalogoItem, Cuadre, Settings, normalizeCatalogoOrden, useCuadreStore } from "@/store/cuadreStore";
 import { ensureCloudSession } from "@/lib/cloudBootstrap";
+import type { PinUser } from "@/store/pinStore";
 
 /**
  * Sincronización cloud-first con borrado real.
@@ -129,6 +130,25 @@ export async function pullPinUsers() {
     pinHash: r.pin_hash,
     recoveryEmail: r.recovery_email ?? undefined,
   }));
+}
+
+export async function pushPinUser(u: PinUser) {
+  await ensureCloudSession();
+  const { error } = await (supabase as any).from("pin_users").upsert({
+    id: u.id,
+    nombre: u.nombre,
+    role: u.role,
+    pin_hash: u.pinHash,
+    recovery_email: u.recoveryEmail ?? null,
+    deleted_at: null,
+  });
+  if (error) throw error;
+}
+
+export async function deletePinUserRemote(id: string) {
+  await ensureCloudSession();
+  const { error } = await (supabase as any).from("pin_users").delete().eq("id", id);
+  if (error) throw error;
 }
 
 // ---------- Ajustes ----------
