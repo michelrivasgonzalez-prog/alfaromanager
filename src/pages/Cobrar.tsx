@@ -88,13 +88,22 @@ export default function Cobrar() {
         </TabsList>
 
         <TabsContent value="clientes" className="mt-3 space-y-3">
-          <Button
-            variant="outline"
-            className="h-10 w-full rounded-xl"
-            onClick={() => setCliDialog({ nombre: "", telefono: "", observaciones: "" })}
-          >
-            <Plus className="mr-2 h-4 w-4" /> Nuevo cliente
-          </Button>
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              variant="outline"
+              className="h-10 w-full rounded-xl"
+              onClick={() => setCliDialog({ nombre: "", telefono: "", observaciones: "" })}
+            >
+              <Plus className="mr-2 h-4 w-4" /> Nuevo cliente
+            </Button>
+            <Button
+              variant="outline"
+              className="h-10 w-full rounded-xl"
+              onClick={() => setDeudaLibre(true)}
+            >
+              <Receipt className="mr-2 h-4 w-4" /> Nueva deuda
+            </Button>
+          </div>
           {clientes.data?.length === 0 && (
             <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
               Aún no hay clientes registrados.
