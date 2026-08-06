@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Home, History, BarChart3, Package, Users, Settings, LogOut, Warehouse, Wallet, Cloud, CloudOff, RefreshCw } from "lucide-react";
+import { Home, History, BarChart3, Package, Users, Settings, LogOut, Warehouse, Wallet, Cloud, CloudOff, RefreshCw, CalendarDays } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth, AppRole } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -10,12 +10,13 @@ import { toast } from "sonner";
 
 const ALL_TABS: { to: string; icon: any; label: string; allow: AppRole[] }[] = [
   { to: "/", icon: Home, label: "Inicio", allow: ["admin", "duena", "dependiente"] },
+  { to: "/calendario", icon: CalendarDays, label: "Calendario", allow: ["admin", "duena", "dependiente"] },
   { to: "/historial", icon: History, label: "Historial", allow: ["admin", "duena", "dependiente"] },
   { to: "/almacen", icon: Warehouse, label: "Almacén", allow: ["admin", "duena"] },
   { to: "/cobrar", icon: Wallet, label: "Cobrar", allow: ["admin", "duena"] },
   { to: "/reportes", icon: BarChart3, label: "Reportes", allow: ["admin", "duena"] },
-  { to: "/productos", icon: Package, label: "Productos", allow: ["admin"] },
-  { to: "/usuarios", icon: Users, label: "Usuarios", allow: ["admin"] },
+  { to: "/productos", icon: Package, label: "Productos", allow: ["admin", "duena"] },
+  { to: "/usuarios", icon: Users, label: "Usuarios", allow: ["admin", "duena"] },
   { to: "/ajustes", icon: Settings, label: "Ajustes", allow: ["admin", "duena", "dependiente"] },
 ];
 

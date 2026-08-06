@@ -7,6 +7,7 @@ import { useCuadreStore, PUNTOS, PuntoVenta } from "@/store/cuadreStore";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { formatDiasTrabajados } from "@/lib/dias";
 
 export default function Index() {
   const nav = useNavigate();
@@ -152,12 +153,7 @@ export default function Index() {
                   <div>
                     <div className="text-sm font-semibold">{c.dependiente || "Sin nombre"}</div>
                     <div className="text-xs text-muted-foreground">
-                      {new Date(c.fecha).toLocaleString("es-ES", {
-                        day: "2-digit",
-                        month: "short",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                      {formatDiasTrabajados(c.diasTrabajados) || "Sin días registrados"}
                     </div>
                   </div>
                   <div className="rounded-full bg-secondary/10 px-3 py-1 text-xs font-semibold text-secondary">
