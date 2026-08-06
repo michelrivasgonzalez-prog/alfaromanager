@@ -7,6 +7,7 @@ import AppLayout from "./components/AppLayout";
 import Index from "./pages/Index";
 import Cuadre from "./pages/Cuadre";
 import Historial from "./pages/Historial";
+import Calendario from "./pages/Calendario";
 import Reportes from "./pages/Reportes";
 import Productos from "./pages/Productos";
 import Usuarios from "./pages/Usuarios";
@@ -60,18 +61,19 @@ const App = () => (
             <Route
               path="/cuadre/:step"
               element={
-                <RequireRole allow={["admin", "dependiente"]}>
+                <RequireRole allow={["admin", "duena", "dependiente"]}>
                   <Cuadre />
                 </RequireRole>
               }
             />
             <Route path="/historial" element={<Historial />} />
+            <Route path="/calendario" element={<Calendario />} />
             <Route path="/buscar" element={<Buscar />} />
             <Route path="/reportes" element={<Reportes />} />
             <Route
               path="/productos"
               element={
-                <RequireRole allow={["admin"]}>
+                <RequireRole allow={["admin", "duena"]}>
                   <Productos />
                 </RequireRole>
               }
@@ -79,7 +81,7 @@ const App = () => (
             <Route
               path="/usuarios"
               element={
-                <RequireRole allow={["admin"]}>
+                <RequireRole allow={["admin", "duena"]}>
                   <Usuarios />
                 </RequireRole>
               }

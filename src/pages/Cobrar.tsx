@@ -40,6 +40,7 @@ import {
   listDeudas,
   fmt,
 } from "@/lib/cobrar";
+import NuevaDeudaDialog from "@/components/NuevaDeudaDialog";
 
 export default function Cobrar() {
   const qc = useQueryClient();
@@ -56,6 +57,7 @@ export default function Cobrar() {
   const deudasPendientes = (deudas.data ?? []).filter((d) => d.estado !== "pagada").length;
 
   const [cliDialog, setCliDialog] = useState<Partial<Cliente> | null>(null);
+  const [deudaLibre, setDeudaLibre] = useState(false);
   const [estadoFilter, setEstadoFilter] = useState<string>("");
 
   return (
@@ -88,13 +90,22 @@ export default function Cobrar() {
         </TabsList>
 
         <TabsContent value="clientes" className="mt-3 space-y-3">
-          <Button
-            variant="outline"
-            className="h-10 w-full rounded-xl"
-            onClick={() => setCliDialog({ nombre: "", telefono: "", observaciones: "" })}
-          >
-            <Plus className="mr-2 h-4 w-4" /> Nuevo cliente
-          </Button>
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              variant="outline"
+              className="h-10 w-full rounded-xl"
+              onClick={() => setCliDialog({ nombre: "", telefono: "", observaciones: "" })}
+            >
+              <Plus className="mr-2 h-4 w-4" /> Nuevo cliente
+            </Button>
+            <Button
+              variant="outline"
+              className="h-10 w-full rounded-xl"
+              onClick={() => setDeudaLibre(true)}
+            >
+              <Receipt className="mr-2 h-4 w-4" /> Nueva deuda
+            </Button>
+          </div>
           {clientes.data?.length === 0 && (
             <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
               Aún no hay clientes registrados.
@@ -189,6 +200,15 @@ export default function Cobrar() {
         cli={cliDialog}
         onClose={() => setCliDialog(null)}
         onSaved={() => qc.invalidateQueries({ queryKey: ["clientes"] })}
+      />
+      <NuevaDeudaDialog
+        open={deudaLibre}
+        clientes={clientes.data ?? []}
+        onClose={() => setDeudaLibre(false)}
+        onSaved={() => {
+          qc.invalidateQueries({ queryKey: ["deudas-all"] });
+          qc.invalidateQueries({ queryKey: ["clientes"] });
+        }}
       />
     </div>
   );

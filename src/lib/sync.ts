@@ -14,7 +14,8 @@ import type { PinUser } from "@/store/pinStore";
  */
 export async function fullSync(role: "admin" | "duena" | "dependiente" | null) {
   if (!role) return;
-  const isAdmin = role === "admin";
+  // La dueña tiene los mismos privilegios que el admin.
+  const isAdmin = role === "admin" || role === "duena";
   await ensureCloudSession();
   await syncPinUsers(isAdmin);
   await syncSettings(isAdmin);

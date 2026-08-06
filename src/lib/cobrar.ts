@@ -98,6 +98,8 @@ export async function crearDeuda(input: {
   productos: DeudaProducto[];
   total: number;
   fecha?: string;
+  /** Si es true la deuda se guarda ya liquidada (saldo 0, estado "pagada"). */
+  pagada?: boolean;
 }) {
   const { data, error } = await supabase
     .from("deudas")
@@ -107,9 +109,9 @@ export async function crearDeuda(input: {
       cuadre_label: input.cuadre_label ?? null,
       productos: input.productos as any,
       total: input.total,
-      saldo: input.total,
+      saldo: input.pagada ? 0 : input.total,
       fecha: input.fecha ?? new Date().toISOString(),
-      estado: "pendiente",
+      estado: input.pagada ? "pagada" : "pendiente",
     })
     .select()
     .single();

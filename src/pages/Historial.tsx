@@ -17,6 +17,7 @@ import {
   Eye,
   Receipt,
   Pencil,
+  CheckCircle2,
 } from "lucide-react";
 import { generarPDF } from "@/lib/pdf";
 import { deleteCuadreRemote } from "@/lib/sync";
@@ -76,12 +77,12 @@ export default function Historial() {
   const { history, deleteHistory, editCuadre } = useCuadreStore();
   const nav = useNavigate();
   const { role } = useAuth();
-  const canDelete = role === "admin";
+  const canDelete = role === "admin" || role === "duena";
   const canPDF = role === "admin" || role === "duena";
   const canDeuda = role === "admin" || role === "duena";
-  const canEdit = role === "admin";
+  const canEdit = role === "admin" || role === "duena";
   const [detalle, setDetalle] = useState<Cuadre | null>(null);
-  const [deudaFor, setDeudaFor] = useState<Cuadre | null>(null);
+  const [deudaFor, setDeudaFor] = useState<{ cuadre: Cuadre; pagada: boolean } | null>(null);
 
   const clientes = useQuery({ queryKey: ["clientes"], queryFn: listClientes, enabled: canDeuda });
   const deudasAll = useQuery({ queryKey: ["deudas-all"], queryFn: () => listDeudas(), enabled: canDeuda });
@@ -137,20 +138,36 @@ export default function Historial() {
               const yaLinked = deudaByCuadre.get(c.id);
               if (credito <= 0) return null;
               return (
-                <div className="mt-2 flex items-center justify-between rounded-xl border border-dashed border-primary/30 bg-primary/5 p-2 text-xs">
-                  <div>
-                    <span className="font-semibold text-primary">Venta a crédito</span>
-                    <span className="ml-2 font-mono tabular-nums">{fmt(credito)}</span>
+                <div className="mt-2 rounded-xl border border-dashed border-primary/30 bg-primary/5 p-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-semibold text-primary">Venta a crédito</span>
+                      <span className="ml-2 font-mono tabular-nums">{fmt(credito)}</span>
+                    </div>
+                    {yaLinked && (
+                      <span className="rounded-full bg-secondary/10 px-2 py-0.5 text-[10px] font-semibold text-secondary">
+                        Deuda registrada
+                      </span>
+                    )}
                   </div>
                   {canDeuda && !yaLinked && (
-                    <Button size="sm" className="h-7 rounded-lg" onClick={() => setDeudaFor(c)}>
-                      <Receipt className="mr-1 h-3 w-3" /> Registrar deuda
-                    </Button>
-                  )}
-                  {yaLinked && (
-                    <span className="rounded-full bg-secondary/10 px-2 py-0.5 text-[10px] font-semibold text-secondary">
-                      Deuda registrada
-                    </span>
+                    <div className="mt-2 flex gap-2">
+                      <Button
+                        size="sm"
+                        className="h-7 flex-1 rounded-lg"
+                        onClick={() => setDeudaFor({ cuadre: c, pagada: false })}
+                      >
+                        <Receipt className="mr-1 h-3 w-3" /> Registrar deuda
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 flex-1 rounded-lg"
+                        onClick={() => setDeudaFor({ cuadre: c, pagada: true })}
+                      >
+                        <CheckCircle2 className="mr-1 h-3 w-3" /> Ya está pagada
+                      </Button>
+                    </div>
                   )}
                 </div>
               );
@@ -208,7 +225,8 @@ export default function Historial() {
         );
       })}
       <RegistrarDeudaDialog
-        cuadre={deudaFor}
+        cuadre={deudaFor?.cuadre ?? null}
+        pagada={!!deudaFor?.pagada}
         clientes={clientes.data ?? []}
         onClose={() => setDeudaFor(null)}
         onSaved={() => {
@@ -233,11 +251,13 @@ export default function Historial() {
 
 function RegistrarDeudaDialog({
   cuadre,
+  pagada,
   clientes,
   onClose,
   onSaved,
 }: {
   cuadre: Cuadre | null;
+  pagada?: boolean;
   clientes: { id: string; nombre: string }[];
   onClose: () => void;
   onSaved: () => void;
@@ -285,9 +305,14 @@ function RegistrarDeudaDialog({
           productos,
           total: grupo.total,
           fecha: fechaTrabajada(cuadre),
+          pagada,
         });
       }
-      toast.success(`Se registraron ${grupos.length} deuda(s)`);
+      toast.success(
+        pagada
+          ? `Se registraron ${grupos.length} venta(s) a crédito ya cobradas`
+          : `Se registraron ${grupos.length} deuda(s)`
+      );
       qc.invalidateQueries({ queryKey: ["deudas-all"] });
       onSaved();
       onClose();
@@ -302,12 +327,24 @@ function RegistrarDeudaDialog({
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Registrar deudas del cuadre</DialogTitle>
+          <DialogTitle>
+            {pagada ? "Registrar ventas a crédito ya cobradas" : "Registrar deudas del cuadre"}
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Se creará <strong>una deuda por cliente</strong> vinculada a este cuadre. Total a
-            registrar: <strong>{fmt(totalTodo)}</strong>.
+            {pagada ? (
+              <>
+                Se guardará <strong>una venta por cliente</strong> ya marcada como{" "}
+                <strong>pagada</strong>, así queda el registro sin saldo pendiente en Cobrar. Total:{" "}
+                <strong>{fmt(totalTodo)}</strong>.
+              </>
+            ) : (
+              <>
+                Se creará <strong>una deuda por cliente</strong> vinculada a este cuadre. Total a
+                registrar: <strong>{fmt(totalTodo)}</strong>.
+              </>
+            )}
           </p>
           {grupos.map((g) => (
             <div key={g.nombre} className="rounded-xl border border-border bg-muted/40 p-3 space-y-2">

@@ -13,15 +13,15 @@ import {
   Pencil,
   Trash2,
   User as UserIcon,
-  Banknote,
-  Package,
+  ChevronDown,
+  Printer,
+  Receipt,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { NumberInput } from "@/components/NumberInput";
 import {
   Dialog,
   DialogContent,
@@ -30,17 +30,25 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   listClientes,
   listDeudas,
   listAbonos,
+  listAbonosPorDeuda,
   upsertCliente,
   softDeleteCliente,
-  crearDeuda,
   fmt,
+  type AbonoAplicacion,
+  type Deuda,
 } from "@/lib/cobrar";
+import NuevaDeudaDialog from "@/components/NuevaDeudaDialog";
+import { imprimirRecibo } from "@/lib/recibo";
 import { EstadoBadge } from "./Cobrar";
 
-type ProdRow = { nombre: string; cantidad: number; precio: number };
 
 export default function ClienteDetalle() {
   const { id = "" } = useParams();
@@ -49,6 +57,10 @@ export default function ClienteDetalle() {
   const clientes = useQuery({ queryKey: ["clientes"], queryFn: listClientes });
   const deudas = useQuery({ queryKey: ["deudas", id], queryFn: () => listDeudas(id) });
   const abonos = useQuery({ queryKey: ["abonos", id], queryFn: () => listAbonos(id) });
+  const abonosPorDeuda = useQuery({
+    queryKey: ["abonos-por-deuda", id],
+    queryFn: () => listAbonosPorDeuda(id),
+  });
 
   const cliente = useMemo(() => clientes.data?.find((c) => c.id === id), [clientes.data, id]);
   const [editing, setEditing] = useState(false);
@@ -167,41 +179,12 @@ export default function ClienteDetalle() {
           </div>
         )}
         {(deudas.data ?? []).map((d) => (
-          <div key={d.id} className="rounded-2xl border border-border bg-card p-3 shadow-soft">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <div className="text-sm font-semibold">
-                  {d.cuadre_label ?? format(new Date(d.fecha), "dd MMM yyyy", { locale: es })}
-                </div>
-                <div className="text-[11px] text-muted-foreground">
-                  {format(new Date(d.fecha), "dd MMM yyyy", { locale: es })}
-                </div>
-              </div>
-              <EstadoBadge estado={d.estado} />
-            </div>
-            {d.productos && d.productos.length > 0 && (
-              <div className="mt-2 rounded-xl bg-muted/60 p-2 text-[11px]">
-                {d.productos.map((p, i) => (
-                  <div key={i} className="flex justify-between">
-                    <span>{p.nombre} × {p.cantidad}</span>
-                    <span className="tabular-nums">{fmt(p.precio * p.cantidad)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="mt-2 flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Total {fmt(d.total)}</span>
-              <span className="font-mono font-bold text-destructive tabular-nums">Saldo {fmt(d.saldo)}</span>
-            </div>
-            {d.cuadre_id && (
-              <Link
-                to="/historial"
-                className="mt-2 inline-block text-[11px] text-primary underline-offset-2 hover:underline"
-              >
-                Ver cuadre asociado →
-              </Link>
-            )}
-          </div>
+          <DeudaCard
+            key={d.id}
+            deuda={d}
+            clienteNombre={cliente.nombre}
+            aplicaciones={abonosPorDeuda.data?.[d.id] ?? []}
+          />
         ))}
       </section>
 
@@ -262,6 +245,148 @@ export default function ClienteDetalle() {
     </div>
   );
 }
+
+/** Tarjeta de deuda con lista desplegable de abonos y recibo imprimible. */
+function DeudaCard({
+  deuda: d,
+  clienteNombre,
+  aplicaciones,
+}: {
+  deuda: Deuda;
+  clienteNombre: string;
+  aplicaciones: AbonoAplicacion[];
+}) {
+  const [open, setOpen] = useState(false);
+  const apps = [...aplicaciones].sort(
+    (a, b) =>
+      new Date(b.abono?.fecha ?? 0).getTime() - new Date(a.abono?.fecha ?? 0).getTime()
+  );
+  const pagado = apps.reduce((s, a) => s + Number(a.monto), 0);
+  const label = d.cuadre_label ?? format(new Date(d.fecha), "dd MMM yyyy", { locale: es });
+
+  // Saldo tras cada abono (de más antiguo a más nuevo)
+  const saldoTras = new Map<string, number>();
+  let acc = Number(d.total);
+  for (const a of [...apps].reverse()) {
+    acc = Math.round((acc - Number(a.monto)) * 100) / 100;
+    saldoTras.set(a.id, acc);
+  }
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-3 shadow-soft">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold">{label}</div>
+          <div className="text-[11px] text-muted-foreground">
+            {format(new Date(d.fecha), "dd MMM yyyy", { locale: es })}
+          </div>
+        </div>
+        <EstadoBadge estado={d.estado} />
+      </div>
+      {d.productos && d.productos.length > 0 && (
+        <div className="mt-2 rounded-xl bg-muted/60 p-2 text-[11px]">
+          {d.productos.map((p, i) => (
+            <div key={i} className="flex justify-between">
+              <span>
+                {p.nombre} × {p.cantidad}
+              </span>
+              <span className="tabular-nums">{fmt(p.precio * p.cantidad)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="mt-2 flex items-center justify-between text-xs">
+        <span className="text-muted-foreground">Total {fmt(d.total)}</span>
+        <span
+          className={`font-mono font-bold tabular-nums ${
+            Number(d.saldo) > 0 ? "text-destructive" : "text-secondary"
+          }`}
+        >
+          Saldo {fmt(d.saldo)}
+        </span>
+      </div>
+
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <CollapsibleTrigger asChild>
+          <button className="mt-2 flex w-full items-center justify-between rounded-xl bg-muted/50 px-3 py-2 text-[11px] font-semibold text-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <Receipt className="h-3.5 w-3.5" />
+              Abonos ({apps.length}) · {fmt(pagado)} pagado
+            </span>
+            <ChevronDown
+              className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`}
+            />
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="mt-2 space-y-1.5">
+          {apps.length === 0 && (
+            <div className="rounded-xl border border-dashed border-border p-3 text-center text-[11px] text-muted-foreground">
+              Esta deuda aún no tiene abonos.
+            </div>
+          )}
+          {apps.map((a, i) => (
+            <div
+              key={a.id}
+              className="flex items-center justify-between gap-2 rounded-xl border border-border p-2"
+            >
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold">
+                  {a.abono ? format(new Date(a.abono.fecha), "dd MMM yyyy · HH:mm", { locale: es }) : "—"}
+                </div>
+                <div className="text-[10px] text-muted-foreground">
+                  {a.abono?.usuario_nombre ? `${a.abono.usuario_nombre} · ` : ""}
+                  Saldo tras el pago: {fmt(saldoTras.get(a.id) ?? d.saldo)}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span
+                  className={`font-mono text-xs font-bold tabular-nums ${
+                    Number(a.monto) < 0 ? "text-destructive" : "text-secondary"
+                  }`}
+                >
+                  {Number(a.monto) < 0 ? "" : "+"}
+                  {fmt(a.monto)}
+                </span>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  className="h-7 w-7 rounded-lg"
+                  title="Ver / descargar recibo"
+                  onClick={() => {
+                    const ok = imprimirRecibo({
+                      numero: `${apps.length - i}-${a.id.slice(0, 6).toUpperCase()}`,
+                      cliente: clienteNombre,
+                      fecha: a.abono?.fecha ?? d.fecha,
+                      monto: Number(a.monto),
+                      deudaLabel: label,
+                      deudaTotal: Number(d.total),
+                      saldoDeuda: saldoTras.get(a.id) ?? Number(d.saldo),
+                      usuario: a.abono?.usuario_nombre ?? null,
+                      nota: a.abono?.nota ?? null,
+                    });
+                    if (!ok) toast.error("Permite las ventanas emergentes para ver el recibo");
+                  }}
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </CollapsibleContent>
+      </Collapsible>
+
+      {d.cuadre_id && (
+        <Link
+          to="/historial"
+          className="mt-2 inline-block text-[11px] text-primary underline-offset-2 hover:underline"
+        >
+          Ver cuadre asociado →
+        </Link>
+      )}
+    </div>
+  );
+}
+
 
 function Kpi({ label, value, tone }: { label: string; value: React.ReactNode; tone?: "ok" | "danger" }) {
   return (
@@ -347,207 +472,3 @@ function EditarClienteDialog({
   );
 }
 
-function NuevaDeudaDialog({
-  open,
-  clienteId,
-  clienteNombre,
-  onClose,
-  onSaved,
-}: {
-  open: boolean;
-  clienteId: string;
-  clienteNombre: string;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [modo, setModo] = useState<"efectivo" | "productos">("efectivo");
-  const [monto, setMonto] = useState<number>(0);
-  const [productos, setProductos] = useState<ProdRow[]>([{ nombre: "", cantidad: 1, precio: 0 }]);
-  const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
-  const [nota, setNota] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const totalProductos = productos.reduce((s, p) => s + Number(p.cantidad || 0) * Number(p.precio || 0), 0);
-  const total = modo === "efectivo" ? Number(monto || 0) : totalProductos;
-
-  const reset = () => {
-    setModo("efectivo");
-    setMonto(0);
-    setProductos([{ nombre: "", cantidad: 1, precio: 0 }]);
-    setNota("");
-    setFecha(new Date().toISOString().slice(0, 10));
-  };
-
-  const submit = async () => {
-    let items: ProdRow[] = [];
-    let totalCalc = 0;
-    if (modo === "efectivo") {
-      const m = Number(monto) || 0;
-      if (m <= 0) return toast.error("El monto debe ser mayor que 0");
-      items = [{ nombre: nota.trim() || "Préstamo en efectivo", cantidad: 1, precio: m }];
-      totalCalc = m;
-    } else {
-      items = productos
-        .map((p) => ({ nombre: p.nombre.trim(), cantidad: Number(p.cantidad) || 0, precio: Number(p.precio) || 0 }))
-        .filter((p) => p.nombre && p.cantidad > 0 && p.precio >= 0);
-      if (items.length === 0) return toast.error("Agrega al menos un producto");
-      totalCalc = items.reduce((s, p) => s + p.cantidad * p.precio, 0);
-      if (totalCalc <= 0) return toast.error("El total debe ser mayor que 0");
-    }
-    setBusy(true);
-    try {
-      await crearDeuda({
-        cliente_id: clienteId,
-        cuadre_id: null,
-        cuadre_label:
-          nota.trim() ||
-          (modo === "efectivo"
-            ? `Deuda en efectivo · ${clienteNombre}`
-            : `Deuda manual · ${clienteNombre}`),
-        productos: items,
-        total: totalCalc,
-        fecha: new Date(fecha).toISOString(),
-      });
-      toast.success("Deuda registrada");
-      onSaved();
-      reset();
-      onClose();
-    } catch (e: any) {
-      toast.error(e.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) { reset(); onClose(); } }}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Nueva deuda · {clienteNombre}</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setModo("efectivo")}
-              className={`flex flex-col items-center gap-1 rounded-xl border p-3 text-xs transition-colors ${
-                modo === "efectivo"
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-border bg-card text-muted-foreground"
-              }`}
-            >
-              <Banknote className="h-5 w-5" />
-              <span className="font-semibold">En efectivo</span>
-              <span className="text-[10px]">Solo un monto</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setModo("productos")}
-              className={`flex flex-col items-center gap-1 rounded-xl border p-3 text-xs transition-colors ${
-                modo === "productos"
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-border bg-card text-muted-foreground"
-              }`}
-            >
-              <Package className="h-5 w-5" />
-              <span className="font-semibold">Con productos</span>
-              <span className="text-[10px]">Detalle por línea</span>
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label className="text-xs">Fecha</Label>
-              <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="mt-1 h-10 rounded-xl" />
-            </div>
-            <div>
-              <Label className="text-xs">
-                {modo === "efectivo" ? "Motivo / descripción" : "Etiqueta / nota"}
-              </Label>
-              <Input
-                value={nota}
-                onChange={(e) => setNota(e.target.value)}
-                placeholder={modo === "efectivo" ? "Préstamo, adelanto..." : "Opcional"}
-                className="mt-1 h-10 rounded-xl"
-              />
-            </div>
-          </div>
-
-          {modo === "efectivo" ? (
-            <div className="rounded-xl border border-border bg-muted/40 p-3">
-              <Label className="text-xs uppercase tracking-wider text-muted-foreground">
-                Monto de la deuda
-              </Label>
-              <NumberInput
-                className="mt-2 h-12 w-full rounded-xl text-right text-lg font-bold"
-                value={monto}
-                onChange={setMonto}
-              />
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Productos</Label>
-              {productos.map((p, i) => (
-                <div key={i} className="grid grid-cols-12 gap-1 rounded-xl border border-border bg-muted/40 p-2">
-                  <Input
-                    className="col-span-6 h-9 rounded-lg"
-                    placeholder="Producto"
-                    value={p.nombre}
-                    onChange={(e) => {
-                      const next = [...productos];
-                      next[i] = { ...next[i], nombre: e.target.value };
-                      setProductos(next);
-                    }}
-                  />
-                  <NumberInput
-                    className="col-span-2 h-9 rounded-lg text-right"
-                    value={p.cantidad}
-                    onChange={(v) => {
-                      const next = [...productos];
-                      next[i] = { ...next[i], cantidad: v };
-                      setProductos(next);
-                    }}
-                  />
-                  <NumberInput
-                    className="col-span-3 h-9 rounded-lg text-right"
-                    value={p.precio}
-                    onChange={(v) => {
-                      const next = [...productos];
-                      next[i] = { ...next[i], precio: v };
-                      setProductos(next);
-                    }}
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="col-span-1 h-9 w-9 text-destructive"
-                    onClick={() => setProductos(productos.filter((_, j) => j !== i))}
-                    disabled={productos.length <= 1}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              ))}
-              <Button
-                variant="outline"
-                className="h-9 w-full rounded-xl"
-                onClick={() => setProductos([...productos, { nombre: "", cantidad: 1, precio: 0 }])}
-              >
-                <Plus className="mr-1 h-3.5 w-3.5" /> Agregar producto
-              </Button>
-            </div>
-          )}
-
-          <div className="rounded-xl bg-primary/5 p-3 text-right">
-            <span className="text-xs text-muted-foreground">Total: </span>
-            <span className="font-mono text-lg font-bold text-primary">{fmt(total)}</span>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={submit} disabled={busy}>Guardar deuda</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
