@@ -251,11 +251,13 @@ export default function Historial() {
 
 function RegistrarDeudaDialog({
   cuadre,
+  pagada,
   clientes,
   onClose,
   onSaved,
 }: {
   cuadre: Cuadre | null;
+  pagada?: boolean;
   clientes: { id: string; nombre: string }[];
   onClose: () => void;
   onSaved: () => void;
