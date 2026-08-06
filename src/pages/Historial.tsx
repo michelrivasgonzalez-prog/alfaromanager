@@ -17,6 +17,7 @@ import {
   Eye,
   Receipt,
   Pencil,
+  CheckCircle2,
 } from "lucide-react";
 import { generarPDF } from "@/lib/pdf";
 import { deleteCuadreRemote } from "@/lib/sync";
@@ -224,7 +225,8 @@ export default function Historial() {
         );
       })}
       <RegistrarDeudaDialog
-        cuadre={deudaFor}
+        cuadre={deudaFor?.cuadre ?? null}
+        pagada={!!deudaFor?.pagada}
         clientes={clientes.data ?? []}
         onClose={() => setDeudaFor(null)}
         onSaved={() => {
