@@ -100,6 +100,8 @@ export type Settings = {
   porcentajeTransferencia: number;
   salarioModo: Record<PuntoVenta, SalarioModo>;
   porcentajeVenta: Record<PuntoVenta, number>;
+  /** Días marcados como "no trabajado" (formato yyyy-MM-dd). */
+  diasNoTrabajados?: string[];
 };
 
 const DEFAULT_SETTINGS: Settings = {
@@ -107,6 +109,7 @@ const DEFAULT_SETTINGS: Settings = {
   porcentajeTransferencia: 10,
   salarioModo: { "Cafetería": "base", "Mipyme": "base" },
   porcentajeVenta: { "Cafetería": 3, "Mipyme": 3 },
+  diasNoTrabajados: [],
 };
 
 const DEFAULT_CATALOG: CatalogoItem[] = [];

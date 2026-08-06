@@ -36,8 +36,10 @@ interface PinState {
 }
 
 const applyRole = (role: PinRole | null) => {
-  // Mapear al cuadreStore: admin => admin; duena/dependiente => dependiente (solo lectura/edición limitada)
-  useCuadreStore.getState().setRole(role === "admin" ? "admin" : "dependiente");
+  // La dueña tiene los mismos privilegios que un admin.
+  useCuadreStore
+    .getState()
+    .setRole(role === "admin" || role === "duena" ? "admin" : "dependiente");
 };
 
 export const usePinStore = create<PinState>()(
@@ -80,7 +82,7 @@ export const usePinStore = create<PinState>()(
             // Sincroniza en segundo plano tras el login para reflejar
             // cambios de otros dispositivos de inmediato.
             import("@/lib/sync")
-              .then((m) => m.fullSync(u.role === "admin" ? "admin" : "dependiente"))
+              .then((m) => m.fullSync(u.role))
               .catch(console.warn);
             return u;
           }
