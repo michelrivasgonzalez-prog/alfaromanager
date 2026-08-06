@@ -201,6 +201,15 @@ export default function Cobrar() {
         onClose={() => setCliDialog(null)}
         onSaved={() => qc.invalidateQueries({ queryKey: ["clientes"] })}
       />
+      <NuevaDeudaDialog
+        open={deudaLibre}
+        clientes={clientes.data ?? []}
+        onClose={() => setDeudaLibre(false)}
+        onSaved={() => {
+          qc.invalidateQueries({ queryKey: ["deudas-all"] });
+          qc.invalidateQueries({ queryKey: ["clientes"] });
+        }}
+      />
     </div>
   );
 }
