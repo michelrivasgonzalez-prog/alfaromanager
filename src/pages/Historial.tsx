@@ -137,20 +137,36 @@ export default function Historial() {
               const yaLinked = deudaByCuadre.get(c.id);
               if (credito <= 0) return null;
               return (
-                <div className="mt-2 flex items-center justify-between rounded-xl border border-dashed border-primary/30 bg-primary/5 p-2 text-xs">
-                  <div>
-                    <span className="font-semibold text-primary">Venta a crédito</span>
-                    <span className="ml-2 font-mono tabular-nums">{fmt(credito)}</span>
+                <div className="mt-2 rounded-xl border border-dashed border-primary/30 bg-primary/5 p-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-semibold text-primary">Venta a crédito</span>
+                      <span className="ml-2 font-mono tabular-nums">{fmt(credito)}</span>
+                    </div>
+                    {yaLinked && (
+                      <span className="rounded-full bg-secondary/10 px-2 py-0.5 text-[10px] font-semibold text-secondary">
+                        Deuda registrada
+                      </span>
+                    )}
                   </div>
                   {canDeuda && !yaLinked && (
-                    <Button size="sm" className="h-7 rounded-lg" onClick={() => setDeudaFor(c)}>
-                      <Receipt className="mr-1 h-3 w-3" /> Registrar deuda
-                    </Button>
-                  )}
-                  {yaLinked && (
-                    <span className="rounded-full bg-secondary/10 px-2 py-0.5 text-[10px] font-semibold text-secondary">
-                      Deuda registrada
-                    </span>
+                    <div className="mt-2 flex gap-2">
+                      <Button
+                        size="sm"
+                        className="h-7 flex-1 rounded-lg"
+                        onClick={() => setDeudaFor({ cuadre: c, pagada: false })}
+                      >
+                        <Receipt className="mr-1 h-3 w-3" /> Registrar deuda
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 flex-1 rounded-lg"
+                        onClick={() => setDeudaFor({ cuadre: c, pagada: true })}
+                      >
+                        <CheckCircle2 className="mr-1 h-3 w-3" /> Ya está pagada
+                      </Button>
+                    </div>
                   )}
                 </div>
               );
