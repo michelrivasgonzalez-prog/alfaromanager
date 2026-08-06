@@ -13,15 +13,15 @@ import {
   Pencil,
   Trash2,
   User as UserIcon,
-  Banknote,
-  Package,
+  ChevronDown,
+  Printer,
+  Receipt,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { NumberInput } from "@/components/NumberInput";
 import {
   Dialog,
   DialogContent,
@@ -30,17 +30,25 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   listClientes,
   listDeudas,
   listAbonos,
+  listAbonosPorDeuda,
   upsertCliente,
   softDeleteCliente,
-  crearDeuda,
   fmt,
+  type AbonoAplicacion,
+  type Deuda,
 } from "@/lib/cobrar";
+import NuevaDeudaDialog from "@/components/NuevaDeudaDialog";
+import { imprimirRecibo } from "@/lib/recibo";
 import { EstadoBadge } from "./Cobrar";
 
-type ProdRow = { nombre: string; cantidad: number; precio: number };
 
 export default function ClienteDetalle() {
   const { id = "" } = useParams();
