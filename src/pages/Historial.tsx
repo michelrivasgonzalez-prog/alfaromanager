@@ -305,9 +305,14 @@ function RegistrarDeudaDialog({
           productos,
           total: grupo.total,
           fecha: fechaTrabajada(cuadre),
+          pagada,
         });
       }
-      toast.success(`Se registraron ${grupos.length} deuda(s)`);
+      toast.success(
+        pagada
+          ? `Se registraron ${grupos.length} venta(s) a crédito ya cobradas`
+          : `Se registraron ${grupos.length} deuda(s)`
+      );
       qc.invalidateQueries({ queryKey: ["deudas-all"] });
       onSaved();
       onClose();
