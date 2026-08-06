@@ -40,6 +40,7 @@ import {
   listDeudas,
   fmt,
 } from "@/lib/cobrar";
+import NuevaDeudaDialog from "@/components/NuevaDeudaDialog";
 
 export default function Cobrar() {
   const qc = useQueryClient();
@@ -56,6 +57,7 @@ export default function Cobrar() {
   const deudasPendientes = (deudas.data ?? []).filter((d) => d.estado !== "pagada").length;
 
   const [cliDialog, setCliDialog] = useState<Partial<Cliente> | null>(null);
+  const [deudaLibre, setDeudaLibre] = useState(false);
   const [estadoFilter, setEstadoFilter] = useState<string>("");
 
   return (
