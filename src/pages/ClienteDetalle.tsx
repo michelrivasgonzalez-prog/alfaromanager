@@ -57,6 +57,10 @@ export default function ClienteDetalle() {
   const clientes = useQuery({ queryKey: ["clientes"], queryFn: listClientes });
   const deudas = useQuery({ queryKey: ["deudas", id], queryFn: () => listDeudas(id) });
   const abonos = useQuery({ queryKey: ["abonos", id], queryFn: () => listAbonos(id) });
+  const abonosPorDeuda = useQuery({
+    queryKey: ["abonos-por-deuda", id],
+    queryFn: () => listAbonosPorDeuda(id),
+  });
 
   const cliente = useMemo(() => clientes.data?.find((c) => c.id === id), [clientes.data, id]);
   const [editing, setEditing] = useState(false);
@@ -175,41 +179,12 @@ export default function ClienteDetalle() {
           </div>
         )}
         {(deudas.data ?? []).map((d) => (
-          <div key={d.id} className="rounded-2xl border border-border bg-card p-3 shadow-soft">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <div className="text-sm font-semibold">
-                  {d.cuadre_label ?? format(new Date(d.fecha), "dd MMM yyyy", { locale: es })}
-                </div>
-                <div className="text-[11px] text-muted-foreground">
-                  {format(new Date(d.fecha), "dd MMM yyyy", { locale: es })}
-                </div>
-              </div>
-              <EstadoBadge estado={d.estado} />
-            </div>
-            {d.productos && d.productos.length > 0 && (
-              <div className="mt-2 rounded-xl bg-muted/60 p-2 text-[11px]">
-                {d.productos.map((p, i) => (
-                  <div key={i} className="flex justify-between">
-                    <span>{p.nombre} × {p.cantidad}</span>
-                    <span className="tabular-nums">{fmt(p.precio * p.cantidad)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="mt-2 flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Total {fmt(d.total)}</span>
-              <span className="font-mono font-bold text-destructive tabular-nums">Saldo {fmt(d.saldo)}</span>
-            </div>
-            {d.cuadre_id && (
-              <Link
-                to="/historial"
-                className="mt-2 inline-block text-[11px] text-primary underline-offset-2 hover:underline"
-              >
-                Ver cuadre asociado →
-              </Link>
-            )}
-          </div>
+          <DeudaCard
+            key={d.id}
+            deuda={d}
+            clienteNombre={cliente.nombre}
+            aplicaciones={abonosPorDeuda.data?.[d.id] ?? []}
+          />
         ))}
       </section>
 
