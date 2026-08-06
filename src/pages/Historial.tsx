@@ -327,12 +327,24 @@ function RegistrarDeudaDialog({
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Registrar deudas del cuadre</DialogTitle>
+          <DialogTitle>
+            {pagada ? "Registrar ventas a crédito ya cobradas" : "Registrar deudas del cuadre"}
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Se creará <strong>una deuda por cliente</strong> vinculada a este cuadre. Total a
-            registrar: <strong>{fmt(totalTodo)}</strong>.
+            {pagada ? (
+              <>
+                Se guardará <strong>una venta por cliente</strong> ya marcada como{" "}
+                <strong>pagada</strong>, así queda el registro sin saldo pendiente en Cobrar. Total:{" "}
+                <strong>{fmt(totalTodo)}</strong>.
+              </>
+            ) : (
+              <>
+                Se creará <strong>una deuda por cliente</strong> vinculada a este cuadre. Total a
+                registrar: <strong>{fmt(totalTodo)}</strong>.
+              </>
+            )}
           </p>
           {grupos.map((g) => (
             <div key={g.nombre} className="rounded-xl border border-border bg-muted/40 p-3 space-y-2">
