@@ -76,12 +76,12 @@ export default function Historial() {
   const { history, deleteHistory, editCuadre } = useCuadreStore();
   const nav = useNavigate();
   const { role } = useAuth();
-  const canDelete = role === "admin";
+  const canDelete = role === "admin" || role === "duena";
   const canPDF = role === "admin" || role === "duena";
   const canDeuda = role === "admin" || role === "duena";
-  const canEdit = role === "admin";
+  const canEdit = role === "admin" || role === "duena";
   const [detalle, setDetalle] = useState<Cuadre | null>(null);
-  const [deudaFor, setDeudaFor] = useState<Cuadre | null>(null);
+  const [deudaFor, setDeudaFor] = useState<{ cuadre: Cuadre; pagada: boolean } | null>(null);
 
   const clientes = useQuery({ queryKey: ["clientes"], queryFn: listClientes, enabled: canDeuda });
   const deudasAll = useQuery({ queryKey: ["deudas-all"], queryFn: () => listDeudas(), enabled: canDeuda });

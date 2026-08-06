@@ -14,7 +14,7 @@ export default function Index() {
   const { currents, activePunto, setActivePunto, startCuadre, history, lastStep, cancelar } =
     useCuadreStore();
   const { role } = useAuth();
-  const canStart = role === "admin" || role === "dependiente";
+  const canStart = role === "admin" || role === "duena" || role === "dependiente";
   const current = currents[activePunto];
 
   const onStart = (punto: PuntoVenta) => {
