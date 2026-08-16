@@ -836,6 +836,19 @@ function Step5() {
     .filter(Boolean) as { nombre: string; errs: string[] }[];
   const hayErrores = errores.length > 0;
 
+  // Se ocultan los productos sin existencia (inicio, entradas y total en 0)
+  // para reducir ruido visual y no ocuparlos en el PDF.
+  const visibles = current.productos.filter((p) => {
+    const c = calcProducto(p);
+    return !(
+      Number(p.inicio) === 0 &&
+      Number(p.entradas) === 0 &&
+      Number(c.total) === 0
+    );
+  });
+  const ocultos = current.productos.length - visibles.length;
+
+
   return (
     <StepShell onNextDisabled={hayErrores}>
       {hayErrores && (
