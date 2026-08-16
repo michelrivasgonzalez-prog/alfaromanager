@@ -885,7 +885,8 @@ function Step5() {
             </tr>
           </thead>
           <tbody>
-            {current.productos.map((p) => {
+            {visibles.map((p) => {
+
               const c = calcProducto(p);
               return (
                 <tr key={p.id} className="border-t border-border">
