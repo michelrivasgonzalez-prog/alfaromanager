@@ -67,6 +67,8 @@ import {
   calcCuadre,
   calcProducto,
   sugerirPagoSalario,
+  totalDivisas,
+
   useCuadreStore,
 } from "@/store/cuadreStore";
 import { generarPDF } from "@/lib/pdf";
