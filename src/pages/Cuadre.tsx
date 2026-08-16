@@ -221,7 +221,10 @@ function Step1() {
                 selected={days}
                 onSelect={(d) =>
                   updateCurrent({
-                    diasTrabajados: (d ?? []).map((x) => x.toISOString()),
+                    diasTrabajados: (d ?? [])
+                      .slice()
+                      .sort((a, b) => a.getTime() - b.getTime())
+                      .map((x) => x.toISOString()),
                   })
                 }
                 className={cn("p-3 pointer-events-auto")}
@@ -229,6 +232,7 @@ function Step1() {
               />
             </PopoverContent>
           </Popover>
+
           {days.length > 0 && (
             <div className="flex flex-wrap gap-1.5 pt-1">
               {days.map((d) => (
