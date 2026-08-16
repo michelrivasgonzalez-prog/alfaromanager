@@ -534,33 +534,52 @@ export const useCuadreStore = create<State>()(
             salarioDenominaciones: { ...c.salarioDenominaciones, [billete]: cantidad },
           }))
         ),
+      addDivisa: (d) =>
+        set((s) =>
+          updateActive(s, (c) => ({
+            ...c,
+            divisas: [...(c.divisas ?? []), { ...d, id: crypto.randomUUID() }],
+          }))
+        ),
+      removeDivisa: (id) =>
+        set((s) =>
+          updateActive(s, (c) => ({
+            ...c,
+            divisas: (c.divisas ?? []).filter((d) => d.id !== id),
+          }))
+        ),
       finalizar: () => {
         const s = get();
         const c = s.currents[s.activePunto];
         if (!c) return;
-        // Actualiza el catálogo con precios/costos finales del turno
+        // El catálogo del punto se REEMPLAZA por los productos del cuadre:
+        // así se corrigen nombres cambiados y no quedan duplicados.
+        // Si un producto quedó en 0 (se terminó), se limpia precio y costo
+        // para no arrastrar valores anteriores.
         const punto = c.puntoVenta;
-        const catalogo = [...s.catalogo];
+        const otros = s.catalogo.filter((ci) => (ci.punto ?? "Cafetería") !== punto);
+        const previos = s.catalogo.filter((ci) => (ci.punto ?? "Cafetería") === punto);
+        const delPunto: CatalogoItem[] = [];
+        const vistos = new Set<string>();
         for (const p of c.productos) {
           const nombre = p.nombre.trim();
           if (!nombre) continue;
-          const idx = catalogo.findIndex(
-            (ci) =>
-              ci.nombre.trim().toLowerCase() === nombre.toLowerCase() &&
-              (ci.punto ?? "Cafetería") === punto
-          );
-          if (idx >= 0) {
-            catalogo[idx] = { ...catalogo[idx], precio: p.precio, costo: p.costo };
-          } else {
-            catalogo.push({
-              id: crypto.randomUUID(),
-              nombre,
-              precio: p.precio,
-              costo: p.costo,
-              punto,
-            });
-          }
+          const key = nombre.toLowerCase();
+          if (vistos.has(key)) continue;
+          vistos.add(key);
+          const prev = previos.find((ci) => ci.nombre.trim().toLowerCase() === key);
+          const agotado = Number(p.final) === 0;
+          delPunto.push({
+            id: prev?.id ?? crypto.randomUUID(),
+            nombre,
+            precio: agotado ? 0 : p.precio,
+            costo: agotado ? 0 : p.costo,
+            categoria: p.categoria ?? prev?.categoria,
+            punto,
+          });
         }
+        const catalogo = [...otros, ...delPunto];
+
         set({
           history: [
             { ...c, finalizado: true, fecha: new Date().toISOString() },
