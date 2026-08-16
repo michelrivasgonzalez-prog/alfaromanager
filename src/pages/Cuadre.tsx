@@ -948,6 +948,12 @@ function Step5() {
           </tbody>
         </table>
       </div>
+      {ocultos > 0 && (
+        <p className="text-center text-[10px] text-muted-foreground">
+          {ocultos} producto(s) sin existencia ocultos (no aparecen en el PDF).
+        </p>
+      )}
+
     </StepShell>
   );
 }
