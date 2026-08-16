@@ -10,6 +10,7 @@ export type Producto = {
   final: number;
   precio: number;
   costo: number;
+  categoria?: string;
   // Bloqueado por importación de finales del turno anterior.
   // Si está bloqueado, no se puede editar nombre ni inicio salvo
   // que el usuario lo desbloquee con una nota obligatoria.
@@ -24,8 +25,10 @@ export type CatalogoItem = {
   precio: number;
   costo: number;
   orden?: number;
+  categoria?: string;
   punto?: "Cafetería" | "Mipyme";
 };
+
 
 export type GastoTipo = "Efectivo" | "Producto";
 
