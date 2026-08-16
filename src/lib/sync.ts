@@ -196,7 +196,7 @@ async function syncCatalogo(isAdmin: boolean) {
   const state = useCuadreStore.getState();
   const { data: remote, error } = await (supabase as any)
     .from("catalogo")
-    .select("id, nombre, precio, costo, punto, orden")
+    .select("id, nombre, precio, costo, punto, orden, categoria")
     .is("deleted_at", null);
   if (error) throw error;
   const remoteRows: any[] = remote ?? [];
@@ -213,6 +213,7 @@ async function syncCatalogo(isAdmin: boolean) {
       precio: Number(r.precio),
       costo: Number(r.costo),
       orden: Number(r.orden ?? 0),
+      categoria: r.categoria ?? undefined,
       punto: (r.punto as "Cafetería" | "Mipyme" | undefined) || undefined,
     }))
   );
@@ -222,6 +223,7 @@ async function syncCatalogo(isAdmin: boolean) {
     tombstones: { ...state.tombstones, catalogo: {} },
   });
 }
+
 
 // ---------- Dependientes ----------
 async function syncDependientes(isAdmin: boolean) {
