@@ -263,10 +263,12 @@ function StepInventario({
     currents,
     activePunto,
     updateProducto,
+    removeProducto,
     history,
     importarFinales,
     desbloquearProducto,
   } = useCuadreStore();
+
   const current = currents[activePunto];
   const [unlockId, setUnlockId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<string | null>(null);
