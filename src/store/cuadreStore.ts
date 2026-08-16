@@ -192,10 +192,10 @@ export const newCuadre = (
   id: crypto.randomUUID(),
   puntoVenta: punto,
   fecha: new Date().toISOString(),
-  diasTrabajados: [new Date().toISOString()],
+  diasTrabajados: [],
   dependiente: "",
   // Snapshot del catálogo: cambios futuros NO afectan este cuadre
-  productos: sortCatalogo(catalogo)
+  productos: sortCatalogo(catalogo, settings.categorias)
     .filter((c) => !c.punto || c.punto === punto)
     .map((c) => ({
     id: crypto.randomUUID(),
@@ -206,10 +206,13 @@ export const newCuadre = (
     final: 0,
     precio: c.precio,
     costo: c.costo,
+    categoria: c.categoria,
   })),
   gastos: [],
   denominaciones: emptyDen(),
+  divisas: [],
   efectivoDepositado: 0,
+
   salarioBase: settings.salarioBase[punto] ?? 1000,
   salarioModo: settings.salarioModo?.[punto] ?? "base",
   porcentajeVenta: settings.porcentajeVenta?.[punto] ?? 3,
