@@ -710,10 +710,13 @@ export const calcCuadre = (c: Cuadre) => {
   const gastosNeta =
     (gastosPorCategoria["Local"] || 0) + (gastosPorCategoria["Yanitza"] || 0);
 
-  const efectivoEnCaja = Object.entries(c.denominaciones).reduce(
+  const efectivoDivisas = totalDivisas(c.divisas);
+  const efectivoCup = Object.entries(c.denominaciones).reduce(
     (s, [b, n]) => s + Number(b) * n,
     0
   );
+  const efectivoEnCaja = efectivoCup + efectivoDivisas;
+
   const efectivoADepositar = totalVenta - totalGastos;
   // Diferencia simple: en caja - a depositar  (positivo = sobrante / propina, negativo = faltante)
   const diferencia = efectivoEnCaja - efectivoADepositar;
