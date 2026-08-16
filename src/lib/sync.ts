@@ -196,7 +196,7 @@ async function syncCatalogo(isAdmin: boolean) {
   const state = useCuadreStore.getState();
   const { data: remote, error } = await (supabase as any)
     .from("catalogo")
-    .select("id, nombre, precio, costo, punto, orden")
+    .select("id, nombre, precio, costo, punto, orden, categoria")
     .is("deleted_at", null);
   if (error) throw error;
   const remoteRows: any[] = remote ?? [];
@@ -213,6 +213,7 @@ async function syncCatalogo(isAdmin: boolean) {
       precio: Number(r.precio),
       costo: Number(r.costo),
       orden: Number(r.orden ?? 0),
+      categoria: r.categoria ?? undefined,
       punto: (r.punto as "Cafetería" | "Mipyme" | undefined) || undefined,
     }))
   );
@@ -222,6 +223,7 @@ async function syncCatalogo(isAdmin: boolean) {
     tombstones: { ...state.tombstones, catalogo: {} },
   });
 }
+
 
 // ---------- Dependientes ----------
 async function syncDependientes(isAdmin: boolean) {
@@ -312,6 +314,7 @@ export async function pushCatalogItem(c: {
   precio: number;
   costo: number;
   orden?: number;
+  categoria?: string;
   punto?: string;
 }) {
   await ensureCloudSession();
@@ -321,6 +324,7 @@ export async function pushCatalogItem(c: {
     precio: c.precio,
     costo: c.costo,
     orden: c.orden ?? 0,
+    categoria: c.categoria ?? null,
     punto: c.punto ?? null,
     deleted_at: null,
   } as any);
@@ -334,6 +338,7 @@ async function upsertCatalogItems(items: CatalogoItem[]) {
     precio: c.precio,
     costo: c.costo,
     orden: c.orden ?? 0,
+    categoria: c.categoria ?? null,
     punto: c.punto ?? null,
     deleted_at: null,
   }));
@@ -366,7 +371,23 @@ export async function deleteCuadreRemote(id: string) {
   if (error) throw error;
 }
 
+/**
+ * Sube todo el catálogo local y borra en la nube los productos que ya no
+ * existen localmente (evita duplicados tras renombrar o eliminar productos).
+ */
 export async function pushAllCatalogo() {
   await ensureCloudSession();
-  await upsertCatalogItems(useCuadreStore.getState().catalogo);
+  const local = useCuadreStore.getState().catalogo;
+  await upsertCatalogItems(local);
+  const { data: remote, error } = await (supabase as any).from("catalogo").select("id");
+  if (error) throw error;
+  const localIds = new Set(local.map((c) => c.id));
+  const sobrantes = (remote ?? []).map((r: any) => r.id).filter((id: string) => !localIds.has(id));
+  if (sobrantes.length > 0) {
+    const { error: delError } = await (supabase as any)
+      .from("catalogo")
+      .delete()
+      .in("id", sobrantes);
+    if (delError) throw delError;
+  }
 }

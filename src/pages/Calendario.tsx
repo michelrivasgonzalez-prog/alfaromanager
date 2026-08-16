@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  addMonths,
+  
   eachDayOfInterval,
   endOfMonth,
   format,
@@ -42,7 +42,6 @@ const fmt = (n: number) => `$${Math.round(n).toLocaleString("es-ES")}`;
 export default function Calendario() {
   const nav = useNavigate();
   const { history, settings, updateSettings } = useCuadreStore();
-  const [mes, setMes] = useState(() => startOfMonth(new Date()));
   const [diaSel, setDiaSel] = useState<string | null>(null);
 
   const noTrabajados = settings.diasNoTrabajados ?? [];
@@ -60,6 +59,19 @@ export default function Calendario() {
     }
     return m;
   }, [history]);
+
+  // Solo meses con cuadres (más el mes actual, para poder marcar días).
+  const meses = useMemo(() => {
+    const set = new Set<string>([format(startOfMonth(new Date()), "yyyy-MM")]);
+    for (const k of porDia.keys()) set.add(k.slice(0, 7));
+    return Array.from(set)
+      .sort()
+      .map((m) => startOfMonth(new Date(`${m}-01T00:00:00`)));
+  }, [porDia]);
+
+  const [mesIdx, setMesIdx] = useState(() => Math.max(0, meses.length - 1));
+  const idx = Math.min(mesIdx, meses.length - 1);
+  const mes = meses[idx] ?? startOfMonth(new Date());
 
   const dias = useMemo(
     () =>
@@ -79,6 +91,7 @@ export default function Calendario() {
     [porDia, mes]
   );
   const ventaMes = cuadresMes.reduce((s, c) => s + calcCuadre(c).totalVenta, 0);
+
 
   const toggleNoTrabajado = async (k: string) => {
     const next = noTrabajados.includes(k)
@@ -111,7 +124,12 @@ export default function Calendario() {
 
       <div className="rounded-2xl border border-border bg-card p-3 shadow-soft">
         <div className="flex items-center justify-between">
-          <Button variant="ghost" size="icon" onClick={() => setMes(addMonths(mes, -1))}>
+          <Button
+            variant="ghost"
+            size="icon"
+            disabled={idx <= 0}
+            onClick={() => setMesIdx(idx - 1)}
+          >
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <div className="text-center">
@@ -122,9 +140,15 @@ export default function Calendario() {
               {cuadresMes.length} cuadre(s) · {fmt(ventaMes)} en ventas
             </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={() => setMes(addMonths(mes, 1))}>
+          <Button
+            variant="ghost"
+            size="icon"
+            disabled={idx >= meses.length - 1}
+            onClick={() => setMesIdx(idx + 1)}
+          >
             <ChevronRight className="h-4 w-4" />
           </Button>
+
         </div>
 
         <div className="mt-3 grid grid-cols-7 gap-1 text-center text-[10px] uppercase text-muted-foreground">

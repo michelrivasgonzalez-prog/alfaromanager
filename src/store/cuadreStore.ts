@@ -10,6 +10,7 @@ export type Producto = {
   final: number;
   precio: number;
   costo: number;
+  categoria?: string;
   // Bloqueado por importación de finales del turno anterior.
   // Si está bloqueado, no se puede editar nombre ni inicio salvo
   // que el usuario lo desbloquee con una nota obligatoria.
@@ -24,8 +25,10 @@ export type CatalogoItem = {
   precio: number;
   costo: number;
   orden?: number;
+  categoria?: string;
   punto?: "Cafetería" | "Mipyme";
 };
+
 
 export type GastoTipo = "Efectivo" | "Producto";
 
@@ -78,6 +81,22 @@ export const SALARIO_MODOS: { value: SalarioModo; label: string; desc: string }[
   { value: "mixto", label: "Base o % (el mayor)", desc: "El mayor entre el salario base y el % de venta" },
 ];
 
+/** Billetes en otra moneda convertidos a CUP. */
+export type Divisa = {
+  id: string;
+  moneda: string;
+  denominacion: number;
+  cantidad: number;
+  /** Cambio de 1 unidad de la moneda a CUP. */
+  tasa: number;
+};
+
+export const totalDivisas = (divisas?: Divisa[]) =>
+  (divisas ?? []).reduce(
+    (s, d) => s + Number(d.denominacion || 0) * Number(d.cantidad || 0) * Number(d.tasa || 0),
+    0
+  );
+
 export type Cuadre = {
   id: string;
   puntoVenta: PuntoVenta;
@@ -87,6 +106,7 @@ export type Cuadre = {
   productos: Producto[];
   gastos: Gasto[];
   denominaciones: Denominaciones;
+  divisas?: Divisa[];
   efectivoDepositado: number;
   salarioBase: number;
   salarioModo: SalarioModo;
@@ -102,6 +122,8 @@ export type Settings = {
   porcentajeVenta: Record<PuntoVenta, number>;
   /** Días marcados como "no trabajado" (formato yyyy-MM-dd). */
   diasNoTrabajados?: string[];
+  /** Categorías de producto en el orden en que deben mostrarse. */
+  categorias?: string[];
 };
 
 const DEFAULT_SETTINGS: Settings = {
@@ -110,22 +132,47 @@ const DEFAULT_SETTINGS: Settings = {
   salarioModo: { "Cafetería": "base", "Mipyme": "base" },
   porcentajeVenta: { "Cafetería": 3, "Mipyme": 3 },
   diasNoTrabajados: [],
+  categorias: [],
 };
 
 const DEFAULT_CATALOG: CatalogoItem[] = [];
 
-export const DENOMINACIONES = [1000, 500, 200, 100, 50, 20, 10, 5];
+export const DENOMINACIONES = [5000, 2000, 1000, 500, 200, 100, 50, 20, 10, 5];
 
 const emptyDen = (): Denominaciones =>
   Object.fromEntries(DENOMINACIONES.map((d) => [String(d), 0]));
 
-export const sortCatalogo = (items: CatalogoItem[]) =>
-  [...items].sort((a, b) => {
+const categoriasActuales = (): string[] => {
+  try {
+    return useCuadreStore.getState().settings.categorias ?? [];
+  } catch {
+    return [];
+  }
+};
+
+/** Índice de categoría: las configuradas primero (en su orden), luego el resto y al final las vacías. */
+const catIndex = (cat: string | undefined, cats: string[]) => {
+  const c = (cat ?? "").trim();
+  if (!c) return cats.length + 2;
+  const i = cats.findIndex((x) => x.trim().toLowerCase() === c.toLowerCase());
+  return i >= 0 ? i : cats.length + 1;
+};
+
+/** Orden: punto de venta → categoría (según Ajustes) → alfabético. */
+export const sortCatalogo = (items: CatalogoItem[], categorias?: string[]) => {
+  const cats = categorias ?? categoriasActuales();
+  return [...items].sort((a, b) => {
     const pa = a.punto ?? "Cafetería";
     const pb = b.punto ?? "Cafetería";
     if (pa !== pb) return PUNTOS.indexOf(pa) - PUNTOS.indexOf(pb);
-    return (a.orden ?? 999999) - (b.orden ?? 999999);
+    const ca = catIndex(a.categoria, cats);
+    const cb = catIndex(b.categoria, cats);
+    if (ca !== cb) return ca - cb;
+    const nameCat = (a.categoria ?? "").localeCompare(b.categoria ?? "", "es");
+    if (ca > cats.length && nameCat !== 0) return nameCat;
+    return a.nombre.localeCompare(b.nombre, "es");
   });
+};
 
 export const normalizeCatalogoOrden = (items: CatalogoItem[]) => {
   const counters: Record<PuntoVenta, number> = { "Cafetería": 0, "Mipyme": 0 };
@@ -136,6 +183,7 @@ export const normalizeCatalogoOrden = (items: CatalogoItem[]) => {
   });
 };
 
+
 export const newCuadre = (
   punto: PuntoVenta,
   catalogo: CatalogoItem[],
@@ -144,10 +192,10 @@ export const newCuadre = (
   id: crypto.randomUUID(),
   puntoVenta: punto,
   fecha: new Date().toISOString(),
-  diasTrabajados: [new Date().toISOString()],
+  diasTrabajados: [],
   dependiente: "",
   // Snapshot del catálogo: cambios futuros NO afectan este cuadre
-  productos: sortCatalogo(catalogo)
+  productos: sortCatalogo(catalogo, settings.categorias)
     .filter((c) => !c.punto || c.punto === punto)
     .map((c) => ({
     id: crypto.randomUUID(),
@@ -158,10 +206,13 @@ export const newCuadre = (
     final: 0,
     precio: c.precio,
     costo: c.costo,
+    categoria: c.categoria,
   })),
   gastos: [],
   denominaciones: emptyDen(),
+  divisas: [],
   efectivoDepositado: 0,
+
   salarioBase: settings.salarioBase[punto] ?? 1000,
   salarioModo: settings.salarioModo?.[punto] ?? "base",
   porcentajeVenta: settings.porcentajeVenta?.[punto] ?? 3,
@@ -223,6 +274,9 @@ interface State {
   removeGasto: (id: string) => void;
   setDenominacion: (billete: string, cantidad: number) => void;
   setSalarioDen: (billete: string, cantidad: number) => void;
+  addDivisa: (d: Omit<Divisa, "id">) => void;
+  removeDivisa: (id: string) => void;
+
   finalizar: () => void;
   cancelar: (punto?: PuntoVenta) => void;
   deleteHistory: (id: string) => void;
@@ -480,33 +534,52 @@ export const useCuadreStore = create<State>()(
             salarioDenominaciones: { ...c.salarioDenominaciones, [billete]: cantidad },
           }))
         ),
+      addDivisa: (d) =>
+        set((s) =>
+          updateActive(s, (c) => ({
+            ...c,
+            divisas: [...(c.divisas ?? []), { ...d, id: crypto.randomUUID() }],
+          }))
+        ),
+      removeDivisa: (id) =>
+        set((s) =>
+          updateActive(s, (c) => ({
+            ...c,
+            divisas: (c.divisas ?? []).filter((d) => d.id !== id),
+          }))
+        ),
       finalizar: () => {
         const s = get();
         const c = s.currents[s.activePunto];
         if (!c) return;
-        // Actualiza el catálogo con precios/costos finales del turno
+        // El catálogo del punto se REEMPLAZA por los productos del cuadre:
+        // así se corrigen nombres cambiados y no quedan duplicados.
+        // Si un producto quedó en 0 (se terminó), se limpia precio y costo
+        // para no arrastrar valores anteriores.
         const punto = c.puntoVenta;
-        const catalogo = [...s.catalogo];
+        const otros = s.catalogo.filter((ci) => (ci.punto ?? "Cafetería") !== punto);
+        const previos = s.catalogo.filter((ci) => (ci.punto ?? "Cafetería") === punto);
+        const delPunto: CatalogoItem[] = [];
+        const vistos = new Set<string>();
         for (const p of c.productos) {
           const nombre = p.nombre.trim();
           if (!nombre) continue;
-          const idx = catalogo.findIndex(
-            (ci) =>
-              ci.nombre.trim().toLowerCase() === nombre.toLowerCase() &&
-              (ci.punto ?? "Cafetería") === punto
-          );
-          if (idx >= 0) {
-            catalogo[idx] = { ...catalogo[idx], precio: p.precio, costo: p.costo };
-          } else {
-            catalogo.push({
-              id: crypto.randomUUID(),
-              nombre,
-              precio: p.precio,
-              costo: p.costo,
-              punto,
-            });
-          }
+          const key = nombre.toLowerCase();
+          if (vistos.has(key)) continue;
+          vistos.add(key);
+          const prev = previos.find((ci) => ci.nombre.trim().toLowerCase() === key);
+          const agotado = Number(p.final) === 0;
+          delPunto.push({
+            id: prev?.id ?? crypto.randomUUID(),
+            nombre,
+            precio: agotado ? 0 : p.precio,
+            costo: agotado ? 0 : p.costo,
+            categoria: p.categoria ?? prev?.categoria,
+            punto,
+          });
         }
+        const catalogo = [...otros, ...delPunto];
+
         set({
           history: [
             { ...c, finalizado: true, fecha: new Date().toISOString() },
@@ -637,10 +710,13 @@ export const calcCuadre = (c: Cuadre) => {
   const gastosNeta =
     (gastosPorCategoria["Local"] || 0) + (gastosPorCategoria["Yanitza"] || 0);
 
-  const efectivoEnCaja = Object.entries(c.denominaciones).reduce(
+  const efectivoDivisas = totalDivisas(c.divisas);
+  const efectivoCup = Object.entries(c.denominaciones).reduce(
     (s, [b, n]) => s + Number(b) * n,
     0
   );
+  const efectivoEnCaja = efectivoCup + efectivoDivisas;
+
   const efectivoADepositar = totalVenta - totalGastos;
   // Diferencia simple: en caja - a depositar  (positivo = sobrante / propina, negativo = faltante)
   const diferencia = efectivoEnCaja - efectivoADepositar;
@@ -676,6 +752,9 @@ export const calcCuadre = (c: Cuadre) => {
     gastosPorCategoria,
     totalGastos,
     efectivoEnCaja,
+    efectivoCup,
+    efectivoDivisas,
+
     efectivoADepositar,
     diferencia,
     diasCount,

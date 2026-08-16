@@ -259,6 +259,7 @@ export type Database = {
       }
       catalogo: {
         Row: {
+          categoria: string | null
           costo: number
           created_at: string
           deleted_at: string | null
@@ -270,6 +271,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          categoria?: string | null
           costo?: number
           created_at?: string
           deleted_at?: string | null
@@ -281,6 +283,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          categoria?: string | null
           costo?: number
           created_at?: string
           deleted_at?: string | null
