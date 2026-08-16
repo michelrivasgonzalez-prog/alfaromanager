@@ -274,6 +274,9 @@ interface State {
   removeGasto: (id: string) => void;
   setDenominacion: (billete: string, cantidad: number) => void;
   setSalarioDen: (billete: string, cantidad: number) => void;
+  addDivisa: (d: Omit<Divisa, "id">) => void;
+  removeDivisa: (id: string) => void;
+
   finalizar: () => void;
   cancelar: (punto?: PuntoVenta) => void;
   deleteHistory: (id: string) => void;
