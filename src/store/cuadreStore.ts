@@ -752,6 +752,9 @@ export const calcCuadre = (c: Cuadre) => {
     gastosPorCategoria,
     totalGastos,
     efectivoEnCaja,
+    efectivoCup,
+    efectivoDivisas,
+
     efectivoADepositar,
     diferencia,
     diasCount,
