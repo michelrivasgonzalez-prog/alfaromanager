@@ -124,7 +124,12 @@ export default function Calendario() {
 
       <div className="rounded-2xl border border-border bg-card p-3 shadow-soft">
         <div className="flex items-center justify-between">
-          <Button variant="ghost" size="icon" onClick={() => setMes(addMonths(mes, -1))}>
+          <Button
+            variant="ghost"
+            size="icon"
+            disabled={idx <= 0}
+            onClick={() => setMesIdx(idx - 1)}
+          >
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <div className="text-center">
@@ -135,9 +140,15 @@ export default function Calendario() {
               {cuadresMes.length} cuadre(s) · {fmt(ventaMes)} en ventas
             </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={() => setMes(addMonths(mes, 1))}>
+          <Button
+            variant="ghost"
+            size="icon"
+            disabled={idx >= meses.length - 1}
+            onClick={() => setMesIdx(idx + 1)}
+          >
             <ChevronRight className="h-4 w-4" />
           </Button>
+
         </div>
 
         <div className="mt-3 grid grid-cols-7 gap-1 text-center text-[10px] uppercase text-muted-foreground">
