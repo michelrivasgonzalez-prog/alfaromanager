@@ -42,7 +42,6 @@ const fmt = (n: number) => `$${Math.round(n).toLocaleString("es-ES")}`;
 export default function Calendario() {
   const nav = useNavigate();
   const { history, settings, updateSettings } = useCuadreStore();
-  const [mes, setMes] = useState(() => startOfMonth(new Date()));
   const [diaSel, setDiaSel] = useState<string | null>(null);
 
   const noTrabajados = settings.diasNoTrabajados ?? [];
@@ -60,6 +59,19 @@ export default function Calendario() {
     }
     return m;
   }, [history]);
+
+  // Solo meses con cuadres (más el mes actual, para poder marcar días).
+  const meses = useMemo(() => {
+    const set = new Set<string>([format(startOfMonth(new Date()), "yyyy-MM")]);
+    for (const k of porDia.keys()) set.add(k.slice(0, 7));
+    return Array.from(set)
+      .sort()
+      .map((m) => startOfMonth(new Date(`${m}-01T00:00:00`)));
+  }, [porDia]);
+
+  const [mesIdx, setMesIdx] = useState(() => Math.max(0, meses.length - 1));
+  const idx = Math.min(mesIdx, meses.length - 1);
+  const mes = meses[idx] ?? startOfMonth(new Date());
 
   const dias = useMemo(
     () =>
@@ -79,6 +91,7 @@ export default function Calendario() {
     [porDia, mes]
   );
   const ventaMes = cuadresMes.reduce((s, c) => s + calcCuadre(c).totalVenta, 0);
+
 
   const toggleNoTrabajado = async (k: string) => {
     const next = noTrabajados.includes(k)
