@@ -509,12 +509,31 @@ function StepInventario({
 
 /* ================== Step 3: entradas y traslados ================== */
 function Step4() {
-  const { currents, activePunto, updateProducto, addProducto, role } = useCuadreStore();
+  const {
+    currents,
+    activePunto,
+    updateProducto,
+    addProducto,
+    removeProducto,
+    role,
+    settings,
+  } = useCuadreStore();
   const current = currents[activePunto];
   const [productoId, setProductoId] = useState("");
   const [tipo, setTipo] = useState<"entrada" | "traslado">("entrada");
   const [cantidad, setCantidad] = useState(0);
+  const [nuevoOpen, setNuevoOpen] = useState(false);
+  const [nuevo, setNuevo] = useState({
+    nombre: "",
+    precio: 0,
+    costo: 0,
+    categoria: "",
+    cantidad: 0,
+  });
+  const [editingName, setEditingName] = useState<string | null>(null);
   if (!current) return null;
+
+  const categorias = settings.categorias ?? [];
 
   const aplicar = () => {
     if (!productoId || !cantidad) return;
@@ -526,26 +545,34 @@ function Step4() {
     toast.success(`${tipo === "entrada" ? "Entrada" : "Traslado"} registrado`);
   };
 
+  const crearProducto = () => {
+    const nombre = nuevo.nombre.trim();
+    if (!nombre) {
+      toast.error("Escribe el nombre del producto");
+      return;
+    }
+    addProducto({
+      nombre,
+      inicio: 0,
+      entradas: nuevo.cantidad,
+      traslados: 0,
+      final: 0,
+      precio: nuevo.precio,
+      costo: nuevo.costo,
+      categoria: nuevo.categoria || undefined,
+    });
+    setNuevo({ nombre: "", precio: 0, costo: 0, categoria: "", cantidad: 0 });
+    setNuevoOpen(false);
+    toast.success("Producto agregado a este cuadre");
+  };
+
   return (
     <StepShell>
       {role === "admin" && (
         <Button
           variant="outline"
           className="h-11 w-full rounded-xl"
-          onClick={() => {
-            const nombre = prompt("Nombre del nuevo producto:");
-            if (!nombre) return;
-            addProducto({
-              nombre,
-              inicio: 0,
-              entradas: 0,
-              traslados: 0,
-              final: 0,
-              precio: 0,
-              costo: 0,
-            });
-            toast.success("Producto agregado a este cuadre");
-          }}
+          onClick={() => setNuevoOpen(true)}
         >
           <Plus className="mr-2 h-4 w-4" /> Agregar producto
         </Button>
@@ -611,33 +638,169 @@ function Step4() {
               <th className="px-3 py-2 text-left font-semibold">Producto</th>
               <th className="px-2 py-2 text-right font-semibold">Entr.</th>
               <th className="px-2 py-2 text-right font-semibold">Trasl.</th>
+              <th className="px-2 py-2 text-right font-semibold">Precio</th>
+              <th className="px-2 py-2 text-right font-semibold">Costo</th>
+              <th className="px-2 py-2 w-16"></th>
             </tr>
           </thead>
           <tbody>
             {current.productos.map((p) => (
               <tr key={p.id} className="border-t border-border">
-                <td className="px-3 py-2">{p.nombre}</td>
+                <td className="px-3 py-2">
+                  {editingName === p.id ? (
+                    <Input
+                      autoFocus
+                      defaultValue={p.nombre}
+                      onBlur={(e) => {
+                        const v = e.target.value.trim();
+                        if (v) updateProducto(p.id, { nombre: v });
+                        setEditingName(null);
+                      }}
+                      className="h-8 rounded-lg text-xs"
+                    />
+                  ) : (
+                    <span
+                      className="cursor-pointer underline-offset-2 hover:underline"
+                      onClick={() => setEditingName(p.id)}
+                    >
+                      {p.nombre}
+                    </span>
+                  )}
+                  {p.categoria && (
+                    <div className="text-[10px] text-muted-foreground">{p.categoria}</div>
+                  )}
+                </td>
                 <td className="px-2 py-2 text-right">
                   <NumberInput
                     value={p.entradas}
                     onChange={(v) => updateProducto(p.id, { entradas: v })}
-                    className="ml-auto h-8 w-20 rounded-lg text-right text-xs"
+                    className="ml-auto h-8 w-16 rounded-lg text-right text-xs"
                   />
                 </td>
                 <td className="px-2 py-2 text-right">
                   <NumberInput
                     value={p.traslados}
                     onChange={(v) => updateProducto(p.id, { traslados: v })}
+                    className="ml-auto h-8 w-16 rounded-lg text-right text-xs"
+                  />
+                </td>
+                <td className="px-2 py-2 text-right">
+                  <NumberInput
+                    value={p.precio}
+                    onChange={(v) => updateProducto(p.id, { precio: v })}
                     className="ml-auto h-8 w-20 rounded-lg text-right text-xs"
                   />
+                </td>
+                <td className="px-2 py-2 text-right">
+                  <NumberInput
+                    value={p.costo}
+                    onChange={(v) => updateProducto(p.id, { costo: v })}
+                    className="ml-auto h-8 w-20 rounded-lg text-right text-xs"
+                  />
+                </td>
+                <td className="px-2 py-2 text-right">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-lg text-destructive"
+                    title="Eliminar producto de este cuadre"
+                    onClick={() => {
+                      if (!confirm(`¿Eliminar "${p.nombre}" de este cuadre?`)) return;
+                      removeProducto(p.id);
+                      toast.success("Producto eliminado");
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      <Dialog open={nuevoOpen} onOpenChange={setNuevoOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nuevo producto</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Nombre</Label>
+              <Input
+                value={nuevo.nombre}
+                onChange={(e) => setNuevo({ ...nuevo, nombre: e.target.value })}
+                className="h-11 rounded-xl"
+                placeholder="Ej. Refresco de cola"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label>Precio venta</Label>
+                <NumberInput
+                  value={nuevo.precio}
+                  onChange={(v) => setNuevo({ ...nuevo, precio: v })}
+                  className="h-11 rounded-xl"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Costo</Label>
+                <NumberInput
+                  value={nuevo.costo}
+                  onChange={(v) => setNuevo({ ...nuevo, costo: v })}
+                  className="h-11 rounded-xl"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Categoría</Label>
+              {categorias.length > 0 ? (
+                <Select
+                  value={nuevo.categoria}
+                  onValueChange={(v) => setNuevo({ ...nuevo, categoria: v })}
+                >
+                  <SelectTrigger className="h-11 rounded-xl">
+                    <SelectValue placeholder="Sin categoría" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categorias.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  value={nuevo.categoria}
+                  onChange={(e) => setNuevo({ ...nuevo, categoria: e.target.value })}
+                  className="h-11 rounded-xl"
+                  placeholder="Gestiona categorías en Ajustes"
+                />
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label>Entrada inicial (opcional)</Label>
+              <NumberInput
+                value={nuevo.cantidad}
+                onChange={(v) => setNuevo({ ...nuevo, cantidad: v })}
+                className="h-11 rounded-xl"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={crearProducto}
+              className="h-11 w-full rounded-xl gradient-emerald text-secondary-foreground"
+            >
+              Agregar producto
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </StepShell>
   );
+
 }
 
 /* ================== Step 5: Resultados ================== */
