@@ -335,7 +335,7 @@ function StepInventario({
               <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Cantidad
               </th>
-              <th className="px-2 py-2 w-10"></th>
+              <th className="px-2 py-2 w-20"></th>
             </tr>
           </thead>
           <tbody>
@@ -346,7 +346,7 @@ function StepInventario({
                     {isInicio && p.bloqueado && (
                       <Lock className="h-3.5 w-3.5 text-muted-foreground" />
                     )}
-                    {isInicio && editingName === p.id && !p.bloqueado ? (
+                    {editingName === p.id && !(isInicio && p.bloqueado) ? (
                       <Input
                         autoFocus
                         defaultValue={p.nombre}
@@ -360,10 +360,11 @@ function StepInventario({
                     ) : (
                       <span
                         className={cn(
-                          isInicio && !p.bloqueado && "cursor-pointer underline-offset-2 hover:underline"
+                          !(isInicio && p.bloqueado) &&
+                            "cursor-pointer underline-offset-2 hover:underline"
                         )}
                         onClick={() => {
-                          if (isInicio && !p.bloqueado) setEditingName(p.id);
+                          if (!(isInicio && p.bloqueado)) setEditingName(p.id);
                         }}
                       >
                         {p.nombre}
@@ -397,36 +398,49 @@ function StepInventario({
                   )}
                 </td>
                 <td className="px-2 py-2 text-right">
-                  {isInicio && p.bloqueado ? (
+                  <div className="flex items-center justify-end gap-0.5">
+                    {isInicio && p.bloqueado ? (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 rounded-lg"
+                        title="Desbloquear (requiere nota)"
+                        onClick={() => {
+                          setUnlockId(p.id);
+                          setUnlockNote("");
+                        }}
+                      >
+                        <Lock className="h-3.5 w-3.5 text-destructive" />
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 rounded-lg"
+                        title="Cambiar nombre"
+                        onClick={() => setEditingName(p.id)}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 rounded-lg"
-                      title="Desbloquear (requiere nota)"
+                      className="h-8 w-8 rounded-lg text-destructive"
+                      title="Eliminar producto de este cuadre"
                       onClick={() => {
-                        setUnlockId(p.id);
-                        setUnlockNote("");
+                        if (!confirm(`¿Eliminar "${p.nombre}" de este cuadre?`)) return;
+                        removeProducto(p.id);
+                        toast.success("Producto eliminado");
                       }}
                     >
-                      <Lock className="h-3.5 w-3.5 text-destructive" />
+                      <Trash2 className="h-3.5 w-3.5" />
                     </Button>
-                  ) : (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 rounded-lg"
-                      onClick={() => {
-                        const input = inputRefs.current[p.id];
-                        input?.focus();
-                        input?.select?.();
-                      }}
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
+                  </div>
                 </td>
               </tr>
             ))}
+
           </tbody>
         </table>
       </div>
