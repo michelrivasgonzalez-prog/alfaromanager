@@ -81,6 +81,22 @@ export const SALARIO_MODOS: { value: SalarioModo; label: string; desc: string }[
   { value: "mixto", label: "Base o % (el mayor)", desc: "El mayor entre el salario base y el % de venta" },
 ];
 
+/** Billetes en otra moneda convertidos a CUP. */
+export type Divisa = {
+  id: string;
+  moneda: string;
+  denominacion: number;
+  cantidad: number;
+  /** Cambio de 1 unidad de la moneda a CUP. */
+  tasa: number;
+};
+
+export const totalDivisas = (divisas?: Divisa[]) =>
+  (divisas ?? []).reduce(
+    (s, d) => s + Number(d.denominacion || 0) * Number(d.cantidad || 0) * Number(d.tasa || 0),
+    0
+  );
+
 export type Cuadre = {
   id: string;
   puntoVenta: PuntoVenta;
@@ -90,6 +106,7 @@ export type Cuadre = {
   productos: Producto[];
   gastos: Gasto[];
   denominaciones: Denominaciones;
+  divisas?: Divisa[];
   efectivoDepositado: number;
   salarioBase: number;
   salarioModo: SalarioModo;
@@ -105,6 +122,8 @@ export type Settings = {
   porcentajeVenta: Record<PuntoVenta, number>;
   /** Días marcados como "no trabajado" (formato yyyy-MM-dd). */
   diasNoTrabajados?: string[];
+  /** Categorías de producto en el orden en que deben mostrarse. */
+  categorias?: string[];
 };
 
 const DEFAULT_SETTINGS: Settings = {
@@ -113,22 +132,47 @@ const DEFAULT_SETTINGS: Settings = {
   salarioModo: { "Cafetería": "base", "Mipyme": "base" },
   porcentajeVenta: { "Cafetería": 3, "Mipyme": 3 },
   diasNoTrabajados: [],
+  categorias: [],
 };
 
 const DEFAULT_CATALOG: CatalogoItem[] = [];
 
-export const DENOMINACIONES = [1000, 500, 200, 100, 50, 20, 10, 5];
+export const DENOMINACIONES = [5000, 2000, 1000, 500, 200, 100, 50, 20, 10, 5];
 
 const emptyDen = (): Denominaciones =>
   Object.fromEntries(DENOMINACIONES.map((d) => [String(d), 0]));
 
-export const sortCatalogo = (items: CatalogoItem[]) =>
-  [...items].sort((a, b) => {
+const categoriasActuales = (): string[] => {
+  try {
+    return useCuadreStore.getState().settings.categorias ?? [];
+  } catch {
+    return [];
+  }
+};
+
+/** Índice de categoría: las configuradas primero (en su orden), luego el resto y al final las vacías. */
+const catIndex = (cat: string | undefined, cats: string[]) => {
+  const c = (cat ?? "").trim();
+  if (!c) return cats.length + 2;
+  const i = cats.findIndex((x) => x.trim().toLowerCase() === c.toLowerCase());
+  return i >= 0 ? i : cats.length + 1;
+};
+
+/** Orden: punto de venta → categoría (según Ajustes) → alfabético. */
+export const sortCatalogo = (items: CatalogoItem[], categorias?: string[]) => {
+  const cats = categorias ?? categoriasActuales();
+  return [...items].sort((a, b) => {
     const pa = a.punto ?? "Cafetería";
     const pb = b.punto ?? "Cafetería";
     if (pa !== pb) return PUNTOS.indexOf(pa) - PUNTOS.indexOf(pb);
-    return (a.orden ?? 999999) - (b.orden ?? 999999);
+    const ca = catIndex(a.categoria, cats);
+    const cb = catIndex(b.categoria, cats);
+    if (ca !== cb) return ca - cb;
+    const nameCat = (a.categoria ?? "").localeCompare(b.categoria ?? "", "es");
+    if (ca > cats.length && nameCat !== 0) return nameCat;
+    return a.nombre.localeCompare(b.nombre, "es");
   });
+};
 
 export const normalizeCatalogoOrden = (items: CatalogoItem[]) => {
   const counters: Record<PuntoVenta, number> = { "Cafetería": 0, "Mipyme": 0 };
@@ -138,6 +182,7 @@ export const normalizeCatalogoOrden = (items: CatalogoItem[]) => {
     return { ...item, punto, orden: counters[punto] };
   });
 };
+
 
 export const newCuadre = (
   punto: PuntoVenta,
