@@ -50,6 +50,8 @@ import {
 import NuevaDeudaDialog from "@/components/NuevaDeudaDialog";
 import { imprimirRecibo } from "@/lib/recibo";
 import { EstadoBadge } from "./Cobrar";
+import { useAuth } from "@/hooks/useAuth";
+
 
 
 export default function ClienteDetalle() {
