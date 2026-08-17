@@ -307,17 +307,30 @@ function DeudaCard({
       </div>
 
       <Collapsible open={open} onOpenChange={setOpen}>
-        <CollapsibleTrigger asChild>
-          <button className="mt-2 flex w-full items-center justify-between rounded-xl bg-muted/50 px-3 py-2 text-[11px] font-semibold text-foreground">
-            <span className="inline-flex items-center gap-1.5">
-              <Receipt className="h-3.5 w-3.5" />
-              Abonos ({apps.length}) · {fmt(pagado)} pagado
-            </span>
-            <ChevronDown
-              className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`}
-            />
-          </button>
-        </CollapsibleTrigger>
+        <div className="mt-2 flex items-center gap-2">
+          <CollapsibleTrigger asChild>
+            <button className="flex flex-1 items-center justify-between rounded-xl bg-muted/50 px-3 py-2 text-[11px] font-semibold text-foreground">
+              <span className="inline-flex items-center gap-1.5">
+                <Receipt className="h-3.5 w-3.5" />
+                Abonos ({apps.length}) · {fmt(pagado)} pagado
+              </span>
+              <ChevronDown
+                className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`}
+              />
+            </button>
+          </CollapsibleTrigger>
+          {Number(d.saldo) > 0 && (
+            <Button
+              size="icon"
+              className="h-9 w-9 shrink-0 rounded-xl gradient-primary text-primary-foreground"
+              title="Abonar a esta deuda"
+              onClick={() => setAbonando(true)}
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+
         <CollapsibleContent className="mt-2 space-y-1.5">
           {apps.length === 0 && (
             <div className="rounded-xl border border-dashed border-border p-3 text-center text-[11px] text-muted-foreground">
