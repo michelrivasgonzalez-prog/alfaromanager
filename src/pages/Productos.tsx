@@ -33,7 +33,9 @@ export default function Productos() {
     role,
   } = useCuadreStore();
   const [punto, setPunto] = useState<PuntoVenta>("Cafetería");
+  const categorias = useCuadreStore((s) => s.settings.categorias ?? []);
   const fileRef = useRef<HTMLInputElement>(null);
+
 
   if (role !== "admin") {
     return (
