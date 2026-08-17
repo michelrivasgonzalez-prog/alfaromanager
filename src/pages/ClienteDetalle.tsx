@@ -38,6 +38,8 @@ import {
   listClientes,
   listDeudas,
   listAbonos,
+  registrarAbono,
+
   listAbonosPorDeuda,
   upsertCliente,
   softDeleteCliente,
