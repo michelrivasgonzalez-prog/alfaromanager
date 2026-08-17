@@ -241,8 +241,9 @@ export default function Productos() {
         <Button variant="outline" className="mt-2 h-10 w-full rounded-xl" onClick={exportarExcel}>
           <Download className="mr-1.5 h-4 w-4" /> Exportar productos de {punto} a Excel
         </Button>
-
+        <Button
           variant="outline"
+
           className="mt-2 h-10 w-full rounded-xl border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
           onClick={() => {
             const total = catalogo.filter(
