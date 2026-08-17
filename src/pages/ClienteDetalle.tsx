@@ -409,6 +409,101 @@ function DeudaCard({
   );
 }
 
+/** Abono directo aplicado a una deuda concreta. */
+function AbonoDeudaDialog({
+  open,
+  deuda,
+  onClose,
+}: {
+  open: boolean;
+  deuda: Deuda;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const { nombre, user } = useAuth();
+  const [monto, setMonto] = useState<string>("");
+  const [nota, setNota] = useState("");
+  const [saving, setSaving] = useState(false);
+  const saldo = Number(deuda.saldo);
+
+  const guardar = async () => {
+    const m = Number(String(monto).replace(",", "."));
+    if (!m || m <= 0) return toast.error("Monto inválido");
+    setSaving(true);
+    try {
+      await registrarAbono({
+        cliente_id: deuda.cliente_id,
+        monto: m,
+        aplicaciones: [{ deuda_id: deuda.id, monto: Math.min(m, saldo) }],
+        usuario_id: user?.id ?? null,
+        usuario_nombre: nombre ?? null,
+        nota: nota.trim() || null,
+      });
+      toast.success(
+        m > saldo
+          ? `Abono registrado. Crédito a favor: ${fmt(m - saldo)}`
+          : "Abono registrado"
+      );
+      qc.invalidateQueries({ queryKey: ["deudas", deuda.cliente_id] });
+      qc.invalidateQueries({ queryKey: ["abonos", deuda.cliente_id] });
+      qc.invalidateQueries({ queryKey: ["abonos-por-deuda", deuda.cliente_id] });
+      qc.invalidateQueries({ queryKey: ["clientes"] });
+      setMonto("");
+      setNota("");
+      onClose();
+    } catch (e: any) {
+      toast.error(e.message || "No se pudo registrar");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Abonar a esta deuda</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="rounded-xl bg-muted/60 p-3 text-xs">
+            Saldo pendiente: <strong>{fmt(saldo)}</strong>
+          </div>
+          <div>
+            <Label>Monto</Label>
+            <Input
+              type="number"
+              inputMode="decimal"
+              value={monto}
+              onChange={(e) => setMonto(e.target.value)}
+              placeholder="0"
+              className="mt-1 h-11 rounded-xl"
+            />
+            <button
+              className="mt-1 text-[11px] text-primary underline-offset-2 hover:underline"
+              onClick={() => setMonto(String(saldo))}
+            >
+              Usar saldo completo
+            </button>
+          </div>
+          <div>
+            <Label>Nota (opcional)</Label>
+            <Input value={nota} onChange={(e) => setNota(e.target.value)} className="mt-1 h-11 rounded-xl" />
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Si el monto supera el saldo, la diferencia queda como crédito del cliente.
+          </p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button onClick={guardar} disabled={saving} className="gradient-primary">
+            {saving ? "Guardando…" : "Registrar abono"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 
 function Kpi({ label, value, tone }: { label: string; value: React.ReactNode; tone?: "ok" | "danger" }) {
   return (
