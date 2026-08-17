@@ -398,7 +398,14 @@ function DeudaCard({
           Ver cuadre asociado →
         </Link>
       )}
+
+      <AbonoDeudaDialog
+        open={abonando}
+        deuda={d}
+        onClose={() => setAbonando(false)}
+      />
     </div>
+
   );
 }
 
