@@ -239,7 +239,10 @@ export default function Ajustes() {
         </div>
       )}
 
+      {isAdmin && <CategoriasPanel />}
+
       {isAdmin && <AuditoriaPanel />}
+
 
 
       {isAdmin && (
