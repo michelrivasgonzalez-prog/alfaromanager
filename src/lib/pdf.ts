@@ -188,7 +188,9 @@ export function generarPDF(c: Cuadre) {
     </tfoot>
   </table>
 
+  <div class="page-break"></div>
   <h2>2. Gastos del turno</h2>
+
   <table>
     <thead>
       <tr>
