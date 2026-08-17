@@ -85,6 +85,26 @@ export default function Productos() {
     toast.success("Plantilla descargada");
   };
 
+  const exportarExcel = () => {
+    const items = sortCatalogo(catalogo, categorias).filter(
+      (p) => (p.punto ?? "Cafetería") === punto
+    );
+    if (items.length === 0) {
+      toast.info(`No hay productos en ${punto}`);
+      return;
+    }
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["orden", "nombre", "categoria", "costo", "precio"],
+      ...items.map((p, i) => [i + 1, p.nombre, p.categoria ?? "", p.costo, p.precio]),
+    ]);
+    ws["!cols"] = [{ wch: 7 }, { wch: 34 }, { wch: 18 }, { wch: 10 }, { wch: 10 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Productos");
+    XLSX.writeFile(wb, `productos-${punto}.xlsx`);
+    toast.success("Productos exportados");
+  };
+
+
   const importarExcel = async (file: File) => {
     try {
       const buf = await file.arrayBuffer();
