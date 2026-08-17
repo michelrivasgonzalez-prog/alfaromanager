@@ -257,6 +257,8 @@ function DeudaCard({
   aplicaciones: AbonoAplicacion[];
 }) {
   const [open, setOpen] = useState(false);
+  const [abonando, setAbonando] = useState(false);
+
   const apps = [...aplicaciones].sort(
     (a, b) =>
       new Date(b.abono?.fecha ?? 0).getTime() - new Date(a.abono?.fecha ?? 0).getTime()
