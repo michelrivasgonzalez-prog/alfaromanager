@@ -124,6 +124,8 @@ export function generarPDF(c: Cuadre) {
   .bad { color: #b91c1c; }
   .total { font-size: 14px; font-weight: 800; }
   .footer { margin-top: 16px; padding-top: 8px; border-top: 1px solid #ddd; font-size: 10px; color: #666; display: flex; justify-content: space-between; }
+  .page-break { page-break-before: always; break-before: page; }
+
   @media print {
     body { padding: 0; }
     .no-print { display: none; }
