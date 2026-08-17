@@ -38,6 +38,8 @@ import {
   listClientes,
   listDeudas,
   listAbonos,
+  registrarAbono,
+
   listAbonosPorDeuda,
   upsertCliente,
   softDeleteCliente,
@@ -48,6 +50,8 @@ import {
 import NuevaDeudaDialog from "@/components/NuevaDeudaDialog";
 import { imprimirRecibo } from "@/lib/recibo";
 import { EstadoBadge } from "./Cobrar";
+import { useAuth } from "@/hooks/useAuth";
+
 
 
 export default function ClienteDetalle() {
@@ -257,6 +261,8 @@ function DeudaCard({
   aplicaciones: AbonoAplicacion[];
 }) {
   const [open, setOpen] = useState(false);
+  const [abonando, setAbonando] = useState(false);
+
   const apps = [...aplicaciones].sort(
     (a, b) =>
       new Date(b.abono?.fecha ?? 0).getTime() - new Date(a.abono?.fecha ?? 0).getTime()
@@ -307,17 +313,30 @@ function DeudaCard({
       </div>
 
       <Collapsible open={open} onOpenChange={setOpen}>
-        <CollapsibleTrigger asChild>
-          <button className="mt-2 flex w-full items-center justify-between rounded-xl bg-muted/50 px-3 py-2 text-[11px] font-semibold text-foreground">
-            <span className="inline-flex items-center gap-1.5">
-              <Receipt className="h-3.5 w-3.5" />
-              Abonos ({apps.length}) · {fmt(pagado)} pagado
-            </span>
-            <ChevronDown
-              className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`}
-            />
-          </button>
-        </CollapsibleTrigger>
+        <div className="mt-2 flex items-center gap-2">
+          <CollapsibleTrigger asChild>
+            <button className="flex flex-1 items-center justify-between rounded-xl bg-muted/50 px-3 py-2 text-[11px] font-semibold text-foreground">
+              <span className="inline-flex items-center gap-1.5">
+                <Receipt className="h-3.5 w-3.5" />
+                Abonos ({apps.length}) · {fmt(pagado)} pagado
+              </span>
+              <ChevronDown
+                className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`}
+              />
+            </button>
+          </CollapsibleTrigger>
+          {Number(d.saldo) > 0 && (
+            <Button
+              size="icon"
+              className="h-9 w-9 shrink-0 rounded-xl gradient-primary text-primary-foreground"
+              title="Abonar a esta deuda"
+              onClick={() => setAbonando(true)}
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+
         <CollapsibleContent className="mt-2 space-y-1.5">
           {apps.length === 0 && (
             <div className="rounded-xl border border-dashed border-border p-3 text-center text-[11px] text-muted-foreground">
@@ -383,7 +402,109 @@ function DeudaCard({
           Ver cuadre asociado →
         </Link>
       )}
+
+      <AbonoDeudaDialog
+        open={abonando}
+        deuda={d}
+        onClose={() => setAbonando(false)}
+      />
     </div>
+
+  );
+}
+
+/** Abono directo aplicado a una deuda concreta. */
+function AbonoDeudaDialog({
+  open,
+  deuda,
+  onClose,
+}: {
+  open: boolean;
+  deuda: Deuda;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const { nombre, user } = useAuth();
+  const [monto, setMonto] = useState<string>("");
+  const [nota, setNota] = useState("");
+  const [saving, setSaving] = useState(false);
+  const saldo = Number(deuda.saldo);
+
+  const guardar = async () => {
+    const m = Number(String(monto).replace(",", "."));
+    if (!m || m <= 0) return toast.error("Monto inválido");
+    setSaving(true);
+    try {
+      await registrarAbono({
+        cliente_id: deuda.cliente_id,
+        monto: m,
+        aplicaciones: [{ deuda_id: deuda.id, monto: Math.min(m, saldo) }],
+        usuario_id: user?.id ?? null,
+        usuario_nombre: nombre ?? null,
+        nota: nota.trim() || null,
+      });
+      toast.success(
+        m > saldo
+          ? `Abono registrado. Crédito a favor: ${fmt(m - saldo)}`
+          : "Abono registrado"
+      );
+      qc.invalidateQueries({ queryKey: ["deudas", deuda.cliente_id] });
+      qc.invalidateQueries({ queryKey: ["abonos", deuda.cliente_id] });
+      qc.invalidateQueries({ queryKey: ["abonos-por-deuda", deuda.cliente_id] });
+      qc.invalidateQueries({ queryKey: ["clientes"] });
+      setMonto("");
+      setNota("");
+      onClose();
+    } catch (e: any) {
+      toast.error(e.message || "No se pudo registrar");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Abonar a esta deuda</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="rounded-xl bg-muted/60 p-3 text-xs">
+            Saldo pendiente: <strong>{fmt(saldo)}</strong>
+          </div>
+          <div>
+            <Label>Monto</Label>
+            <Input
+              type="number"
+              inputMode="decimal"
+              value={monto}
+              onChange={(e) => setMonto(e.target.value)}
+              placeholder="0"
+              className="mt-1 h-11 rounded-xl"
+            />
+            <button
+              className="mt-1 text-[11px] text-primary underline-offset-2 hover:underline"
+              onClick={() => setMonto(String(saldo))}
+            >
+              Usar saldo completo
+            </button>
+          </div>
+          <div>
+            <Label>Nota (opcional)</Label>
+            <Input value={nota} onChange={(e) => setNota(e.target.value)} className="mt-1 h-11 rounded-xl" />
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Si el monto supera el saldo, la diferencia queda como crédito del cliente.
+          </p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button onClick={guardar} disabled={saving} className="gradient-primary">
+            {saving ? "Guardando…" : "Registrar abono"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

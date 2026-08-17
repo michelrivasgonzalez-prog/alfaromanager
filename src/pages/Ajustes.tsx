@@ -239,7 +239,10 @@ export default function Ajustes() {
         </div>
       )}
 
+      {isAdmin && <CategoriasPanel />}
+
       {isAdmin && <AuditoriaPanel />}
+
 
 
       {isAdmin && (
@@ -369,7 +372,105 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
+function CategoriasPanel() {
+  const { settings, updateSettings } = useCuadreStore();
+  const cats = settings.categorias ?? [];
+  const [nueva, setNueva] = useState("");
+
+  const save = (next: string[]) => {
+    updateSettings({ categorias: next });
+    pushSettings().catch((err) => toast.error("No se guardó en la nube: " + err.message));
+  };
+
+  const move = (i: number, dir: -1 | 1) => {
+    const next = [...cats];
+    const j = i + dir;
+    if (j < 0 || j >= next.length) return;
+    [next[i], next[j]] = [next[j], next[i]];
+    save(next);
+  };
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3">
+      <div>
+        <div className="text-sm font-semibold">Categorías de productos</div>
+        <div className="text-xs text-muted-foreground">
+          El catálogo se ordena por categoría (en este orden) y luego alfabéticamente.
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        {cats.length === 0 && (
+          <div className="rounded-xl border border-dashed border-border p-3 text-center text-xs text-muted-foreground">
+            Sin categorías aún
+          </div>
+        )}
+        {cats.map((c, i) => (
+          <div key={`${c}-${i}`} className="flex items-center gap-2">
+            <Input
+              value={c}
+              onChange={(e) => {
+                const next = [...cats];
+                next[i] = e.target.value;
+                updateSettings({ categorias: next });
+              }}
+              onBlur={() => save(cats.map((x) => x.trim()).filter(Boolean))}
+              className="h-10 flex-1 rounded-xl"
+            />
+            <Button variant="ghost" size="icon" className="h-8 w-8" disabled={i === 0} onClick={() => move(i, -1)}>
+              ↑
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              disabled={i === cats.length - 1}
+              onClick={() => move(i, 1)}
+            >
+              ↓
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-destructive"
+              onClick={() => save(cats.filter((_, j) => j !== i))}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex gap-2">
+        <Input
+          value={nueva}
+          onChange={(e) => setNueva(e.target.value)}
+          placeholder="Nueva categoría (ej. Bebidas)"
+          className="h-10 rounded-xl"
+        />
+        <Button
+          className="h-10 rounded-xl gradient-primary"
+          onClick={() => {
+            const v = nueva.trim();
+            if (!v) return;
+            if (cats.some((c) => c.toLowerCase() === v.toLowerCase())) {
+              toast.error("Ya existe esa categoría");
+              return;
+            }
+            save([...cats, v]);
+            setNueva("");
+            toast.success("Categoría agregada");
+          }}
+        >
+          Añadir
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function AuditoriaPanel() {
+
   const [logs, setLogs] = useState<AuditoriaRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [entidad, setEntidad] = useState("");

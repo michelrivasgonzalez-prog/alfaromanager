@@ -33,7 +33,9 @@ export default function Productos() {
     role,
   } = useCuadreStore();
   const [punto, setPunto] = useState<PuntoVenta>("Cafetería");
+  const categorias = useCuadreStore((s) => s.settings.categorias ?? []);
   const fileRef = useRef<HTMLInputElement>(null);
+
 
   if (role !== "admin") {
     return (
@@ -82,6 +84,26 @@ export default function Productos() {
     XLSX.writeFile(wb, `plantilla-productos-${punto}.xlsx`);
     toast.success("Plantilla descargada");
   };
+
+  const exportarExcel = () => {
+    const items = sortCatalogo(catalogo, categorias).filter(
+      (p) => (p.punto ?? "Cafetería") === punto
+    );
+    if (items.length === 0) {
+      toast.info(`No hay productos en ${punto}`);
+      return;
+    }
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["orden", "nombre", "categoria", "costo", "precio"],
+      ...items.map((p, i) => [i + 1, p.nombre, p.categoria ?? "", p.costo, p.precio]),
+    ]);
+    ws["!cols"] = [{ wch: 7 }, { wch: 34 }, { wch: 18 }, { wch: 10 }, { wch: 10 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Productos");
+    XLSX.writeFile(wb, `productos-${punto}.xlsx`);
+    toast.success("Productos exportados");
+  };
+
 
   const importarExcel = async (file: File) => {
     try {
@@ -216,8 +238,12 @@ export default function Productos() {
             <Download className="mr-1.5 h-4 w-4" /> Plantilla
           </Button>
         </div>
+        <Button variant="outline" className="mt-2 h-10 w-full rounded-xl" onClick={exportarExcel}>
+          <Download className="mr-1.5 h-4 w-4" /> Exportar productos de {punto} a Excel
+        </Button>
         <Button
           variant="outline"
+
           className="mt-2 h-10 w-full rounded-xl border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
           onClick={() => {
             const total = catalogo.filter(
@@ -321,6 +347,31 @@ export default function Productos() {
                 />
               </label>
             </div>
+            <label className="mt-2 block text-xs">
+              <span className="text-muted-foreground">Categoría</span>
+              {categorias.length > 0 ? (
+                <select
+                  value={p.categoria ?? ""}
+                  onChange={(e) => updateAndSync(p.id, { categoria: e.target.value || undefined })}
+                  className="mt-0.5 h-9 w-full rounded-lg border border-input bg-background px-2 text-sm"
+                >
+                  <option value="">Sin categoría</option>
+                  {categorias.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <Input
+                  value={p.categoria ?? ""}
+                  onChange={(e) => updateAndSync(p.id, { categoria: e.target.value || undefined })}
+                  placeholder="Gestiona las categorías en Ajustes"
+                  className="mt-0.5 h-9 rounded-lg"
+                />
+              )}
+            </label>
+
           </div>
         ))}
       </div>
