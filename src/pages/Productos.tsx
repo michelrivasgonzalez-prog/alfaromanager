@@ -321,6 +321,31 @@ export default function Productos() {
                 />
               </label>
             </div>
+            <label className="mt-2 block text-xs">
+              <span className="text-muted-foreground">Categoría</span>
+              {categorias.length > 0 ? (
+                <select
+                  value={p.categoria ?? ""}
+                  onChange={(e) => updateAndSync(p.id, { categoria: e.target.value || undefined })}
+                  className="mt-0.5 h-9 w-full rounded-lg border border-input bg-background px-2 text-sm"
+                >
+                  <option value="">Sin categoría</option>
+                  {categorias.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <Input
+                  value={p.categoria ?? ""}
+                  onChange={(e) => updateAndSync(p.id, { categoria: e.target.value || undefined })}
+                  placeholder="Gestiona las categorías en Ajustes"
+                  className="mt-0.5 h-9 rounded-lg"
+                />
+              )}
+            </label>
+
           </div>
         ))}
       </div>
