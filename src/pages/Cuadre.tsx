@@ -1174,11 +1174,9 @@ function Step6() {
       categoria: cat,
       nombre: cliNombre || nombre || "—",
       tipo,
-      descripcion:
-        desc ||
-        (tipo === "Producto"
-          ? `${productoSel?.nombre ?? "Producto"} x${cantidad}`
-          : catLabel(cat)),
+      // Solo se guarda la descripción si el usuario escribió algo,
+      // para no duplicar información ya visible en la fila del gasto.
+      descripcion: desc.trim(),
       productoId: tipo === "Producto" ? productoId : undefined,
       productoNombre: tipo === "Producto" ? productoSel?.nombre : undefined,
       cantidad: tipo === "Producto" ? cantidad : undefined,
