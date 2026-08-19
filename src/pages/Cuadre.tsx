@@ -1132,7 +1132,7 @@ function Step6() {
         categoria: "Transferencia",
         nombre: trTransaccion || "—",
         tipo: "Efectivo",
-        descripcion: `Transferencia ${trTransaccion || ""}`.trim(),
+        descripcion: "",
         fecha: trFecha?.toISOString(),
         transaccion: trTransaccion,
         importe: trImporte,
