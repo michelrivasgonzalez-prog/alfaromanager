@@ -1232,26 +1232,56 @@ function Step6() {
             <div className="text-[11px] font-semibold text-primary">
               Cliente de la cuenta por cobrar
             </div>
-            <Select
-              value={clienteId || "__new__"}
-              onValueChange={(v) => {
-                if (v === "__new__") setClienteId("");
-                else {
-                  setClienteId(v);
-                  setNuevoCliente("");
-                }
-              }}
-            >
-              <SelectTrigger className="h-10 rounded-xl">
-                <SelectValue placeholder="Selecciona un cliente" />
-              </SelectTrigger>
-              <SelectContent>
-                {(clientesQ.data ?? []).map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
-                ))}
-                <SelectItem value="__new__">+ Nuevo cliente…</SelectItem>
-              </SelectContent>
-            </Select>
+            <Popover open={clienteOpen} onOpenChange={setClienteOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  className="h-10 w-full justify-between rounded-xl font-normal"
+                >
+                  <span className="flex items-center gap-2 truncate">
+                    <Search className="h-4 w-4 opacity-60" />
+                    {clienteSel ? (
+                      <span className="truncate">{clienteSel.nombre}</span>
+                    ) : (
+                      <span className="text-muted-foreground">Buscar cliente…</span>
+                    )}
+                  </span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Escribe el nombre…" />
+                  <CommandList>
+                    <CommandEmpty>Sin resultados</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        value="__nuevo cliente__"
+                        onSelect={() => {
+                          setClienteId("");
+                          setClienteOpen(false);
+                        }}
+                      >
+                        + Nuevo cliente…
+                      </CommandItem>
+                      {(clientesQ.data ?? []).map((c) => (
+                        <CommandItem
+                          key={c.id}
+                          value={c.nombre}
+                          onSelect={() => {
+                            setClienteId(c.id);
+                            setNuevoCliente("");
+                            setClienteOpen(false);
+                          }}
+                        >
+                          {c.nombre}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
             {!clienteId && (
               <Input
                 placeholder="Nombre del nuevo cliente"
