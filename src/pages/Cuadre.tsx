@@ -275,6 +275,7 @@ function StepInventario({
   const [unlockId, setUnlockId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<string | null>(null);
   const [unlockNote, setUnlockNote] = useState("");
+  const [busqueda, setBusqueda] = useState("");
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   if (!current) return null;
 
@@ -282,8 +283,17 @@ function StepInventario({
   const isInicio = field === "inicio";
   const productoUnlock = current.productos.find((p) => p.id === unlockId);
 
+  const q = busqueda.trim().toLowerCase();
+  const visibles = q
+    ? current.productos.filter(
+        (p) =>
+          p.nombre.toLowerCase().includes(q) ||
+          (p.categoria ?? "").toLowerCase().includes(q)
+      )
+    : current.productos;
+
   const focusNext = (currentId: string) => {
-    const ids = current.productos
+    const ids = visibles
       .filter((p) => !(isInicio && p.bloqueado))
       .map((p) => p.id);
     const idx = ids.indexOf(currentId);
