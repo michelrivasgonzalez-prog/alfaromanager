@@ -1063,6 +1063,7 @@ function Step6() {
   const qc = useQueryClient();
   const clientesQ = useQuery({ queryKey: ["clientes"], queryFn: listClientes });
   const [clienteId, setClienteId] = useState<string>("");
+  const [clienteOpen, setClienteOpen] = useState(false);
   const [nuevoCliente, setNuevoCliente] = useState("");
   // Estado específico para Transferencia
   const [trFecha, setTrFecha] = useState<Date | undefined>(new Date());
