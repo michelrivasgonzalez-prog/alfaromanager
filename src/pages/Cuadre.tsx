@@ -275,6 +275,7 @@ function StepInventario({
   const [unlockId, setUnlockId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<string | null>(null);
   const [unlockNote, setUnlockNote] = useState("");
+  const [busqueda, setBusqueda] = useState("");
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   if (!current) return null;
 
@@ -282,8 +283,17 @@ function StepInventario({
   const isInicio = field === "inicio";
   const productoUnlock = current.productos.find((p) => p.id === unlockId);
 
+  const q = busqueda.trim().toLowerCase();
+  const visibles = q
+    ? current.productos.filter(
+        (p) =>
+          p.nombre.toLowerCase().includes(q) ||
+          (p.categoria ?? "").toLowerCase().includes(q)
+      )
+    : current.productos;
+
   const focusNext = (currentId: string) => {
-    const ids = current.productos
+    const ids = visibles
       .filter((p) => !(isInicio && p.bloqueado))
       .map((p) => p.id);
     const idx = ids.indexOf(currentId);
@@ -327,6 +337,15 @@ function StepInventario({
           </p>
         </div>
       )}
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          placeholder="Buscar producto…"
+          className="h-11 rounded-xl pl-9"
+        />
+      </div>
       <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
         <table className="w-full text-sm">
           <thead className="bg-muted/60">
@@ -341,7 +360,14 @@ function StepInventario({
             </tr>
           </thead>
           <tbody>
-            {current.productos.map((p) => (
+            {visibles.length === 0 && (
+              <tr>
+                <td colSpan={3} className="px-3 py-6 text-center text-muted-foreground">
+                  Sin resultados
+                </td>
+              </tr>
+            )}
+            {visibles.map((p) => (
               <tr key={p.id} className="border-t border-border">
                 <td className="px-3 py-3 font-medium">
                   <div className="flex items-center gap-2">
@@ -533,9 +559,18 @@ function Step4() {
     cantidad: 0,
   });
   const [editingName, setEditingName] = useState<string | null>(null);
+  const [busqueda, setBusqueda] = useState("");
   if (!current) return null;
 
   const categorias = settings.categorias ?? [];
+  const q = busqueda.trim().toLowerCase();
+  const visibles = q
+    ? current.productos.filter(
+        (p) =>
+          p.nombre.toLowerCase().includes(q) ||
+          (p.categoria ?? "").toLowerCase().includes(q)
+      )
+    : current.productos;
 
   const aplicar = () => {
     if (!productoId || !cantidad) return;
@@ -633,8 +668,17 @@ function Step4() {
         </Button>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
-        <table className="w-full text-xs">
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          placeholder="Buscar producto…"
+          className="h-11 rounded-xl pl-9"
+        />
+      </div>
+      <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-soft">
+        <table className="w-full min-w-[620px] text-xs">
           <thead className="bg-muted/60">
             <tr>
               <th className="px-3 py-2 text-left font-semibold">Producto</th>
@@ -646,7 +690,14 @@ function Step4() {
             </tr>
           </thead>
           <tbody>
-            {current.productos.map((p) => (
+            {visibles.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">
+                  Sin resultados
+                </td>
+              </tr>
+            )}
+            {visibles.map((p) => (
               <tr key={p.id} className="border-t border-border">
                 <td className="px-3 py-2">
                   {editingName === p.id ? (
@@ -1012,6 +1063,7 @@ function Step6() {
   const qc = useQueryClient();
   const clientesQ = useQuery({ queryKey: ["clientes"], queryFn: listClientes });
   const [clienteId, setClienteId] = useState<string>("");
+  const [clienteOpen, setClienteOpen] = useState(false);
   const [nuevoCliente, setNuevoCliente] = useState("");
   // Estado específico para Transferencia
   const [trFecha, setTrFecha] = useState<Date | undefined>(new Date());
@@ -1080,7 +1132,7 @@ function Step6() {
         categoria: "Transferencia",
         nombre: trTransaccion || "—",
         tipo: "Efectivo",
-        descripcion: `Transferencia ${trTransaccion || ""}`.trim(),
+        descripcion: "",
         fecha: trFecha?.toISOString(),
         transaccion: trTransaccion,
         importe: trImporte,
@@ -1122,11 +1174,9 @@ function Step6() {
       categoria: cat,
       nombre: cliNombre || nombre || "—",
       tipo,
-      descripcion:
-        desc ||
-        (tipo === "Producto"
-          ? `${productoSel?.nombre ?? "Producto"} x${cantidad}`
-          : catLabel(cat)),
+      // Solo se guarda la descripción si el usuario escribió algo,
+      // para no duplicar información ya visible en la fila del gasto.
+      descripcion: desc.trim(),
       productoId: tipo === "Producto" ? productoId : undefined,
       productoNombre: tipo === "Producto" ? productoSel?.nombre : undefined,
       cantidad: tipo === "Producto" ? cantidad : undefined,
@@ -1181,26 +1231,56 @@ function Step6() {
             <div className="text-[11px] font-semibold text-primary">
               Cliente de la cuenta por cobrar
             </div>
-            <Select
-              value={clienteId || "__new__"}
-              onValueChange={(v) => {
-                if (v === "__new__") setClienteId("");
-                else {
-                  setClienteId(v);
-                  setNuevoCliente("");
-                }
-              }}
-            >
-              <SelectTrigger className="h-10 rounded-xl">
-                <SelectValue placeholder="Selecciona un cliente" />
-              </SelectTrigger>
-              <SelectContent>
-                {(clientesQ.data ?? []).map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
-                ))}
-                <SelectItem value="__new__">+ Nuevo cliente…</SelectItem>
-              </SelectContent>
-            </Select>
+            <Popover open={clienteOpen} onOpenChange={setClienteOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  className="h-10 w-full justify-between rounded-xl font-normal"
+                >
+                  <span className="flex items-center gap-2 truncate">
+                    <Search className="h-4 w-4 opacity-60" />
+                    {clienteSel ? (
+                      <span className="truncate">{clienteSel.nombre}</span>
+                    ) : (
+                      <span className="text-muted-foreground">Buscar cliente…</span>
+                    )}
+                  </span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Escribe el nombre…" />
+                  <CommandList>
+                    <CommandEmpty>Sin resultados</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        value="__nuevo cliente__"
+                        onSelect={() => {
+                          setClienteId("");
+                          setClienteOpen(false);
+                        }}
+                      >
+                        + Nuevo cliente…
+                      </CommandItem>
+                      {(clientesQ.data ?? []).map((c) => (
+                        <CommandItem
+                          key={c.id}
+                          value={c.nombre}
+                          onSelect={() => {
+                            setClienteId(c.id);
+                            setNuevoCliente("");
+                            setClienteOpen(false);
+                          }}
+                        >
+                          {c.nombre}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
             {!clienteId && (
               <Input
                 placeholder="Nombre del nuevo cliente"
