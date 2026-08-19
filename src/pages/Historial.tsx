@@ -434,7 +434,16 @@ function CuadreDetalle({ c }: { c: Cuadre }) {
               </tr>
             </thead>
             <tbody>
-              {r.productos.map((p) => (
+              {r.productos
+                .filter(
+                  (p) =>
+                    Number(p.inicio) !== 0 ||
+                    Number(p.entradas) !== 0 ||
+                    Number(p.traslados) !== 0 ||
+                    Number(p.total) !== 0 ||
+                    Number(p.final) !== 0
+                )
+                .map((p) => (
                 <tr key={p.id} className="border-t border-border">
                   <td className="px-2 py-1.5">{p.nombre}</td>
                   <td className="px-2 py-1.5 text-right tabular-nums">{p.inicio}</td>
