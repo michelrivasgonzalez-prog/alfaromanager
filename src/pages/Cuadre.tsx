@@ -559,9 +559,18 @@ function Step4() {
     cantidad: 0,
   });
   const [editingName, setEditingName] = useState<string | null>(null);
+  const [busqueda, setBusqueda] = useState("");
   if (!current) return null;
 
   const categorias = settings.categorias ?? [];
+  const q = busqueda.trim().toLowerCase();
+  const visibles = q
+    ? current.productos.filter(
+        (p) =>
+          p.nombre.toLowerCase().includes(q) ||
+          (p.categoria ?? "").toLowerCase().includes(q)
+      )
+    : current.productos;
 
   const aplicar = () => {
     if (!productoId || !cantidad) return;
