@@ -69,7 +69,9 @@ export function formatGastoDetalle(g: {
         : "";
     return base + extra;
   }
-  return g.descripcion || g.nombre || "—";
+  // Solo mostramos la descripción cuando existe: el nombre ya se muestra
+  // en su propia columna y repetirlo duplica la información.
+  return (g.descripcion ?? "").trim() || "—";
 }
 
 /** Iniciales para avatar tipo Google (2 letras máx.) */
