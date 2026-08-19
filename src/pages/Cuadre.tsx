@@ -668,8 +668,17 @@ function Step4() {
         </Button>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
-        <table className="w-full text-xs">
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          placeholder="Buscar producto…"
+          className="h-11 rounded-xl pl-9"
+        />
+      </div>
+      <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-soft">
+        <table className="w-full min-w-[620px] text-xs">
           <thead className="bg-muted/60">
             <tr>
               <th className="px-3 py-2 text-left font-semibold">Producto</th>
@@ -681,7 +690,14 @@ function Step4() {
             </tr>
           </thead>
           <tbody>
-            {current.productos.map((p) => (
+            {visibles.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">
+                  Sin resultados
+                </td>
+              </tr>
+            )}
+            {visibles.map((p) => (
               <tr key={p.id} className="border-t border-border">
                 <td className="px-3 py-2">
                   {editingName === p.id ? (
