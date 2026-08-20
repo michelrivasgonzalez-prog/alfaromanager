@@ -116,6 +116,7 @@ export type Database = {
       almacen_movimientos: {
         Row: {
           cantidad: number
+          costo_unitario: number | null
           created_at: string
           created_by: string | null
           deleted_at: string | null
@@ -130,6 +131,7 @@ export type Database = {
         }
         Insert: {
           cantidad: number
+          costo_unitario?: number | null
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
@@ -144,6 +146,7 @@ export type Database = {
         }
         Update: {
           cantidad?: number
+          costo_unitario?: number | null
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
@@ -175,6 +178,7 @@ export type Database = {
       }
       almacen_productos: {
         Row: {
+          costo_actual: number | null
           created_at: string
           deleted_at: string | null
           id: string
@@ -185,6 +189,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          costo_actual?: number | null
           created_at?: string
           deleted_at?: string | null
           id?: string
@@ -195,6 +200,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          costo_actual?: number | null
           created_at?: string
           deleted_at?: string | null
           id?: string

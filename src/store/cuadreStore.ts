@@ -120,8 +120,10 @@ export type Settings = {
   porcentajeTransferencia: number;
   salarioModo: Record<PuntoVenta, SalarioModo>;
   porcentajeVenta: Record<PuntoVenta, number>;
-  /** Días marcados como "no trabajado" (formato yyyy-MM-dd). */
+  /** Días marcados como "no trabajado" en ambos puntos (formato yyyy-MM-dd). */
   diasNoTrabajados?: string[];
+  /** Días "no trabajado" solo para un punto de venta. */
+  diasNoTrabajadosPunto?: Partial<Record<PuntoVenta, string[]>>;
   /** Categorías de producto en el orden en que deben mostrarse. */
   categorias?: string[];
 };
@@ -132,6 +134,7 @@ const DEFAULT_SETTINGS: Settings = {
   salarioModo: { "Cafetería": "base", "Mipyme": "base" },
   porcentajeVenta: { "Cafetería": 3, "Mipyme": 3 },
   diasNoTrabajados: [],
+  diasNoTrabajadosPunto: { "Cafetería": [], "Mipyme": [] },
   categorias: [],
 };
 
@@ -165,6 +168,22 @@ export const sortCatalogo = (items: CatalogoItem[], categorias?: string[]) => {
     const pa = a.punto ?? "Cafetería";
     const pb = b.punto ?? "Cafetería";
     if (pa !== pb) return PUNTOS.indexOf(pa) - PUNTOS.indexOf(pb);
+    const ca = catIndex(a.categoria, cats);
+    const cb = catIndex(b.categoria, cats);
+    if (ca !== cb) return ca - cb;
+    const nameCat = (a.categoria ?? "").localeCompare(b.categoria ?? "", "es");
+    if (ca > cats.length && nameCat !== 0) return nameCat;
+    return a.nombre.localeCompare(b.nombre, "es");
+  });
+};
+
+/** Ordena los productos de un cuadre igual que el catálogo (categoría → alfabético). */
+export const sortProductos = <T extends { nombre: string; categoria?: string }>(
+  productos: T[],
+  categorias?: string[]
+): T[] => {
+  const cats = categorias ?? categoriasActuales();
+  return [...productos].sort((a, b) => {
     const ca = catIndex(a.categoria, cats);
     const cb = catIndex(b.categoria, cats);
     if (ca !== cb) return ca - cb;
@@ -474,10 +493,20 @@ export const useCuadreStore = create<State>()(
       updateCurrent: (patch) => set((s) => updateActive(s, (c) => ({ ...c, ...patch }))),
       updateProducto: (id, patch) =>
         set((s) =>
-          updateActive(s, (c) => ({
-            ...c,
-            productos: c.productos.map((p) => (p.id === id ? { ...p, ...patch } : p)),
-          }))
+          updateActive(s, (c) => {
+            const productos = c.productos.map((p) =>
+              p.id === id ? { ...p, ...patch } : p
+            );
+            // Reordenar solo cuando cambia el nombre o la categoría, para no
+            // mover las filas mientras se escriben cantidades.
+            const reordenar = "nombre" in patch || "categoria" in patch;
+            return {
+              ...c,
+              productos: reordenar
+                ? sortProductos(productos, s.settings.categorias)
+                : productos,
+            };
+          })
         ),
       desbloquearProducto: (id, nota) =>
         set((s) =>
@@ -492,7 +521,10 @@ export const useCuadreStore = create<State>()(
         set((s) =>
           updateActive(s, (c) => ({
             ...c,
-            productos: [...c.productos, { ...p, id: crypto.randomUUID() }],
+            productos: sortProductos(
+              [...c.productos, { ...p, id: crypto.randomUUID() }],
+              s.settings.categorias
+            ),
           }))
         ),
       removeProducto: (id) =>
@@ -581,9 +613,11 @@ export const useCuadreStore = create<State>()(
         const catalogo = [...otros, ...delPunto];
 
         set({
+          // Se elimina cualquier versión previa con el mismo id (p. ej. al
+          // editar un cuadre) para que nunca se duplique en el historial.
           history: [
             { ...c, finalizado: true, fecha: new Date().toISOString() },
-            ...s.history,
+            ...s.history.filter((h) => h.id !== c.id),
           ],
           currents: { ...s.currents, [s.activePunto]: null },
           lastStep: { ...s.lastStep, [s.activePunto]: 1 },
