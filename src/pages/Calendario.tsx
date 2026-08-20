@@ -45,6 +45,10 @@ export default function Calendario() {
   const [diaSel, setDiaSel] = useState<string | null>(null);
 
   const noTrabajados = settings.diasNoTrabajados ?? [];
+  const perPunto = settings.diasNoTrabajadosPunto ?? {};
+  const listaPunto = (p: "Cafetería" | "Mipyme") => perPunto[p] ?? [];
+  const esNoTrab = (k: string, p: "Cafetería" | "Mipyme") =>
+    noTrabajados.includes(k) || listaPunto(p).includes(k);
 
   // Mapa día -> cuadres que incluyen ese día trabajado
   const porDia = useMemo(() => {
