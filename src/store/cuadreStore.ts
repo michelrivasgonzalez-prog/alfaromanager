@@ -613,9 +613,11 @@ export const useCuadreStore = create<State>()(
         const catalogo = [...otros, ...delPunto];
 
         set({
+          // Se elimina cualquier versión previa con el mismo id (p. ej. al
+          // editar un cuadre) para que nunca se duplique en el historial.
           history: [
             { ...c, finalizado: true, fecha: new Date().toISOString() },
-            ...s.history,
+            ...s.history.filter((h) => h.id !== c.id),
           ],
           currents: { ...s.currents, [s.activePunto]: null },
           lastStep: { ...s.lastStep, [s.activePunto]: 1 },
