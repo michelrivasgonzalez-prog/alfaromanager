@@ -493,10 +493,20 @@ export const useCuadreStore = create<State>()(
       updateCurrent: (patch) => set((s) => updateActive(s, (c) => ({ ...c, ...patch }))),
       updateProducto: (id, patch) =>
         set((s) =>
-          updateActive(s, (c) => ({
-            ...c,
-            productos: c.productos.map((p) => (p.id === id ? { ...p, ...patch } : p)),
-          }))
+          updateActive(s, (c) => {
+            const productos = c.productos.map((p) =>
+              p.id === id ? { ...p, ...patch } : p
+            );
+            // Reordenar solo cuando cambia el nombre o la categoría, para no
+            // mover las filas mientras se escriben cantidades.
+            const reordenar = "nombre" in patch || "categoria" in patch;
+            return {
+              ...c,
+              productos: reordenar
+                ? sortProductos(productos, s.settings.categorias)
+                : productos,
+            };
+          })
         ),
       desbloquearProducto: (id, nota) =>
         set((s) =>
@@ -511,7 +521,10 @@ export const useCuadreStore = create<State>()(
         set((s) =>
           updateActive(s, (c) => ({
             ...c,
-            productos: [...c.productos, { ...p, id: crypto.randomUUID() }],
+            productos: sortProductos(
+              [...c.productos, { ...p, id: crypto.randomUUID() }],
+              s.settings.categorias
+            ),
           }))
         ),
       removeProducto: (id) =>
