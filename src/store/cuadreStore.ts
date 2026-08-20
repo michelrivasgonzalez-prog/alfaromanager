@@ -177,6 +177,22 @@ export const sortCatalogo = (items: CatalogoItem[], categorias?: string[]) => {
   });
 };
 
+/** Ordena los productos de un cuadre igual que el catálogo (categoría → alfabético). */
+export const sortProductos = <T extends { nombre: string; categoria?: string }>(
+  productos: T[],
+  categorias?: string[]
+): T[] => {
+  const cats = categorias ?? categoriasActuales();
+  return [...productos].sort((a, b) => {
+    const ca = catIndex(a.categoria, cats);
+    const cb = catIndex(b.categoria, cats);
+    if (ca !== cb) return ca - cb;
+    const nameCat = (a.categoria ?? "").localeCompare(b.categoria ?? "", "es");
+    if (ca > cats.length && nameCat !== 0) return nameCat;
+    return a.nombre.localeCompare(b.nombre, "es");
+  });
+};
+
 export const normalizeCatalogoOrden = (items: CatalogoItem[]) => {
   const counters: Record<PuntoVenta, number> = { "Cafetería": 0, "Mipyme": 0 };
   return sortCatalogo(items).map((item) => {
