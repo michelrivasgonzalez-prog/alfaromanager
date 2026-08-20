@@ -97,15 +97,41 @@ export default function Calendario() {
   const ventaMes = cuadresMes.reduce((s, c) => s + calcCuadre(c).totalVenta, 0);
 
 
-  const toggleNoTrabajado = async (k: string) => {
-    const next = noTrabajados.includes(k)
-      ? noTrabajados.filter((x) => x !== k)
-      : [...noTrabajados, k];
-    updateSettings({ diasNoTrabajados: next });
+  /** Marca / desmarca "día no trabajado" para un punto de venta concreto. */
+  const toggleNoTrabajado = async (k: string, punto: "Cafetería" | "Mipyme") => {
+    const otro = punto === "Cafetería" ? "Mipyme" : "Cafetería";
+    const marcado = esNoTrab(k, punto);
+    let global = [...noTrabajados];
+    const per: Record<string, string[]> = {
+      "Cafetería": [...listaPunto("Cafetería")],
+      "Mipyme": [...listaPunto("Mipyme")],
+    };
+
+    if (marcado) {
+      if (global.includes(k)) {
+        // Estaba marcado para ambos: se conserva solo en el otro punto.
+        global = global.filter((x) => x !== k);
+        if (!per[otro].includes(k)) per[otro].push(k);
+      }
+      per[punto] = per[punto].filter((x) => x !== k);
+    } else {
+      per[punto] = [...per[punto], k];
+      if (per[otro].includes(k)) {
+        // Ambos puntos → se guarda como día global.
+        per["Cafetería"] = per["Cafetería"].filter((x) => x !== k);
+        per["Mipyme"] = per["Mipyme"].filter((x) => x !== k);
+        if (!global.includes(k)) global.push(k);
+      }
+    }
+
+    updateSettings({
+      diasNoTrabajados: global,
+      diasNoTrabajadosPunto: per as any,
+    });
     try {
       await pushSettings();
       toast.success(
-        noTrabajados.includes(k) ? "Día reabierto" : "Día marcado como no trabajado"
+        marcado ? `${punto}: día reabierto` : `${punto}: día no trabajado`
       );
     } catch {
       toast.error("Guardado local; se subirá al reconectar");
