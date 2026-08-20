@@ -120,8 +120,10 @@ export type Settings = {
   porcentajeTransferencia: number;
   salarioModo: Record<PuntoVenta, SalarioModo>;
   porcentajeVenta: Record<PuntoVenta, number>;
-  /** Días marcados como "no trabajado" (formato yyyy-MM-dd). */
+  /** Días marcados como "no trabajado" en ambos puntos (formato yyyy-MM-dd). */
   diasNoTrabajados?: string[];
+  /** Días "no trabajado" solo para un punto de venta. */
+  diasNoTrabajadosPunto?: Partial<Record<PuntoVenta, string[]>>;
   /** Categorías de producto en el orden en que deben mostrarse. */
   categorias?: string[];
 };
