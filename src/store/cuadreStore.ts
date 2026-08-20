@@ -134,6 +134,7 @@ const DEFAULT_SETTINGS: Settings = {
   salarioModo: { "Cafetería": "base", "Mipyme": "base" },
   porcentajeVenta: { "Cafetería": 3, "Mipyme": 3 },
   diasNoTrabajados: [],
+  diasNoTrabajadosPunto: { "Cafetería": [], "Mipyme": [] },
   categorias: [],
 };
 
