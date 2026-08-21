@@ -7,7 +7,7 @@ import { formatDiasTrabajados, formatGastoDetalle } from "@/lib/dias";
 const fechaTrabajada = (c: Cuadre) => c.diasTrabajados?.[0] ?? c.fecha;
 
 const fmt = (n: number) =>
-  `$${Number(n || 0).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `$${Math.round(Number(n) || 0).toLocaleString("es-ES", { maximumFractionDigits: 0 })}`;
 const n2 = (n: number) =>
   Number(n || 0).toLocaleString("es-ES", { maximumFractionDigits: 2 });
 
@@ -20,10 +20,18 @@ export function generarPDF(c: Cuadre) {
   const r = calcCuadre(c);
 
   const productosRows = r.productos
+    .filter(
+      (p) =>
+        Number(p.inicio) !== 0 ||
+        Number(p.entradas) !== 0 ||
+        Number(p.traslados) !== 0 ||
+        Number(p.total) !== 0 ||
+        Number(p.final) !== 0
+    )
     .map(
       (p) => `
       <tr>
-        <td class="l">${escape(p.nombre)}</td>
+        <td class="l name">${escape(p.nombre)}</td>
         <td class="r">${n2(p.inicio)}</td>
         <td class="r">${n2(p.entradas)}</td>
         <td class="r">${n2(p.traslados)}</td>
@@ -38,6 +46,7 @@ export function generarPDF(c: Cuadre) {
       </tr>`
     )
     .join("");
+
 
   const gastosRows = c.gastos
     .map(
