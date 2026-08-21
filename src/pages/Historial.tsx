@@ -43,7 +43,11 @@ import { formatDiasTrabajados, formatGastoDetalle } from "@/lib/dias";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const fmt = (n: number) => `$${n.toLocaleString("es-ES")}`;
+import { fmtDinero, fmtCant } from "@/lib/format";
+
+const fmt = fmtDinero;
+const q = fmtCant;
+
 
 // Extrae los gastos "Cuentas por Cobrar" como productos de la deuda potencial
 function gastosCredito(c: Cuadre) {
