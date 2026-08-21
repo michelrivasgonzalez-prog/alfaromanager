@@ -173,7 +173,8 @@ export function generarPDF(c: Cuadre) {
   <table>
     <thead>
       <tr>
-        <th>Producto</th>
+        <th class="name">Producto</th>
+
         <th class="r">Inicio</th>
         <th class="r">Entr.</th>
         <th class="r">Trasl.</th>
