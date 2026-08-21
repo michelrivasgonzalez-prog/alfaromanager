@@ -87,6 +87,7 @@ export default function Historial() {
   const canEdit = role === "admin" || role === "duena";
   const [detalle, setDetalle] = useState<Cuadre | null>(null);
   const [deudaFor, setDeudaFor] = useState<{ cuadre: Cuadre; pagada: boolean } | null>(null);
+  const [punto, setPunto] = useState<"todos" | "Cafetería" | "Mipyme">("todos");
 
   const clientes = useQuery({ queryKey: ["clientes"], queryFn: listClientes, enabled: canDeuda });
   const deudasAll = useQuery({ queryKey: ["deudas-all"], queryFn: () => listDeudas(), enabled: canDeuda });
@@ -96,10 +97,28 @@ export default function Historial() {
     return m;
   }, [deudasAll.data]);
 
+  const lista = useMemo(
+    () => (punto === "todos" ? history : history.filter((c) => c.puntoVenta === punto)),
+    [history, punto]
+  );
+
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">Historial de cuadres</h1>
-      {history.length === 0 && (
+      <div className="grid grid-cols-3 gap-1 rounded-2xl bg-muted/60 p-1">
+        {(["todos", "Cafetería", "Mipyme"] as const).map((p) => (
+          <button
+            key={p}
+            onClick={() => setPunto(p)}
+            className={`rounded-xl px-2 py-2 text-xs font-semibold transition-smooth ${
+              punto === p ? "bg-card shadow-soft text-primary" : "text-muted-foreground"
+            }`}
+          >
+            {p === "todos" ? "Todos" : p}
+          </button>
+        ))}
+      </div>
+      {lista.length === 0 && (
         <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">
           <HistoryIcon className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
@@ -107,7 +126,8 @@ export default function Historial() {
           </p>
         </div>
       )}
-      {history.map((c) => {
+      {lista.map((c) => {
+
         const r = calcCuadre(c);
         return (
           <div
