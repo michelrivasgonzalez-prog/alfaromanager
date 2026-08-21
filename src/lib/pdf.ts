@@ -117,12 +117,14 @@ export function generarPDF(c: Cuadre) {
   header .sub { color: #555; font-size: 12px; margin-top: 2px; }
   header .meta { text-align: right; font-size: 11px; color: #555; }
   h2 { font-size: 13px; color: #065F46; margin: 16px 0 6px; border-left: 4px solid #065F46; padding-left: 8px; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-  th, td { padding: 5px 6px; border-bottom: 1px solid #e5e5e5; vertical-align: top; }
-  th { background: #f5efe6; color: #4B3621; text-transform: uppercase; font-size: 9px; letter-spacing: 0.5px; text-align: left; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 8px; table-layout: fixed; }
+  th, td { padding: 1.5px 4px; border-bottom: 1px solid #e5e5e5; vertical-align: middle; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  th { background: #f5efe6; color: #4B3621; text-transform: uppercase; font-size: 9px; letter-spacing: 0.4px; text-align: left; white-space: normal; }
   td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; }
   td.l { text-align: left; }
+  td.name, th.name { width: 26%; white-space: normal; word-break: break-word; }
   td.b { font-weight: 700; }
+
   tfoot td { font-weight: 700; background: #faf6f0; border-top: 2px solid #4B3621; }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .card { border: 1px solid #e5e5e5; border-radius: 8px; padding: 10px 12px; }
