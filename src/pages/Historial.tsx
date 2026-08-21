@@ -440,69 +440,44 @@ function CuadreDetalle({ c }: { c: Cuadre }) {
         {formatDiasTrabajados(c.diasTrabajados)} · {c.puntoVenta}
       </div>
 
-      {/* IPV */}
+      {/* IPV — vista en tarjetas (sin scroll horizontal) */}
       <Section title="IPV — Productos">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead className="bg-muted/60 text-muted-foreground">
-              <tr>
-                <th className="px-2 py-1.5 text-left">Producto</th>
-                <th className="px-2 py-1.5 text-right">Ini</th>
-                <th className="px-2 py-1.5 text-right">Ent</th>
-                <th className="px-2 py-1.5 text-right">Tras</th>
-                <th className="px-2 py-1.5 text-right">Tot</th>
-                <th className="px-2 py-1.5 text-right">Fin</th>
-                <th className="px-2 py-1.5 text-right">Vend</th>
-                <th className="px-2 py-1.5 text-right">Importe</th>
-                <th className="px-2 py-1.5 text-right">Ganancia</th>
-              </tr>
-            </thead>
-            <tbody>
-              {r.productos
-                .filter(
-                  (p) =>
-                    Number(p.inicio) !== 0 ||
-                    Number(p.entradas) !== 0 ||
-                    Number(p.traslados) !== 0 ||
-                    Number(p.total) !== 0 ||
-                    Number(p.final) !== 0
-                )
-                .map((p) => (
-                <tr key={p.id} className="border-t border-border">
-                  <td className="px-2 py-1.5">{p.nombre}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">{p.inicio}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">{p.entradas}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">{p.traslados}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">{p.total}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">{p.final}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums font-semibold">
-                    {p.venta}
-                  </td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">
-                    {fmt(p.importe)}
-                  </td>
-                  <td className="px-2 py-1.5 text-right tabular-nums text-secondary">
-                    {fmt(p.ganancia)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="border-t-2 border-border font-semibold">
-                <td colSpan={7} className="px-2 py-1.5 text-right">
-                  Totales
-                </td>
-                <td className="px-2 py-1.5 text-right tabular-nums">
-                  {fmt(r.totalVenta)}
-                </td>
-                <td className="px-2 py-1.5 text-right tabular-nums text-secondary">
-                  {fmt(r.gananciaTotal)}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
+        <div className="space-y-1.5">
+          {r.productos
+            .filter(
+              (p) =>
+                Number(p.inicio) !== 0 ||
+                Number(p.entradas) !== 0 ||
+                Number(p.traslados) !== 0 ||
+                Number(p.total) !== 0 ||
+                Number(p.final) !== 0
+            )
+            .map((p) => (
+              <div key={p.id} className="rounded-lg border border-border bg-muted/30 px-2.5 py-1.5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-xs font-semibold leading-tight">{p.nombre}</span>
+                  <span className="font-mono text-xs font-bold tabular-nums">{fmt(p.importe)}</span>
+                </div>
+                <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
+                  <span>Ini <b className="tabular-nums text-foreground">{q(p.inicio)}</b></span>
+                  <span>Ent <b className="tabular-nums text-foreground">{q(p.entradas)}</b></span>
+                  <span>Tras <b className="tabular-nums text-foreground">{q(p.traslados)}</b></span>
+                  <span>Tot <b className="tabular-nums text-foreground">{q(p.total)}</b></span>
+                  <span>Fin <b className="tabular-nums text-foreground">{q(p.final)}</b></span>
+                  <span>Vend <b className="tabular-nums text-primary">{q(p.venta)}</b></span>
+                  <span>Gan <b className="tabular-nums text-secondary">{fmt(p.ganancia)}</b></span>
+                </div>
+              </div>
+            ))}
+          <div className="flex items-center justify-between border-t-2 border-border pt-1.5 text-xs font-bold">
+            <span>Totales</span>
+            <span className="font-mono tabular-nums">
+              {fmt(r.totalVenta)} · <span className="text-secondary">{fmt(r.gananciaTotal)}</span>
+            </span>
+          </div>
         </div>
       </Section>
+
 
       {/* Gastos */}
       <Section title={`Gastos (${c.gastos.length})`}>
