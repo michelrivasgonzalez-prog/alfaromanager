@@ -484,40 +484,28 @@ function CuadreDetalle({ c }: { c: Cuadre }) {
         {c.gastos.length === 0 ? (
           <div className="text-xs text-muted-foreground">Sin gastos</div>
         ) : (
-          <table className="w-full text-xs">
-            <thead className="bg-muted/60 text-muted-foreground">
-              <tr>
-                <th className="px-2 py-1.5 text-left">Categoría</th>
-                <th className="px-2 py-1.5 text-left">Tipo</th>
-                <th className="px-2 py-1.5 text-left">Recibe</th>
-                <th className="px-2 py-1.5 text-left">Detalle</th>
-                <th className="px-2 py-1.5 text-right">Monto</th>
-              </tr>
-            </thead>
-            <tbody>
-              {c.gastos.map((g) => (
-                <tr key={g.id} className="border-t border-border">
-                  <td className="px-2 py-1.5">{catLabel(g.categoria)}</td>
-                  <td className="px-2 py-1.5">{g.tipo}</td>
-                  <td className="px-2 py-1.5">{g.nombre || "—"}</td>
-                  <td className="px-2 py-1.5">{formatGastoDetalle(g)}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums font-semibold">
-                    {fmt(g.monto)}
-                  </td>
-                </tr>
-              ))}
-              <tr className="border-t-2 border-border font-semibold">
-                <td colSpan={4} className="px-2 py-1.5 text-right">
-                  Total
-                </td>
-                <td className="px-2 py-1.5 text-right tabular-nums">
-                  {fmt(r.totalGastos)}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          <div className="space-y-1.5">
+            {c.gastos.map((g) => (
+              <div key={g.id} className="rounded-lg border border-border bg-muted/30 px-2.5 py-1.5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-xs font-semibold leading-tight">
+                    {catLabel(g.categoria)} · {g.tipo}
+                  </span>
+                  <span className="font-mono text-xs font-bold tabular-nums">{fmt(g.monto)}</span>
+                </div>
+                <div className="mt-0.5 text-[10px] text-muted-foreground">
+                  {[g.nombre, formatGastoDetalle(g)].filter(Boolean).join(" · ") || "—"}
+                </div>
+              </div>
+            ))}
+            <div className="flex items-center justify-between border-t-2 border-border pt-1.5 text-xs font-bold">
+              <span>Total</span>
+              <span className="font-mono tabular-nums">{fmt(r.totalGastos)}</span>
+            </div>
+          </div>
         )}
       </Section>
+
 
       {/* Caja + denominación */}
       <div className="grid gap-3 md:grid-cols-2">
