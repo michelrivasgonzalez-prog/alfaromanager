@@ -289,30 +289,38 @@ export default function Calendario() {
             })}
 
             {diaSel && (
-              <Button
-                variant={noTrabajados.includes(diaSel) ? "outline" : "ghost"}
-                className={`w-full rounded-xl ${
-                  noTrabajados.includes(diaSel) ? "" : "text-destructive"
-                }`}
-                onClick={() => toggleNoTrabajado(diaSel)}
-                disabled={cuadresDia.length > 0 && !noTrabajados.includes(diaSel)}
-              >
-                {noTrabajados.includes(diaSel) ? (
-                  <>
-                    <CheckCircle2 className="mr-2 h-4 w-4" /> Quitar "día no trabajado"
-                  </>
-                ) : (
-                  <>
-                    <Ban className="mr-2 h-4 w-4" /> Marcar día no trabajado
-                  </>
-                )}
-              </Button>
+              <div className="grid grid-cols-2 gap-2">
+                {(["Cafetería", "Mipyme"] as const).map((p) => {
+                  const marcado = esNoTrab(diaSel, p);
+                  const tieneCuadre = cuadresDia.some((c) => c.puntoVenta === p);
+                  return (
+                    <Button
+                      key={p}
+                      variant={marcado ? "outline" : "ghost"}
+                      className={`w-full rounded-xl text-xs ${marcado ? "" : "text-destructive"}`}
+                      onClick={() => toggleNoTrabajado(diaSel, p)}
+                      disabled={tieneCuadre && !marcado}
+                    >
+                      {marcado ? (
+                        <>
+                          <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> Reabrir {p}
+                        </>
+                      ) : (
+                        <>
+                          <Ban className="mr-1.5 h-3.5 w-3.5" /> No trabajado {p}
+                        </>
+                      )}
+                    </Button>
+                  );
+                })}
+              </div>
             )}
-            {diaSel && cuadresDia.length > 0 && !noTrabajados.includes(diaSel) && (
+            {diaSel && cuadresDia.length > 0 && (
               <p className="text-center text-[10px] text-muted-foreground">
-                No se puede marcar como no trabajado: hay cuadres en este día.
+                Un punto con cuadre en este día no se puede marcar como no trabajado.
               </p>
             )}
+
           </div>
         </DialogContent>
       </Dialog>

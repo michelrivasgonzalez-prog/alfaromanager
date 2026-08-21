@@ -43,7 +43,11 @@ import { formatDiasTrabajados, formatGastoDetalle } from "@/lib/dias";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const fmt = (n: number) => `$${n.toLocaleString("es-ES")}`;
+import { fmtDinero, fmtCant } from "@/lib/format";
+
+const fmt = fmtDinero;
+const q = fmtCant;
+
 
 // Extrae los gastos "Cuentas por Cobrar" como productos de la deuda potencial
 function gastosCredito(c: Cuadre) {
@@ -83,6 +87,7 @@ export default function Historial() {
   const canEdit = role === "admin" || role === "duena";
   const [detalle, setDetalle] = useState<Cuadre | null>(null);
   const [deudaFor, setDeudaFor] = useState<{ cuadre: Cuadre; pagada: boolean } | null>(null);
+  const [punto, setPunto] = useState<"todos" | "Cafetería" | "Mipyme">("todos");
 
   const clientes = useQuery({ queryKey: ["clientes"], queryFn: listClientes, enabled: canDeuda });
   const deudasAll = useQuery({ queryKey: ["deudas-all"], queryFn: () => listDeudas(), enabled: canDeuda });
@@ -92,10 +97,28 @@ export default function Historial() {
     return m;
   }, [deudasAll.data]);
 
+  const lista = useMemo(
+    () => (punto === "todos" ? history : history.filter((c) => c.puntoVenta === punto)),
+    [history, punto]
+  );
+
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">Historial de cuadres</h1>
-      {history.length === 0 && (
+      <div className="grid grid-cols-3 gap-1 rounded-2xl bg-muted/60 p-1">
+        {(["todos", "Cafetería", "Mipyme"] as const).map((p) => (
+          <button
+            key={p}
+            onClick={() => setPunto(p)}
+            className={`rounded-xl px-2 py-2 text-xs font-semibold transition-smooth ${
+              punto === p ? "bg-card shadow-soft text-primary" : "text-muted-foreground"
+            }`}
+          >
+            {p === "todos" ? "Todos" : p}
+          </button>
+        ))}
+      </div>
+      {lista.length === 0 && (
         <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">
           <HistoryIcon className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
@@ -103,7 +126,8 @@ export default function Historial() {
           </p>
         </div>
       )}
-      {history.map((c) => {
+      {lista.map((c) => {
+
         const r = calcCuadre(c);
         return (
           <div
@@ -416,109 +440,72 @@ function CuadreDetalle({ c }: { c: Cuadre }) {
         {formatDiasTrabajados(c.diasTrabajados)} · {c.puntoVenta}
       </div>
 
-      {/* IPV */}
+      {/* IPV — vista en tarjetas (sin scroll horizontal) */}
       <Section title="IPV — Productos">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead className="bg-muted/60 text-muted-foreground">
-              <tr>
-                <th className="px-2 py-1.5 text-left">Producto</th>
-                <th className="px-2 py-1.5 text-right">Ini</th>
-                <th className="px-2 py-1.5 text-right">Ent</th>
-                <th className="px-2 py-1.5 text-right">Tras</th>
-                <th className="px-2 py-1.5 text-right">Tot</th>
-                <th className="px-2 py-1.5 text-right">Fin</th>
-                <th className="px-2 py-1.5 text-right">Vend</th>
-                <th className="px-2 py-1.5 text-right">Importe</th>
-                <th className="px-2 py-1.5 text-right">Ganancia</th>
-              </tr>
-            </thead>
-            <tbody>
-              {r.productos
-                .filter(
-                  (p) =>
-                    Number(p.inicio) !== 0 ||
-                    Number(p.entradas) !== 0 ||
-                    Number(p.traslados) !== 0 ||
-                    Number(p.total) !== 0 ||
-                    Number(p.final) !== 0
-                )
-                .map((p) => (
-                <tr key={p.id} className="border-t border-border">
-                  <td className="px-2 py-1.5">{p.nombre}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">{p.inicio}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">{p.entradas}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">{p.traslados}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">{p.total}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">{p.final}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums font-semibold">
-                    {p.venta}
-                  </td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">
-                    {fmt(p.importe)}
-                  </td>
-                  <td className="px-2 py-1.5 text-right tabular-nums text-secondary">
-                    {fmt(p.ganancia)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="border-t-2 border-border font-semibold">
-                <td colSpan={7} className="px-2 py-1.5 text-right">
-                  Totales
-                </td>
-                <td className="px-2 py-1.5 text-right tabular-nums">
-                  {fmt(r.totalVenta)}
-                </td>
-                <td className="px-2 py-1.5 text-right tabular-nums text-secondary">
-                  {fmt(r.gananciaTotal)}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
+        <div className="space-y-1.5">
+          {r.productos
+            .filter(
+              (p) =>
+                Number(p.inicio) !== 0 ||
+                Number(p.entradas) !== 0 ||
+                Number(p.traslados) !== 0 ||
+                Number(p.total) !== 0 ||
+                Number(p.final) !== 0
+            )
+            .map((p) => (
+              <div key={p.id} className="rounded-lg border border-border bg-muted/30 px-2.5 py-1.5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-xs font-semibold leading-tight">{p.nombre}</span>
+                  <span className="font-mono text-xs font-bold tabular-nums">{fmt(p.importe)}</span>
+                </div>
+                <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
+                  <span>Ini <b className="tabular-nums text-foreground">{q(p.inicio)}</b></span>
+                  <span>Ent <b className="tabular-nums text-foreground">{q(p.entradas)}</b></span>
+                  <span>Tras <b className="tabular-nums text-foreground">{q(p.traslados)}</b></span>
+                  <span>Tot <b className="tabular-nums text-foreground">{q(p.total)}</b></span>
+                  <span>Fin <b className="tabular-nums text-foreground">{q(p.final)}</b></span>
+                  <span>Vend <b className="tabular-nums text-primary">{q(p.venta)}</b></span>
+                  <span>Gan <b className="tabular-nums text-secondary">{fmt(p.ganancia)}</b></span>
+                </div>
+              </div>
+            ))}
+          <div className="flex items-center justify-between border-t-2 border-border pt-1.5 text-xs font-bold">
+            <span>Totales</span>
+            <span className="font-mono tabular-nums">
+              {fmt(r.totalVenta)} · <span className="text-secondary">{fmt(r.gananciaTotal)}</span>
+            </span>
+          </div>
         </div>
       </Section>
+
 
       {/* Gastos */}
       <Section title={`Gastos (${c.gastos.length})`}>
         {c.gastos.length === 0 ? (
           <div className="text-xs text-muted-foreground">Sin gastos</div>
         ) : (
-          <table className="w-full text-xs">
-            <thead className="bg-muted/60 text-muted-foreground">
-              <tr>
-                <th className="px-2 py-1.5 text-left">Categoría</th>
-                <th className="px-2 py-1.5 text-left">Tipo</th>
-                <th className="px-2 py-1.5 text-left">Recibe</th>
-                <th className="px-2 py-1.5 text-left">Detalle</th>
-                <th className="px-2 py-1.5 text-right">Monto</th>
-              </tr>
-            </thead>
-            <tbody>
-              {c.gastos.map((g) => (
-                <tr key={g.id} className="border-t border-border">
-                  <td className="px-2 py-1.5">{catLabel(g.categoria)}</td>
-                  <td className="px-2 py-1.5">{g.tipo}</td>
-                  <td className="px-2 py-1.5">{g.nombre || "—"}</td>
-                  <td className="px-2 py-1.5">{formatGastoDetalle(g)}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums font-semibold">
-                    {fmt(g.monto)}
-                  </td>
-                </tr>
-              ))}
-              <tr className="border-t-2 border-border font-semibold">
-                <td colSpan={4} className="px-2 py-1.5 text-right">
-                  Total
-                </td>
-                <td className="px-2 py-1.5 text-right tabular-nums">
-                  {fmt(r.totalGastos)}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          <div className="space-y-1.5">
+            {c.gastos.map((g) => (
+              <div key={g.id} className="rounded-lg border border-border bg-muted/30 px-2.5 py-1.5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-xs font-semibold leading-tight">
+                    {catLabel(g.categoria)} · {g.tipo}
+                  </span>
+                  <span className="font-mono text-xs font-bold tabular-nums">{fmt(g.monto)}</span>
+                </div>
+                <div className="mt-0.5 text-[10px] text-muted-foreground">
+                  {[g.nombre, formatGastoDetalle(g)].filter(Boolean).join(" · ") || "—"}
+                </div>
+              </div>
+            ))}
+            <div className="flex items-center justify-between border-t-2 border-border pt-1.5 text-xs font-bold">
+              <span>Total</span>
+              <span className="font-mono tabular-nums">{fmt(r.totalGastos)}</span>
+            </div>
+          </div>
         )}
       </Section>
+
 
       {/* Caja + denominación */}
       <div className="grid gap-3 md:grid-cols-2">
