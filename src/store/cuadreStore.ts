@@ -686,7 +686,10 @@ export const useCuadreStore = create<State>()(
           const restantes = c.productos.filter(
             (p) => !usados.has(p.nombre.trim().toLowerCase())
           );
-          const productos = [...reordenados, ...restantes];
+          const productos = sortProductos(
+            [...reordenados, ...restantes],
+            s.settings.categorias
+          );
           return {
             currents: { ...s.currents, [s.activePunto]: { ...c, productos } },
           };
