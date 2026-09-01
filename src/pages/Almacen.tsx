@@ -46,6 +46,7 @@ import {
   corregirMovimiento,
   stockByProducto,
 } from "@/lib/almacen";
+import { fmtDinero, fmtCant } from "@/lib/format";
 
 export default function Almacen() {
   const qc = useQueryClient();
@@ -57,6 +58,11 @@ export default function Almacen() {
   const bajoMin = productosList.filter((p) => (stocks.data?.[p.id] ?? 0) <= p.stock_minimo).length;
   const total = productosList.length;
   const totalMovs = movimientos.data?.length ?? 0;
+  const sinCosto = productosList.filter((p) => !p.costo_actual || Number(p.costo_actual) <= 0);
+  const valorInventario = productosList.reduce(
+    (s, p) => s + (stocks.data?.[p.id] ?? 0) * Number(p.costo_actual ?? 0),
+    0
+  );
 
   const invalidateAll = () => {
     qc.invalidateQueries({ queryKey: ["alm-productos"] });
@@ -82,14 +88,31 @@ export default function Almacen() {
       <div className="grid grid-cols-3 gap-2">
         <KpiCard label="Productos" value={total} />
         <KpiCard label="Bajo mínimo" value={bajoMin} tone={bajoMin > 0 ? "danger" : undefined} />
-        <KpiCard label="Movimientos" value={totalMovs} />
+        <KpiCard label="Valor inventario" value={fmtDinero(valorInventario)} />
       </div>
+      <div className="grid grid-cols-2 gap-2">
+        <KpiCard label="Movimientos" value={totalMovs} />
+        <KpiCard
+          label="Sin precio de costo"
+          value={sinCosto.length}
+          tone={sinCosto.length > 0 ? "danger" : undefined}
+        />
+      </div>
+      {sinCosto.length > 0 && (
+        <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-3 text-[11px] text-destructive">
+          <div className="flex items-center gap-1.5 font-semibold">
+            <AlertTriangle className="h-3.5 w-3.5" /> {sinCosto.length} producto(s) sin precio de costo
+          </div>
+          <div className="mt-1 text-destructive/80">
+            {sinCosto.map((p) => p.nombre).join(", ")}. Registra el costo en la próxima entrada o edita el producto.
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-2">
         <Button
           className="h-11 rounded-xl gradient-primary text-primary-foreground"
           onClick={() => setMovDialog({ tipo: "entrada" })}
-          disabled={productosList.length === 0}
         >
           <PackagePlus className="mr-2 h-4 w-4" /> Entrada
         </Button>
@@ -134,8 +157,18 @@ export default function Almacen() {
                   <div className="min-w-0">
                     <div className="truncate text-sm font-semibold">{p.nombre}</div>
                     <div className="text-[11px] text-muted-foreground">
-                      Unidad: {p.unidad} · Mínimo: {p.stock_minimo}
+                      Unidad: {p.unidad} · Mínimo: {fmtCant(p.stock_minimo)}
                       {p.permite_negativo && " · Permite negativo"}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {p.costo_actual && Number(p.costo_actual) > 0 ? (
+                        <>
+                          Costo prom.: {fmtDinero(Number(p.costo_actual))} · Valor:{" "}
+                          {fmtDinero(stock * Number(p.costo_actual))}
+                        </>
+                      ) : (
+                        <span className="font-semibold text-destructive">Sin precio de costo</span>
+                      )}
                     </div>
                   </div>
                   <div className="text-right">
@@ -145,7 +178,7 @@ export default function Almacen() {
                         bajo ? "text-destructive" : "text-primary"
                       }`}
                     >
-                      {stock}
+                      {fmtCant(stock)}
                     </div>
                   </div>
                 </div>
@@ -231,6 +264,16 @@ export default function Almacen() {
                     onChange={(v) => setProdDialog({ ...prodDialog, stock_minimo: v })}
                   />
                 </div>
+              </div>
+              <div className="space-y-1">
+                <Label>Precio de costo (promedio)</Label>
+                <NumberInput
+                  value={Number(prodDialog.costo_actual ?? 0)}
+                  onChange={(v) => setProdDialog({ ...prodDialog, costo_actual: v })}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Se recalcula automáticamente con las entradas que traigan costo.
+                </p>
               </div>
               <div className="flex items-center justify-between rounded-xl border border-border p-3">
                 <div>
@@ -349,6 +392,12 @@ function MovimientosHistorial({
                 {format(new Date(m.fecha), "dd MMM yyyy · HH:mm", { locale: es })}
                 {m.receptor ? ` · ${m.receptor}` : ""}
               </div>
+              {m.costo_unitario && Number(m.costo_unitario) > 0 && (
+                <div className="text-[11px] text-muted-foreground">
+                  Costo unitario: {fmtDinero(Number(m.costo_unitario))} · Importe:{" "}
+                  {fmtDinero(Number(m.costo_unitario) * Number(m.cantidad))}
+                </div>
+              )}
               {m.observacion && (
                 <div className="mt-1 text-[11px] italic text-muted-foreground">{m.observacion}</div>
               )}
@@ -360,7 +409,7 @@ function MovimientosHistorial({
                 }`}
               >
                 {m.tipo === "entrada" ? "+" : "−"}
-                {m.cantidad}
+                {fmtCant(m.cantidad)}
               </div>
               {!m.reversion_de && (
                 <Button size="sm" variant="ghost" className="mt-1 h-7 px-2 text-[11px]" onClick={() => onCorregir(m)}>
@@ -396,6 +445,10 @@ function MovimientoDialog({
   const [observacion, setObservacion] = useState("");
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 16));
   const [busy, setBusy] = useState(false);
+  const [esNuevo, setEsNuevo] = useState(false);
+  const [nuevoNombre, setNuevoNombre] = useState("");
+  const [nuevaUnidad, setNuevaUnidad] = useState("u");
+  const [costo, setCosto] = useState(0);
 
   const reset = () => {
     setProductoId("");
@@ -403,21 +456,42 @@ function MovimientoDialog({
     setReceptor("");
     setObservacion("");
     setFecha(new Date().toISOString().slice(0, 16));
+    setEsNuevo(false);
+    setNuevoNombre("");
+    setNuevaUnidad("u");
+    setCosto(0);
   };
 
   const submit = async () => {
-    if (!productoId) return toast.error("Selecciona un producto");
     if (!cantidad || cantidad <= 0) return toast.error("Cantidad > 0");
     if (tipo === "salida" && !receptor.trim()) return toast.error("Receptor requerido");
+    if (esNuevo && !nuevoNombre.trim()) return toast.error("Escribe el nombre del producto");
+    if (!esNuevo && !productoId) return toast.error("Selecciona un producto");
+    if (tipo === "entrada" && (!costo || costo <= 0)) {
+      const ok = window.confirm(
+        "No pusiste precio de costo. El producto quedará marcado como “sin costo”. ¿Continuar?"
+      );
+      if (!ok) return;
+    }
     setBusy(true);
     try {
+      let pid = productoId;
+      if (esNuevo) {
+        const creado = await upsertProducto({
+          nombre: nuevoNombre.trim(),
+          unidad: nuevaUnidad.trim() || "u",
+          costo_actual: costo > 0 ? costo : null,
+        });
+        pid = creado.id;
+      }
       await crearMovimiento({
-        producto_id: productoId,
+        producto_id: pid,
         tipo,
         cantidad,
         fecha: new Date(fecha).toISOString(),
         receptor: tipo === "salida" ? receptor.trim() : null,
         observacion: observacion.trim() || null,
+        costo_unitario: tipo === "entrada" && costo > 0 ? costo : null,
       });
       toast.success(`${tipo === "entrada" ? "Entrada" : "Salida"} registrada`);
       onSaved();
@@ -430,7 +504,8 @@ function MovimientoDialog({
     }
   };
 
-  const stockActual = productoId ? stocks[productoId] ?? 0 : null;
+  const stockActual = !esNuevo && productoId ? stocks[productoId] ?? 0 : null;
+  const prodSel = productos.find((p) => p.id === productoId);
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) { reset(); onClose(); } }}>
@@ -445,24 +520,53 @@ function MovimientoDialog({
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <div className="space-y-1">
-            <Label>Producto</Label>
-            <Select value={productoId} onValueChange={setProductoId}>
-              <SelectTrigger className="h-11 rounded-xl">
-                <SelectValue placeholder="Selecciona un producto" />
-              </SelectTrigger>
-              <SelectContent>
-                {productos.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.nombre} · stock: {stocks[p.id] ?? 0}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {stockActual !== null && (
-              <div className="text-[11px] text-muted-foreground">Existencia actual: {stockActual}</div>
-            )}
-          </div>
+          {tipo === "entrada" && (
+            <div className="flex items-center justify-between rounded-xl border border-border p-3">
+              <div>
+                <Label className="text-sm">¿Es un producto nuevo?</Label>
+                <p className="text-[11px] text-muted-foreground">
+                  Se creará en el almacén con esta entrada.
+                </p>
+              </div>
+              <Switch checked={esNuevo} onCheckedChange={setEsNuevo} />
+            </div>
+          )}
+          {esNuevo ? (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label>Nombre del producto</Label>
+                <Input value={nuevoNombre} onChange={(e) => setNuevoNombre(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>Unidad</Label>
+                <Input value={nuevaUnidad} onChange={(e) => setNuevaUnidad(e.target.value)} placeholder="u, kg, L" />
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <Label>Producto</Label>
+              <Select value={productoId} onValueChange={setProductoId}>
+                <SelectTrigger className="h-11 rounded-xl">
+                  <SelectValue placeholder="Selecciona un producto" />
+                </SelectTrigger>
+                <SelectContent>
+                  {productos.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.nombre} · stock: {fmtCant(stocks[p.id] ?? 0)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {stockActual !== null && (
+                <div className="text-[11px] text-muted-foreground">
+                  Existencia actual: {fmtCant(stockActual)}
+                  {prodSel?.costo_actual && Number(prodSel.costo_actual) > 0
+                    ? ` · Costo prom.: ${fmtDinero(Number(prodSel.costo_actual))}`
+                    : " · Sin precio de costo"}
+                </div>
+              )}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <Label>Cantidad</Label>
@@ -473,6 +577,17 @@ function MovimientoDialog({
               <Input type="datetime-local" value={fecha} onChange={(e) => setFecha(e.target.value)} />
             </div>
           </div>
+          {tipo === "entrada" && (
+            <div className="space-y-1">
+              <Label>Precio de costo unitario</Label>
+              <NumberInput value={costo} onChange={setCosto} />
+              <p className="text-[11px] text-muted-foreground">
+                {costo > 0
+                  ? `Importe de la entrada: ${fmtDinero(costo * cantidad)}`
+                  : "Sin costo el producto quedará con alerta financiera."}
+              </p>
+            </div>
+          )}
           {tipo === "salida" && (
             <div className="space-y-1">
               <Label>Receptor</Label>
@@ -488,6 +603,7 @@ function MovimientoDialog({
             />
           </div>
         </div>
+
         <DialogFooter>
           <Button variant="outline" onClick={() => { reset(); onClose(); }}>Cancelar</Button>
           <Button disabled={busy} onClick={submit}>Guardar</Button>

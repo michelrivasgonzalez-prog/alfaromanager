@@ -77,11 +77,12 @@ import { listClientes, upsertCliente, type Cliente } from "@/lib/cobrar";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { pushAllCatalogo, pushCuadre } from "@/lib/sync";
+import { fmtDinero, fmtCant } from "@/lib/format";
 
-const fmt = (n: number) =>
-  `$${n.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const n2 = (n: number) =>
-  Number(n || 0).toLocaleString("es-ES", { maximumFractionDigits: 2 });
+
+const fmt = (n: number) => fmtDinero(n);
+const n2 = (n: number) => fmtCant(n);
+
 
 export default function Cuadre() {
   const { step } = useParams();
@@ -350,13 +351,13 @@ function StepInventario({
         <table className="w-full text-sm">
           <thead className="bg-muted/60">
             <tr className="text-left">
-              <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <th className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Producto
               </th>
-              <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <th className="px-3 py-1 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Cantidad
               </th>
-              <th className="px-2 py-2 w-20"></th>
+              <th className="px-2 py-1 w-20"></th>
             </tr>
           </thead>
           <tbody>
@@ -369,7 +370,7 @@ function StepInventario({
             )}
             {visibles.map((p) => (
               <tr key={p.id} className="border-t border-border">
-                <td className="px-3 py-3 font-medium">
+                <td className="px-3 py-1.5 font-medium min-w-[11rem] leading-tight">
                   <div className="flex items-center gap-2">
                     {isInicio && p.bloqueado && (
                       <Lock className="h-3.5 w-3.5 text-muted-foreground" />
@@ -405,7 +406,7 @@ function StepInventario({
                     </div>
                   )}
                 </td>
-                <td className="px-3 py-2 text-right">
+                <td className="px-3 py-1 text-right">
                   {isInicio && p.bloqueado ? (
                     <span className="font-mono tabular-nums text-muted-foreground">{p[field]}</span>
                   ) : (
@@ -425,7 +426,7 @@ function StepInventario({
                     />
                   )}
                 </td>
-                <td className="px-2 py-2 text-right">
+                <td className="px-2 py-1 text-right">
                   <div className="flex items-center justify-end gap-0.5">
                     {isInicio && p.bloqueado ? (
                       <Button
@@ -681,12 +682,12 @@ function Step4() {
         <table className="w-full min-w-[620px] text-xs">
           <thead className="bg-muted/60">
             <tr>
-              <th className="px-3 py-2 text-left font-semibold">Producto</th>
-              <th className="px-2 py-2 text-right font-semibold">Entr.</th>
-              <th className="px-2 py-2 text-right font-semibold">Trasl.</th>
-              <th className="px-2 py-2 text-right font-semibold">Precio</th>
-              <th className="px-2 py-2 text-right font-semibold">Costo</th>
-              <th className="px-2 py-2 w-16"></th>
+              <th className="px-3 py-1 text-left font-semibold">Producto</th>
+              <th className="px-2 py-1 text-right font-semibold">Entr.</th>
+              <th className="px-2 py-1 text-right font-semibold">Trasl.</th>
+              <th className="px-2 py-1 text-right font-semibold">Precio</th>
+              <th className="px-2 py-1 text-right font-semibold">Costo</th>
+              <th className="px-2 py-1 w-16"></th>
             </tr>
           </thead>
           <tbody>
@@ -699,7 +700,7 @@ function Step4() {
             )}
             {visibles.map((p) => (
               <tr key={p.id} className="border-t border-border">
-                <td className="px-3 py-2">
+                <td className="px-3 py-1 min-w-[11rem] leading-tight">
                   {editingName === p.id ? (
                     <Input
                       autoFocus
@@ -723,35 +724,35 @@ function Step4() {
                     <div className="text-[10px] text-muted-foreground">{p.categoria}</div>
                   )}
                 </td>
-                <td className="px-2 py-2 text-right">
+                <td className="px-2 py-1 text-right">
                   <NumberInput
                     value={p.entradas}
                     onChange={(v) => updateProducto(p.id, { entradas: v })}
                     className="ml-auto h-8 w-16 rounded-lg text-right text-xs"
                   />
                 </td>
-                <td className="px-2 py-2 text-right">
+                <td className="px-2 py-1 text-right">
                   <NumberInput
                     value={p.traslados}
                     onChange={(v) => updateProducto(p.id, { traslados: v })}
                     className="ml-auto h-8 w-16 rounded-lg text-right text-xs"
                   />
                 </td>
-                <td className="px-2 py-2 text-right">
+                <td className="px-2 py-1 text-right">
                   <NumberInput
                     value={p.precio}
                     onChange={(v) => updateProducto(p.id, { precio: v })}
                     className="ml-auto h-8 w-20 rounded-lg text-right text-xs"
                   />
                 </td>
-                <td className="px-2 py-2 text-right">
+                <td className="px-2 py-1 text-right">
                   <NumberInput
                     value={p.costo}
                     onChange={(v) => updateProducto(p.id, { costo: v })}
                     className="ml-auto h-8 w-20 rounded-lg text-right text-xs"
                   />
                 </td>
-                <td className="px-2 py-2 text-right">
+                <td className="px-2 py-1 text-right">
                   <Button
                     variant="ghost"
                     size="icon"
@@ -937,17 +938,17 @@ function Step5() {
         <table className="w-full min-w-[640px] text-xs">
           <thead className="bg-muted/60 text-[10px] uppercase tracking-wider text-muted-foreground">
             <tr>
-              <th className="px-2 py-2 text-left">Producto</th>
-              <th className="px-2 py-2 text-right">Inicio</th>
-              <th className="px-2 py-2 text-right">Entr.</th>
-              <th className="px-2 py-2 text-right">Trasl.</th>
-              <th className="px-2 py-2 text-right">Total</th>
-              <th className="px-2 py-2 text-right">Final</th>
-              <th className="px-2 py-2 text-right">Vendidos</th>
-              {isAdmin && <th className="px-2 py-2 text-right">Precio</th>}
-              <th className="px-2 py-2 text-right">Importe</th>
-              {isAdmin && <th className="px-2 py-2 text-right">Costo</th>}
-              {isAdmin && <th className="px-2 py-2 text-right">Ganancia</th>}
+              <th className="px-2 py-1 text-left">Producto</th>
+              <th className="px-2 py-1 text-right">Inicio</th>
+              <th className="px-2 py-1 text-right">Entr.</th>
+              <th className="px-2 py-1 text-right">Trasl.</th>
+              <th className="px-2 py-1 text-right">Total</th>
+              <th className="px-2 py-1 text-right">Final</th>
+              <th className="px-2 py-1 text-right">Vendidos</th>
+              {isAdmin && <th className="px-2 py-1 text-right">Precio</th>}
+              <th className="px-2 py-1 text-right">Importe</th>
+              {isAdmin && <th className="px-2 py-1 text-right">Costo</th>}
+              {isAdmin && <th className="px-2 py-1 text-right">Ganancia</th>}
             </tr>
           </thead>
           <tbody>
@@ -956,19 +957,19 @@ function Step5() {
               const c = calcProducto(p);
               return (
                 <tr key={p.id} className="border-t border-border">
-                  <td className="px-2 py-2 font-medium">{p.nombre}</td>
-                  <td className="px-2 py-2 text-right tabular-nums">{n2(p.inicio)}</td>
-                  <td className="px-2 py-2 text-right tabular-nums">{n2(p.entradas)}</td>
-                  <td className="px-2 py-2 text-right tabular-nums">{n2(p.traslados)}</td>
-                  <td className="px-2 py-2 text-right tabular-nums font-semibold">
+                  <td className="px-2 py-1 font-medium min-w-[11rem] leading-tight">{p.nombre}</td>
+                  <td className="px-2 py-1 text-right tabular-nums">{n2(p.inicio)}</td>
+                  <td className="px-2 py-1 text-right tabular-nums">{n2(p.entradas)}</td>
+                  <td className="px-2 py-1 text-right tabular-nums">{n2(p.traslados)}</td>
+                  <td className="px-2 py-1 text-right tabular-nums font-semibold">
                     {n2(c.total)}
                   </td>
-                  <td className="px-2 py-2 text-right tabular-nums">{n2(p.final)}</td>
-                  <td className="px-2 py-2 text-right tabular-nums font-semibold">
+                  <td className="px-2 py-1 text-right tabular-nums">{n2(p.final)}</td>
+                  <td className="px-2 py-1 text-right tabular-nums font-semibold">
                     {n2(c.venta)}
                   </td>
                   {isAdmin && (
-                    <td className="px-2 py-2 text-right tabular-nums">
+                    <td className="px-2 py-1 text-right tabular-nums">
                       <NumberInput
                         value={p.precio}
                         onChange={(v) => updateProducto(p.id, { precio: v })}
@@ -977,11 +978,11 @@ function Step5() {
                       />
                     </td>
                   )}
-                  <td className="px-2 py-2 text-right tabular-nums font-semibold text-secondary">
+                  <td className="px-2 py-1 text-right tabular-nums font-semibold text-secondary">
                     {fmt(c.importe)}
                   </td>
                   {isAdmin && (
-                    <td className="px-2 py-2 text-right tabular-nums">
+                    <td className="px-2 py-1 text-right tabular-nums">
                       <NumberInput
                         value={p.costo}
                         onChange={(v) => updateProducto(p.id, { costo: v })}
@@ -991,7 +992,7 @@ function Step5() {
                     </td>
                   )}
                   {isAdmin && (
-                    <td className="px-2 py-2 text-right tabular-nums font-semibold text-primary">
+                    <td className="px-2 py-1 text-right tabular-nums font-semibold text-primary">
                       {fmt(c.ganancia)}
                     </td>
                   )}
@@ -1500,10 +1501,10 @@ function Step6() {
         <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-muted/60 text-[10px] uppercase tracking-wider text-muted-foreground">
             <tr>
-              <th className="px-3 py-2 text-left">Categoría</th>
-              <th className="px-3 py-2 text-left">Nombre</th>
-              <th className="px-3 py-2 text-left">Detalle</th>
-              <th className="px-3 py-2 text-right">Monto</th>
+              <th className="px-3 py-1 text-left">Categoría</th>
+              <th className="px-3 py-1 text-left">Nombre</th>
+              <th className="px-3 py-1 text-left">Detalle</th>
+              <th className="px-3 py-1 text-right">Monto</th>
               <th className="w-16"></th>
             </tr>
           </thead>
@@ -1525,20 +1526,20 @@ function Step6() {
               )
               .map((g) => (
               <tr key={g.id} className="border-t border-border align-top">
-                <td className="px-3 py-2 text-xs whitespace-nowrap">
+                <td className="px-3 py-1 text-xs whitespace-nowrap">
                   <span className="rounded-full bg-muted px-2 py-0.5 font-medium">
                     {catLabel(g.categoria)}
                   </span>
                   <div className="mt-0.5 text-[10px] text-muted-foreground">{g.tipo}</div>
                 </td>
-                <td className="px-3 py-2 text-xs font-medium whitespace-nowrap">{g.nombre}</td>
-                <td className="px-3 py-2 text-xs whitespace-nowrap">
+                <td className="px-3 py-1 text-xs font-medium whitespace-nowrap">{g.nombre}</td>
+                <td className="px-3 py-1 text-xs whitespace-nowrap">
                   <div>{formatGastoDetalle(g)}</div>
                 </td>
-                <td className="px-3 py-2 text-right font-mono font-semibold tabular-nums whitespace-nowrap">
+                <td className="px-3 py-1 text-right font-mono font-semibold tabular-nums whitespace-nowrap">
                   {fmt(g.monto)}
                 </td>
-                <td className="px-2 py-2 whitespace-nowrap">
+                <td className="px-2 py-1 whitespace-nowrap">
                   <div className="flex items-center justify-end gap-1">
                     <Button
                       variant="ghost"
@@ -1563,10 +1564,10 @@ function Step6() {
           </tbody>
           <tfoot className="bg-muted/40 font-bold">
             <tr>
-              <td colSpan={3} className="px-3 py-3">
+              <td colSpan={3} className="px-3 py-1.5">
                 Total
               </td>
-              <td className="px-3 py-3 text-right font-mono tabular-nums text-destructive">
+              <td className="px-3 py-1.5 text-right font-mono tabular-nums text-destructive">
                 {fmt(total)}
               </td>
               <td></td>
