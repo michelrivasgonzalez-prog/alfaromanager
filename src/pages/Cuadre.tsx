@@ -78,10 +78,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { pushAllCatalogo, pushCuadre } from "@/lib/sync";
 
-const fmt = (n: number) =>
-  `$${n.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const n2 = (n: number) =>
-  Number(n || 0).toLocaleString("es-ES", { maximumFractionDigits: 2 });
+const fmt = (n: number) => fmtDinero(n);
+const n2 = (n: number) => fmtCant(n);
+
 
 export default function Cuadre() {
   const { step } = useParams();
