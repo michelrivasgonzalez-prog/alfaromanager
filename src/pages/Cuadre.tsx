@@ -957,7 +957,7 @@ function Step5() {
               const c = calcProducto(p);
               return (
                 <tr key={p.id} className="border-t border-border">
-                  <td className="px-2 py-1 font-medium">{p.nombre}</td>
+                  <td className="px-2 py-1 font-medium min-w-[11rem] leading-tight">{p.nombre}</td>
                   <td className="px-2 py-1 text-right tabular-nums">{n2(p.inicio)}</td>
                   <td className="px-2 py-1 text-right tabular-nums">{n2(p.entradas)}</td>
                   <td className="px-2 py-1 text-right tabular-nums">{n2(p.traslados)}</td>
