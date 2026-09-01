@@ -6,6 +6,7 @@ export type AlmProducto = {
   unidad: string;
   stock_minimo: number;
   permite_negativo: boolean;
+  costo_actual: number | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -20,6 +21,7 @@ export type AlmMovimiento = {
   receptor: string | null;
   observacion: string | null;
   reversion_de: string | null;
+  costo_unitario: number | null;
   created_at: string;
   deleted_at: string | null;
 };
@@ -43,6 +45,7 @@ export async function upsertProducto(p: Partial<AlmProducto> & { nombre: string 
       unidad: p.unidad ?? "u",
       stock_minimo: p.stock_minimo ?? 0,
       permite_negativo: p.permite_negativo ?? false,
+      costo_actual: p.costo_actual ?? null,
     })
     .select()
     .single();
@@ -88,6 +91,7 @@ export async function crearMovimiento(m: {
   receptor?: string | null;
   observacion?: string | null;
   reversion_de?: string | null;
+  costo_unitario?: number | null;
 }) {
   if (m.cantidad <= 0) throw new Error("La cantidad debe ser mayor que 0");
   // Validar stock si es salida y no permite negativo
@@ -111,11 +115,38 @@ export async function crearMovimiento(m: {
       receptor: m.receptor ?? null,
       observacion: m.observacion ?? null,
       reversion_de: m.reversion_de ?? null,
+      costo_unitario: m.costo_unitario ?? null,
     })
     .select()
     .single();
   if (error) throw error;
-  return data as any as AlmMovimiento;
+  const mov = data as any as AlmMovimiento;
+  if (m.tipo === "entrada" && m.costo_unitario && m.costo_unitario > 0) {
+    await recalcularCosto(m.producto_id);
+  }
+  return mov;
+}
+
+/** Costo promedio ponderado por entradas con costo registrado. */
+export async function recalcularCosto(productoId: string) {
+  const movs = await listMovimientos({ producto_id: productoId });
+  const entradas = movs.filter(
+    (m) => m.tipo === "entrada" && m.costo_unitario && Number(m.costo_unitario) > 0
+  );
+  if (entradas.length === 0) return null;
+  const cant = entradas.reduce((s, m) => s + Number(m.cantidad), 0);
+  const importe = entradas.reduce(
+    (s, m) => s + Number(m.cantidad) * Number(m.costo_unitario),
+    0
+  );
+  const promedio = cant > 0 ? Math.round((importe / cant) * 100) / 100 : null;
+  if (promedio == null) return null;
+  const { error } = await supabase
+    .from("almacen_productos")
+    .update({ costo_actual: promedio })
+    .eq("id", productoId);
+  if (error) throw error;
+  return promedio;
 }
 
 /** Reversion: crea un movimiento inverso apuntando al original. */
@@ -125,6 +156,7 @@ export async function corregirMovimiento(mov: AlmMovimiento, observacion?: strin
     tipo: mov.tipo === "entrada" ? "salida" : "entrada",
     cantidad: mov.cantidad,
     receptor: mov.receptor,
+    costo_unitario: mov.costo_unitario,
     observacion: observacion ?? `Reversión de movimiento ${mov.id.slice(0, 8)}`,
     reversion_de: mov.id,
   });
