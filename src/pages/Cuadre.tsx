@@ -370,7 +370,7 @@ function StepInventario({
             )}
             {visibles.map((p) => (
               <tr key={p.id} className="border-t border-border">
-                <td className="px-3 py-1.5 font-medium">
+                <td className="px-3 py-1.5 font-medium min-w-[11rem] leading-tight">
                   <div className="flex items-center gap-2">
                     {isInicio && p.bloqueado && (
                       <Lock className="h-3.5 w-3.5 text-muted-foreground" />
@@ -700,7 +700,7 @@ function Step4() {
             )}
             {visibles.map((p) => (
               <tr key={p.id} className="border-t border-border">
-                <td className="px-3 py-1">
+                <td className="px-3 py-1 min-w-[11rem] leading-tight">
                   {editingName === p.id ? (
                     <Input
                       autoFocus
