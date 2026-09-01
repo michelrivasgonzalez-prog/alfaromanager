@@ -445,6 +445,10 @@ function MovimientoDialog({
   const [observacion, setObservacion] = useState("");
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 16));
   const [busy, setBusy] = useState(false);
+  const [esNuevo, setEsNuevo] = useState(false);
+  const [nuevoNombre, setNuevoNombre] = useState("");
+  const [nuevaUnidad, setNuevaUnidad] = useState("u");
+  const [costo, setCosto] = useState(0);
 
   const reset = () => {
     setProductoId("");
@@ -452,21 +456,42 @@ function MovimientoDialog({
     setReceptor("");
     setObservacion("");
     setFecha(new Date().toISOString().slice(0, 16));
+    setEsNuevo(false);
+    setNuevoNombre("");
+    setNuevaUnidad("u");
+    setCosto(0);
   };
 
   const submit = async () => {
-    if (!productoId) return toast.error("Selecciona un producto");
     if (!cantidad || cantidad <= 0) return toast.error("Cantidad > 0");
     if (tipo === "salida" && !receptor.trim()) return toast.error("Receptor requerido");
+    if (esNuevo && !nuevoNombre.trim()) return toast.error("Escribe el nombre del producto");
+    if (!esNuevo && !productoId) return toast.error("Selecciona un producto");
+    if (tipo === "entrada" && (!costo || costo <= 0)) {
+      const ok = window.confirm(
+        "No pusiste precio de costo. El producto quedará marcado como “sin costo”. ¿Continuar?"
+      );
+      if (!ok) return;
+    }
     setBusy(true);
     try {
+      let pid = productoId;
+      if (esNuevo) {
+        const creado = await upsertProducto({
+          nombre: nuevoNombre.trim(),
+          unidad: nuevaUnidad.trim() || "u",
+          costo_actual: costo > 0 ? costo : null,
+        });
+        pid = creado.id;
+      }
       await crearMovimiento({
-        producto_id: productoId,
+        producto_id: pid,
         tipo,
         cantidad,
         fecha: new Date(fecha).toISOString(),
         receptor: tipo === "salida" ? receptor.trim() : null,
         observacion: observacion.trim() || null,
+        costo_unitario: tipo === "entrada" && costo > 0 ? costo : null,
       });
       toast.success(`${tipo === "entrada" ? "Entrada" : "Salida"} registrada`);
       onSaved();
@@ -479,7 +504,8 @@ function MovimientoDialog({
     }
   };
 
-  const stockActual = productoId ? stocks[productoId] ?? 0 : null;
+  const stockActual = !esNuevo && productoId ? stocks[productoId] ?? 0 : null;
+  const prodSel = productos.find((p) => p.id === productoId);
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) { reset(); onClose(); } }}>
@@ -494,24 +520,53 @@ function MovimientoDialog({
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <div className="space-y-1">
-            <Label>Producto</Label>
-            <Select value={productoId} onValueChange={setProductoId}>
-              <SelectTrigger className="h-11 rounded-xl">
-                <SelectValue placeholder="Selecciona un producto" />
-              </SelectTrigger>
-              <SelectContent>
-                {productos.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.nombre} · stock: {stocks[p.id] ?? 0}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {stockActual !== null && (
-              <div className="text-[11px] text-muted-foreground">Existencia actual: {stockActual}</div>
-            )}
-          </div>
+          {tipo === "entrada" && (
+            <div className="flex items-center justify-between rounded-xl border border-border p-3">
+              <div>
+                <Label className="text-sm">¿Es un producto nuevo?</Label>
+                <p className="text-[11px] text-muted-foreground">
+                  Se creará en el almacén con esta entrada.
+                </p>
+              </div>
+              <Switch checked={esNuevo} onCheckedChange={setEsNuevo} />
+            </div>
+          )}
+          {esNuevo ? (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label>Nombre del producto</Label>
+                <Input value={nuevoNombre} onChange={(e) => setNuevoNombre(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>Unidad</Label>
+                <Input value={nuevaUnidad} onChange={(e) => setNuevaUnidad(e.target.value)} placeholder="u, kg, L" />
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <Label>Producto</Label>
+              <Select value={productoId} onValueChange={setProductoId}>
+                <SelectTrigger className="h-11 rounded-xl">
+                  <SelectValue placeholder="Selecciona un producto" />
+                </SelectTrigger>
+                <SelectContent>
+                  {productos.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.nombre} · stock: {fmtCant(stocks[p.id] ?? 0)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {stockActual !== null && (
+                <div className="text-[11px] text-muted-foreground">
+                  Existencia actual: {fmtCant(stockActual)}
+                  {prodSel?.costo_actual && Number(prodSel.costo_actual) > 0
+                    ? ` · Costo prom.: ${fmtDinero(Number(prodSel.costo_actual))}`
+                    : " · Sin precio de costo"}
+                </div>
+              )}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <Label>Cantidad</Label>
@@ -522,6 +577,17 @@ function MovimientoDialog({
               <Input type="datetime-local" value={fecha} onChange={(e) => setFecha(e.target.value)} />
             </div>
           </div>
+          {tipo === "entrada" && (
+            <div className="space-y-1">
+              <Label>Precio de costo unitario</Label>
+              <NumberInput value={costo} onChange={setCosto} />
+              <p className="text-[11px] text-muted-foreground">
+                {costo > 0
+                  ? `Importe de la entrada: ${fmtDinero(costo * cantidad)}`
+                  : "Sin costo el producto quedará con alerta financiera."}
+              </p>
+            </div>
+          )}
           {tipo === "salida" && (
             <div className="space-y-1">
               <Label>Receptor</Label>
@@ -537,6 +603,7 @@ function MovimientoDialog({
             />
           </div>
         </div>
+
         <DialogFooter>
           <Button variant="outline" onClick={() => { reset(); onClose(); }}>Cancelar</Button>
           <Button disabled={busy} onClick={submit}>Guardar</Button>
