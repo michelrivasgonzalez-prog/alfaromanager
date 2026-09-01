@@ -77,6 +77,8 @@ import { listClientes, upsertCliente, type Cliente } from "@/lib/cobrar";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { pushAllCatalogo, pushCuadre } from "@/lib/sync";
+import { fmtDinero, fmtCant } from "@/lib/format";
+
 
 const fmt = (n: number) => fmtDinero(n);
 const n2 = (n: number) => fmtCant(n);
