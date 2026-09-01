@@ -191,7 +191,10 @@ export default function Calendario() {
             const k = key(d);
             const cs = porDia.get(k) ?? [];
             const fuera = !isSameMonth(d, mes);
-            const noTrab = noTrabajados.includes(k);
+            const noCafe = esNoTrab(k, "Cafetería");
+            const noPyme = esNoTrab(k, "Mipyme");
+            const noAmbos = noCafe && noPyme;
+            const noAlguno = noCafe || noPyme;
             const tieneCafe = cs.some((c) => c.puntoVenta === "Cafetería");
             const tienePyme = cs.some((c) => c.puntoVenta === "Mipyme");
             return (
@@ -201,8 +204,10 @@ export default function Calendario() {
                 className={`flex aspect-square flex-col items-center justify-center rounded-xl border text-xs transition-colors ${
                   fuera ? "opacity-35" : ""
                 } ${
-                  noTrab
+                  noAmbos
                     ? "border-destructive/40 bg-destructive/10 text-destructive"
+                    : noAlguno
+                    ? "border-destructive/30 bg-destructive/5"
                     : cs.length > 0
                     ? "border-secondary/40 bg-secondary/10 font-semibold"
                     : "border-border bg-card text-muted-foreground"
@@ -212,11 +217,18 @@ export default function Calendario() {
                 <span className="mt-0.5 flex h-2 items-center gap-0.5">
                   {tieneCafe && <span className="h-1.5 w-1.5 rounded-full bg-secondary" />}
                   {tienePyme && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
-                  {noTrab && <Ban className="h-2.5 w-2.5" />}
+                  {noCafe && !noAmbos && (
+                    <span className="h-1.5 w-1.5 rounded-full bg-destructive/60" />
+                  )}
+                  {noPyme && !noAmbos && (
+                    <span className="h-1.5 w-1.5 rounded-full bg-destructive" />
+                  )}
+                  {noAmbos && <Ban className="h-2.5 w-2.5" />}
                 </span>
               </button>
             );
           })}
+
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground">
