@@ -19,6 +19,14 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 import { pushCatalogItem, deleteCatalogItem } from "@/lib/sync";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
 
 export default function Productos() {
   const {
@@ -35,6 +43,9 @@ export default function Productos() {
   const [punto, setPunto] = useState<PuntoVenta>("Cafetería");
   const categorias = useCuadreStore((s) => s.settings.categorias ?? []);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [nuevoOpen, setNuevoOpen] = useState(false);
+  const [nuevo, setNuevo] = useState({ nombre: "", precio: 0, costo: 0, categoria: "" });
+
 
 
   if (role !== "admin") {
@@ -376,18 +387,104 @@ export default function Productos() {
         ))}
       </div>
       <Button
-        variant="outline"
-        className="h-11 w-full rounded-xl"
-        onClick={() => {
-          const orden = productosPunto.length + 1;
-          addCatalogItem({ nombre: "Nuevo producto", precio: 0, costo: 0, punto, orden });
-          toast.success(`Producto agregado a ${punto}`);
-          const last = useCuadreStore.getState().catalogo.slice(-1)[0];
-          if (last) pushCatalogItem(last).catch(console.error);
-        }}
+        className="h-11 w-full rounded-xl gradient-primary text-primary-foreground"
+        onClick={() => setNuevoOpen(true)}
       >
-        <Plus className="mr-2 h-4 w-4" /> Agregar producto al catálogo
+        <Plus className="mr-2 h-4 w-4" /> Nuevo producto
       </Button>
+
+      <Dialog open={nuevoOpen} onOpenChange={setNuevoOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nuevo producto en {punto}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <label className="block text-xs">
+              <span className="text-muted-foreground">Nombre</span>
+              <Input
+                value={nuevo.nombre}
+                onChange={(e) => setNuevo({ ...nuevo, nombre: e.target.value })}
+                placeholder="Ej. Café espresso"
+                className="mt-1 h-11 rounded-xl"
+              />
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block text-xs">
+                <span className="text-muted-foreground">Precio venta</span>
+                <NumberInput
+                  value={nuevo.precio}
+                  onChange={(v) => setNuevo({ ...nuevo, precio: v })}
+                  className="mt-1 h-11 rounded-xl"
+                />
+              </label>
+              <label className="block text-xs">
+                <span className="text-muted-foreground">Precio costo</span>
+                <NumberInput
+                  value={nuevo.costo}
+                  onChange={(v) => setNuevo({ ...nuevo, costo: v })}
+                  className="mt-1 h-11 rounded-xl"
+                />
+              </label>
+            </div>
+            <label className="block text-xs">
+              <span className="text-muted-foreground">Categoría</span>
+              {categorias.length > 0 ? (
+                <select
+                  value={nuevo.categoria}
+                  onChange={(e) => setNuevo({ ...nuevo, categoria: e.target.value })}
+                  className="mt-1 h-11 w-full rounded-xl border border-input bg-background px-2 text-sm"
+                >
+                  <option value="">Sin categoría</option>
+                  {categorias.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <Input
+                  value={nuevo.categoria}
+                  onChange={(e) => setNuevo({ ...nuevo, categoria: e.target.value })}
+                  placeholder="Gestiona las categorías en Ajustes"
+                  className="mt-1 h-11 rounded-xl"
+                />
+              )}
+            </label>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNuevoOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              className="gradient-primary text-primary-foreground"
+              onClick={() => {
+                if (!nuevo.nombre.trim()) {
+                  toast.error("Escribe el nombre del producto");
+                  return;
+                }
+                addCatalogItem({
+                  nombre: nuevo.nombre.trim(),
+                  precio: nuevo.precio,
+                  costo: nuevo.costo,
+                  punto,
+                  orden: productosPunto.length + 1,
+                  categoria: nuevo.categoria.trim() || undefined,
+                });
+                const last = useCuadreStore
+                  .getState()
+                  .catalogo.find((c) => c.nombre === nuevo.nombre.trim() && (c.punto ?? "Cafetería") === punto);
+                if (last) pushCatalogItem(last).catch(console.error);
+                toast.success(`"${nuevo.nombre.trim()}" agregado a ${punto}`);
+                setNuevo({ nombre: "", precio: 0, costo: 0, categoria: "" });
+                setNuevoOpen(false);
+              }}
+            >
+              Agregar producto
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+

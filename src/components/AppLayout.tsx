@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { fullSync } from "@/lib/sync";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useAutoLogout } from "@/hooks/useAutoLogout";
+
 
 const ALL_TABS: { to: string; icon: any; label: string; allow: AppRole[] }[] = [
   { to: "/", icon: Home, label: "Inicio", allow: ["admin", "duena", "dependiente"] },
@@ -29,6 +31,8 @@ export default function AppLayout() {
   const [syncState, setSyncState] = useState<"idle" | "syncing" | "ok" | "error">("idle");
   const [lastSync, setLastSync] = useState<number | null>(null);
   const running = useRef(false);
+  useAutoLogout(20);
+
 
   const doSync = async (manual = false) => {
     if (running.current || !role) return;
