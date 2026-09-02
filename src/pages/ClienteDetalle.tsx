@@ -39,11 +39,12 @@ import {
   listDeudas,
   listAbonos,
   registrarAbono,
-
+  revertirAbono,
   listAbonosPorDeuda,
   upsertCliente,
   softDeleteCliente,
   fmt,
+  type Abono,
   type AbonoAplicacion,
   type Deuda,
 } from "@/lib/cobrar";
@@ -51,6 +52,8 @@ import NuevaDeudaDialog from "@/components/NuevaDeudaDialog";
 import { imprimirRecibo } from "@/lib/recibo";
 import { EstadoBadge } from "./Cobrar";
 import { useAuth } from "@/hooks/useAuth";
+import { usePinStore, hashPin, useCurrentPinUser } from "@/store/pinStore";
+
 
 
 
