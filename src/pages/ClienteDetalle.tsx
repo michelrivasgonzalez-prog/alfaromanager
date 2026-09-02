@@ -677,3 +677,171 @@ function EditarClienteDialog({
   );
 }
 
+
+/** Corrige o elimina un abono, con confirmación exhaustiva por PIN. */
+function CorregirAbonoDialog({
+  open,
+  abono,
+  clienteId,
+  aplicaciones,
+  onClose,
+}: {
+  open: boolean;
+  abono: Abono | null;
+  clienteId: string;
+  aplicaciones: AbonoAplicacion[];
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const { nombre, user } = useAuth();
+  const pinUser = useCurrentPinUser();
+  const [modo, setModo] = useState<"corregir" | "eliminar">("corregir");
+  const [nuevoMonto, setNuevoMonto] = useState("");
+  const [pin, setPin] = useState("");
+  const [confirmado, setConfirmado] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const cerrar = () => {
+    setPin("");
+    setNuevoMonto("");
+    setConfirmado(false);
+    setModo("corregir");
+    onClose();
+  };
+
+  const ejecutar = async () => {
+    if (!abono) return;
+    if (!confirmado) return toast.error("Marca la confirmación para continuar");
+    if (!pinUser) return toast.error("Sesión no válida");
+    const h = await hashPin(pin, pinUser.id);
+    if (h !== pinUser.pinHash) return toast.error("PIN incorrecto");
+
+    const monto = Number(String(nuevoMonto).replace(",", "."));
+    if (modo === "corregir" && (!monto || monto <= 0)) {
+      return toast.error("Escribe el monto correcto");
+    }
+
+    setSaving(true);
+    try {
+      await revertirAbono({
+        abono_id: abono.id,
+        usuario_id: user?.id ?? null,
+        usuario_nombre: nombre ?? null,
+        nota: modo === "eliminar" ? "Abono eliminado (corrección)" : "Corrección de abono",
+      });
+
+      if (modo === "corregir") {
+        const totalApps = aplicaciones.reduce((s, a) => s + Number(a.monto), 0);
+        const apps =
+          totalApps > 0
+            ? aplicaciones.map((a) => ({
+                deuda_id: a.deuda_id,
+                monto: Math.round(((Number(a.monto) / totalApps) * monto) * 100) / 100,
+              }))
+            : [];
+        // ajuste de redondeo para no exceder el monto
+        const suma = apps.reduce((s, a) => s + a.monto, 0);
+        if (apps.length > 0 && suma > monto) apps[0].monto -= Math.round((suma - monto) * 100) / 100;
+        await registrarAbono({
+          cliente_id: clienteId,
+          monto,
+          aplicaciones: apps.filter((a) => a.monto > 0),
+          usuario_id: user?.id ?? null,
+          usuario_nombre: nombre ?? null,
+          nota: `Corrección del abono ${abono.id.slice(0, 6).toUpperCase()}`,
+        });
+      }
+
+      toast.success(modo === "eliminar" ? "Abono eliminado" : "Abono corregido");
+      qc.invalidateQueries({ queryKey: ["deudas", clienteId] });
+      qc.invalidateQueries({ queryKey: ["abonos", clienteId] });
+      qc.invalidateQueries({ queryKey: ["abonos-por-deuda", clienteId] });
+      qc.invalidateQueries({ queryKey: ["clientes"] });
+      cerrar();
+    } catch (e: any) {
+      toast.error(e.message || "No se pudo completar la operación");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && cerrar()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Corregir o eliminar abono</DialogTitle>
+        </DialogHeader>
+        {abono && (
+          <div className="space-y-3">
+            <div className="rounded-xl bg-muted/60 p-3 text-xs">
+              Abono del {format(new Date(abono.fecha), "dd MMM yyyy · HH:mm", { locale: es })} por{" "}
+              <strong>{fmt(abono.monto)}</strong>. Se generará una reversión que devuelve el saldo a
+              las deudas afectadas.
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant={modo === "corregir" ? "default" : "outline"}
+                className="h-10 rounded-xl"
+                onClick={() => setModo("corregir")}
+              >
+                Corregir monto
+              </Button>
+              <Button
+                variant={modo === "eliminar" ? "default" : "outline"}
+                className="h-10 rounded-xl"
+                onClick={() => setModo("eliminar")}
+              >
+                <Trash2 className="mr-1 h-4 w-4" /> Eliminar
+              </Button>
+            </div>
+            {modo === "corregir" && (
+              <div>
+                <Label>Monto correcto</Label>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  value={nuevoMonto}
+                  onChange={(e) => setNuevoMonto(e.target.value)}
+                  placeholder="0"
+                  className="mt-1 h-11 rounded-xl"
+                />
+              </div>
+            )}
+            <div>
+              <Label>PIN de usuario ({pinUser?.nombre ?? "—"})</Label>
+              <Input
+                type="password"
+                inputMode="numeric"
+                value={pin}
+                onChange={(e) => setPin(e.target.value)}
+                placeholder="••••"
+                className="mt-1 h-11 rounded-xl"
+              />
+            </div>
+            <label className="flex items-start gap-2 text-[11px] text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={confirmado}
+                onChange={(e) => setConfirmado(e.target.checked)}
+                className="mt-0.5 h-3.5 w-3.5 accent-primary"
+              />
+              Entiendo que esta operación modifica dinero registrado y queda auditada.
+            </label>
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={cerrar}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={ejecutar}
+            disabled={saving || !pin || !confirmado}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            {saving ? "Procesando…" : modo === "eliminar" ? "Eliminar abono" : "Aplicar corrección"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
