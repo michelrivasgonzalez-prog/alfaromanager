@@ -52,7 +52,7 @@ import NuevaDeudaDialog from "@/components/NuevaDeudaDialog";
 import { imprimirRecibo } from "@/lib/recibo";
 import { EstadoBadge } from "./Cobrar";
 import { useAuth } from "@/hooks/useAuth";
-import { usePinStore, hashPin, useCurrentPinUser } from "@/store/pinStore";
+import { hashPin, useCurrentPinUser } from "@/store/pinStore";
 
 
 
