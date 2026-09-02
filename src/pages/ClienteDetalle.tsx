@@ -175,22 +175,42 @@ export default function ClienteDetalle() {
         )}
       </div>
 
-      <section className="space-y-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Deudas</h2>
-        {(deudas.data ?? []).length === 0 && (
-          <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center text-xs text-muted-foreground">
-            Sin deudas registradas
-          </div>
-        )}
-        {(deudas.data ?? []).map((d) => (
-          <DeudaCard
-            key={d.id}
-            deuda={d}
-            clienteNombre={cliente.nombre}
-            aplicaciones={abonosPorDeuda.data?.[d.id] ?? []}
-          />
-        ))}
-      </section>
+      <Collapsible open={deudasOpen} onOpenChange={setDeudasOpen}>
+        <div className="flex items-center gap-2">
+          <CollapsibleTrigger asChild>
+            <button className="flex flex-1 items-center justify-between rounded-xl bg-muted/50 px-3 py-2 text-sm font-semibold">
+              <span>Deudas ({(deudas.data ?? []).length})</span>
+              <ChevronDown
+                className={`h-4 w-4 transition-transform ${deudasOpen ? "rotate-180" : ""}`}
+              />
+            </button>
+          </CollapsibleTrigger>
+          <label className="flex shrink-0 items-center gap-1.5 rounded-xl border border-border px-2 py-2 text-[11px]">
+            <input
+              type="checkbox"
+              checked={ocultarPagadas}
+              onChange={(e) => setOcultarPagadas(e.target.checked)}
+              className="h-3.5 w-3.5 accent-primary"
+            />
+            Ocultar pagadas
+          </label>
+        </div>
+        <CollapsibleContent className="mt-2 space-y-2">
+          {deudasVisibles.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center text-xs text-muted-foreground">
+              {(deudas.data ?? []).length === 0 ? "Sin deudas registradas" : "Sin deudas pendientes"}
+            </div>
+          )}
+          {deudasVisibles.map((d) => (
+            <DeudaCard
+              key={d.id}
+              deuda={d}
+              clienteNombre={cliente.nombre}
+              aplicaciones={abonosPorDeuda.data?.[d.id] ?? []}
+            />
+          ))}
+        </CollapsibleContent>
+      </Collapsible>
 
       <section className="space-y-2">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Historial de abonos</h2>
@@ -199,28 +219,84 @@ export default function ClienteDetalle() {
             Sin abonos aún
           </div>
         )}
-        {(abonos.data ?? []).map((a) => (
-          <div key={a.id} className="rounded-xl border border-border bg-card p-3 shadow-soft">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-xs text-muted-foreground">
-                  {format(new Date(a.fecha), "dd MMM yyyy · HH:mm", { locale: es })}
-                  {a.usuario_nombre ? ` · ${a.usuario_nombre}` : ""}
+        {(abonos.data ?? []).map((a) => {
+          const apps = Object.values(abonosPorDeuda.data ?? {})
+            .flat()
+            .filter((ap) => ap.abono_id === a.id);
+          const deudaRef = (deudas.data ?? []).find((d) => d.id === apps[0]?.deuda_id);
+          const label =
+            deudaRef?.cuadre_label ??
+            (deudaRef ? format(new Date(deudaRef.fecha), "dd MMM yyyy", { locale: es }) : "Crédito a favor");
+          return (
+            <div key={a.id} className="rounded-xl border border-border bg-card p-3 shadow-soft">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-xs text-muted-foreground">
+                    {format(new Date(a.fecha), "dd MMM yyyy · HH:mm", { locale: es })}
+                    {a.usuario_nombre ? ` · ${a.usuario_nombre}` : ""}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">{label}</div>
+                  {a.nota && <div className="text-[11px] italic text-muted-foreground">{a.nota}</div>}
+                  {a.reversa_de && (
+                    <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground">
+                      REVERSIÓN
+                    </span>
+                  )}
                 </div>
-                {a.nota && <div className="text-[11px] italic text-muted-foreground">{a.nota}</div>}
-                {a.reversa_de && (
-                  <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground">
-                    REVERSIÓN
-                  </span>
-                )}
-              </div>
-              <div className={`font-mono font-bold tabular-nums ${a.monto < 0 ? "text-destructive" : "text-secondary"}`}>
-                {a.monto < 0 ? "" : "+"}{fmt(a.monto)}
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <div className={`font-mono font-bold tabular-nums ${a.monto < 0 ? "text-destructive" : "text-secondary"}`}>
+                    {a.monto < 0 ? "" : "+"}{fmt(a.monto)}
+                  </div>
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="h-7 w-7 rounded-lg"
+                    title="Ver / descargar recibo"
+                    onClick={() => {
+                      const ok = imprimirRecibo({
+                        numero: a.id.slice(0, 6).toUpperCase(),
+                        cliente: cliente.nombre,
+                        fecha: a.fecha,
+                        monto: Number(a.monto),
+                        deudaLabel: label,
+                        deudaTotal: Number(deudaRef?.total ?? a.monto),
+                        saldoDeuda: Number(deudaRef?.saldo ?? 0),
+                        usuario: a.usuario_nombre,
+                        nota: a.nota,
+                      });
+                      if (!ok) toast.error("Permite las ventanas emergentes para ver el recibo");
+                    }}
+                  >
+                    <Printer className="h-3.5 w-3.5" />
+                  </Button>
+                  {!a.reversa_de && Number(a.monto) > 0 && (
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      className="h-7 w-7 rounded-lg border-destructive/40 text-destructive"
+                      title="Corregir o eliminar abono"
+                      onClick={() => setCorrigiendo(a.id)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </section>
+
+      <CorregirAbonoDialog
+        open={!!corrigiendo}
+        abono={(abonos.data ?? []).find((a) => a.id === corrigiendo) ?? null}
+        clienteId={id}
+        aplicaciones={Object.values(abonosPorDeuda.data ?? {})
+          .flat()
+          .filter((ap) => ap.abono_id === corrigiendo)}
+        onClose={() => setCorrigiendo(null)}
+      />
+
 
       <EditarClienteDialog
         open={editing}
