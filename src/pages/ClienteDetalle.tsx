@@ -69,6 +69,11 @@ export default function ClienteDetalle() {
   const cliente = useMemo(() => clientes.data?.find((c) => c.id === id), [clientes.data, id]);
   const [editing, setEditing] = useState(false);
   const [nuevaDeuda, setNuevaDeuda] = useState(false);
+  const [deudasOpen, setDeudasOpen] = useState(true);
+  const [ocultarPagadas, setOcultarPagadas] = useState(true);
+  const [corrigiendo, setCorrigiendo] = useState<string | null>(null);
+  const deudasVisibles = (deudas.data ?? []).filter((d) => !ocultarPagadas || d.estado !== "pagada");
+
 
   const pend = (deudas.data ?? []).filter((d) => d.estado !== "pagada");
   const totalDeuda = pend.reduce((s, d) => s + Number(d.saldo), 0);
