@@ -43,6 +43,9 @@ export default function Productos() {
   const [punto, setPunto] = useState<PuntoVenta>("Cafetería");
   const categorias = useCuadreStore((s) => s.settings.categorias ?? []);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [nuevoOpen, setNuevoOpen] = useState(false);
+  const [nuevo, setNuevo] = useState({ nombre: "", precio: 0, costo: 0, categoria: "" });
+
 
 
   if (role !== "admin") {
