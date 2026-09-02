@@ -31,6 +31,8 @@ export default function AppLayout() {
   const [syncState, setSyncState] = useState<"idle" | "syncing" | "ok" | "error">("idle");
   const [lastSync, setLastSync] = useState<number | null>(null);
   const running = useRef(false);
+  useAutoLogout(20);
+
 
   const doSync = async (manual = false) => {
     if (running.current || !role) return;
