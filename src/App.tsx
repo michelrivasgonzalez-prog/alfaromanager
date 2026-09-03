@@ -47,7 +47,9 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <InstallPrompt />
       <BrowserRouter>
+
         <Routes>
           <Route path="/auth" element={<Auth />} />
           <Route
