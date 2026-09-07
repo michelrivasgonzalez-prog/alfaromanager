@@ -2246,3 +2246,79 @@ function Row({
     </div>
   );
 }
+
+/* ========== Deuda del dependiente (faltante > salario bruto) ========== */
+function DeudaDependientePanel({ monto }: { monto: number }) {
+  const { currents, activePunto, updateCurrent } = useCuadreStore();
+  const current = currents[activePunto];
+  const qc = useQueryClient();
+  const [guardando, setGuardando] = useState(false);
+  const { data: clientes = [] } = useQuery({
+    queryKey: ["clientes"],
+    queryFn: listClientes,
+  });
+  if (!current) return null;
+
+  const registrada = !!current.deudaDependienteId;
+  const nombre = current.dependiente?.trim() || "Dependiente";
+
+  const registrar = async () => {
+    setGuardando(true);
+    try {
+      let cliente: Cliente | undefined = clientes.find(
+        (c) => c.nombre.trim().toLowerCase() === nombre.toLowerCase()
+      );
+      if (!cliente) {
+        cliente = (await upsertCliente({
+          nombre,
+          observaciones: "Dependiente",
+        })) as Cliente;
+      }
+      const deuda = await crearDeuda({
+        cliente_id: cliente.id,
+        cuadre_id: current.id,
+        cuadre_label: `Faltante · ${current.puntoVenta} · ${format(
+          new Date(current.fecha),
+          "dd MMM yyyy",
+          { locale: es }
+        )}`,
+        productos: [],
+        total: Math.round(monto),
+      });
+      updateCurrent({ deudaDependienteId: deuda.id });
+      qc.invalidateQueries({ queryKey: ["clientes"] });
+      qc.invalidateQueries({ queryKey: ["deudas"] });
+      toast.success(`Deuda registrada a ${nombre}`);
+    } catch (e: any) {
+      toast.error(e?.message ?? "No se pudo registrar la deuda");
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-destructive/40 bg-destructive/10 p-4 shadow-soft space-y-2">
+      <div className="flex items-center gap-2 text-sm font-semibold text-destructive">
+        <AlertTriangle className="h-4 w-4" />
+        El faltante supera el salario bruto
+      </div>
+      <p className="text-xs text-muted-foreground">
+        No hay salario a pagar. Queda una deuda de{" "}
+        <strong className="text-foreground">{fmt(monto)}</strong> a nombre de{" "}
+        <strong className="text-foreground">{nombre}</strong>.
+      </p>
+      <Button
+        onClick={registrar}
+        disabled={registrada || guardando}
+        className="h-11 w-full rounded-xl"
+        variant={registrada ? "outline" : "destructive"}
+      >
+        {registrada
+          ? "Deuda ya registrada en Cuentas por cobrar"
+          : guardando
+          ? "Registrando…"
+          : "Registrar como cuenta por cobrar"}
+      </Button>
+    </div>
+  );
+}
