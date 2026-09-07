@@ -73,7 +73,7 @@ import {
 } from "@/store/cuadreStore";
 import { generarPDF } from "@/lib/pdf";
 import { formatGastoDetalle } from "@/lib/dias";
-import { listClientes, upsertCliente, type Cliente } from "@/lib/cobrar";
+import { listClientes, upsertCliente, crearDeuda, type Cliente } from "@/lib/cobrar";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { pushAllCatalogo, pushCuadre } from "@/lib/sync";
