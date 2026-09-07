@@ -782,7 +782,13 @@ export const calcCuadre = (c: Cuadre) => {
   // del dependiente. Si el salario cubre el faltante, no hay deuda.
   const descuentoFalta = Math.min(faltanteBruto, salarioBruto);
   const deudaDependiente = Math.max(0, faltanteBruto - salarioBruto);
-  const salarioReal = salarioBruto + propina - descuentoFalta;
+  const salarioAntesDeudas = salarioBruto + propina - descuentoFalta;
+  // Deudas propias del dependiente pagadas con su salario.
+  const descuentoDeudas = Math.min(
+    Math.max(0, c.descuentoDeudas ?? 0),
+    Math.max(0, salarioAntesDeudas)
+  );
+  const salarioReal = salarioAntesDeudas - descuentoDeudas;
 
   // Ganancia Neta = Ganancia Bruta - Gastos Local - Gastos Yanitza - Salario Base
   const gananciaNeta = gananciaTotal - gastosNeta - salarioBruto;
