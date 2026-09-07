@@ -813,6 +813,8 @@ export const calcCuadre = (c: Cuadre) => {
     salarioModo: modo,
     porcentajeVenta: pct,
     salarioReal,
+    salarioAntesDeudas,
+    descuentoDeudas,
     descuentoFalta,
     deudaDependiente,
     propina,
