@@ -285,13 +285,18 @@ function StepInventario({
   const productoUnlock = current.productos.find((p) => p.id === unlockId);
 
   const q = busqueda.trim().toLowerCase();
+  // En el inventario final no tiene sentido mostrar productos sin existencia
+  // (inicio + entradas − traslados = 0).
+  const base = isInicio
+    ? current.productos
+    : current.productos.filter((p) => calcProducto(p).total !== 0);
   const visibles = q
-    ? current.productos.filter(
+    ? base.filter(
         (p) =>
           p.nombre.toLowerCase().includes(q) ||
           (p.categoria ?? "").toLowerCase().includes(q)
       )
-    : current.productos;
+    : base;
 
   const focusNext = (currentId: string) => {
     const ids = visibles
