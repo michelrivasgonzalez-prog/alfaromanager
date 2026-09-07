@@ -113,6 +113,8 @@ export type Cuadre = {
   porcentajeVenta: number;
   salarioDenominaciones: Denominaciones;
   finalizado: boolean;
+  /** ID de la cuenta por cobrar creada por el faltante del dependiente. */
+  deudaDependienteId?: string | null;
 };
 
 export type Settings = {

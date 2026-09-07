@@ -73,7 +73,7 @@ import {
 } from "@/store/cuadreStore";
 import { generarPDF } from "@/lib/pdf";
 import { formatGastoDetalle } from "@/lib/dias";
-import { listClientes, upsertCliente, type Cliente } from "@/lib/cobrar";
+import { listClientes, upsertCliente, crearDeuda, type Cliente } from "@/lib/cobrar";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { pushAllCatalogo, pushCuadre } from "@/lib/sync";
@@ -285,13 +285,18 @@ function StepInventario({
   const productoUnlock = current.productos.find((p) => p.id === unlockId);
 
   const q = busqueda.trim().toLowerCase();
+  // En el inventario final no tiene sentido mostrar productos sin existencia
+  // (inicio + entradas − traslados = 0).
+  const base = isInicio
+    ? current.productos
+    : current.productos.filter((p) => calcProducto(p).total !== 0);
   const visibles = q
-    ? current.productos.filter(
+    ? base.filter(
         (p) =>
           p.nombre.toLowerCase().includes(q) ||
           (p.categoria ?? "").toLowerCase().includes(q)
       )
-    : current.productos;
+    : base;
 
   const focusNext = (currentId: string) => {
     const ids = visibles
@@ -1984,8 +1989,20 @@ function Step9() {
             <div className="text-lg font-bold">{fmt(c.propina)}</div>
           </div>
         )}
-        <SummaryTile label="A pagar" value={fmt(c.salarioReal)} accent="emerald" />
+        {c.deudaDependiente > 0 ? (
+          <div className="rounded-2xl bg-destructive p-3 text-destructive-foreground shadow-soft">
+            <div className="text-[10px] font-semibold uppercase opacity-80">Deuda</div>
+            <div className="text-lg font-bold">{fmt(c.deudaDependiente)}</div>
+          </div>
+        ) : (
+          <SummaryTile label="A pagar" value={fmt(c.salarioReal)} accent="emerald" />
+        )}
       </div>
+
+      {c.deudaDependiente > 0 && (
+        <DeudaDependientePanel monto={c.deudaDependiente} />
+      )}
+
 
       <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
         <div className="mb-3 flex items-center justify-between">
@@ -2160,7 +2177,11 @@ function Step10({ onClose }: { onClose: () => void }) {
             highlight="destructive"
           />
         )}
-        <Row label="Salario real (pagado)" value={fmt(c.salarioReal)} highlight="emerald" />
+        {c.deudaDependiente > 0 ? (
+          <Row label="Deuda" value={fmt(c.deudaDependiente)} highlight="destructive" />
+        ) : (
+          <Row label="Salario real (pagado)" value={fmt(c.salarioReal)} highlight="emerald" />
+        )}
       </div>
 
       {current.productos.some((p) => p.notaDesbloqueo) && (
@@ -2227,6 +2248,82 @@ function Row({
         {Icon && <Icon className="h-3.5 w-3.5" />}
         {value}
       </span>
+    </div>
+  );
+}
+
+/* ========== Deuda del dependiente (faltante > salario bruto) ========== */
+function DeudaDependientePanel({ monto }: { monto: number }) {
+  const { currents, activePunto, updateCurrent } = useCuadreStore();
+  const current = currents[activePunto];
+  const qc = useQueryClient();
+  const [guardando, setGuardando] = useState(false);
+  const { data: clientes = [] } = useQuery({
+    queryKey: ["clientes"],
+    queryFn: listClientes,
+  });
+  if (!current) return null;
+
+  const registrada = !!current.deudaDependienteId;
+  const nombre = current.dependiente?.trim() || "Dependiente";
+
+  const registrar = async () => {
+    setGuardando(true);
+    try {
+      let cliente: Cliente | undefined = clientes.find(
+        (c) => c.nombre.trim().toLowerCase() === nombre.toLowerCase()
+      );
+      if (!cliente) {
+        cliente = (await upsertCliente({
+          nombre,
+          observaciones: "Dependiente",
+        })) as Cliente;
+      }
+      const deuda = await crearDeuda({
+        cliente_id: cliente.id,
+        cuadre_id: current.id,
+        cuadre_label: `Faltante · ${current.puntoVenta} · ${format(
+          new Date(current.fecha),
+          "dd MMM yyyy",
+          { locale: es }
+        )}`,
+        productos: [],
+        total: Math.round(monto),
+      });
+      updateCurrent({ deudaDependienteId: deuda.id });
+      qc.invalidateQueries({ queryKey: ["clientes"] });
+      qc.invalidateQueries({ queryKey: ["deudas"] });
+      toast.success(`Deuda registrada a ${nombre}`);
+    } catch (e: any) {
+      toast.error(e?.message ?? "No se pudo registrar la deuda");
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-destructive/40 bg-destructive/10 p-4 shadow-soft space-y-2">
+      <div className="flex items-center gap-2 text-sm font-semibold text-destructive">
+        <AlertTriangle className="h-4 w-4" />
+        El faltante supera el salario bruto
+      </div>
+      <p className="text-xs text-muted-foreground">
+        No hay salario a pagar. Queda una deuda de{" "}
+        <strong className="text-foreground">{fmt(monto)}</strong> a nombre de{" "}
+        <strong className="text-foreground">{nombre}</strong>.
+      </p>
+      <Button
+        onClick={registrar}
+        disabled={registrada || guardando}
+        className="h-11 w-full rounded-xl"
+        variant={registrada ? "outline" : "destructive"}
+      >
+        {registrada
+          ? "Deuda ya registrada en Cuentas por cobrar"
+          : guardando
+          ? "Registrando…"
+          : "Registrar como cuenta por cobrar"}
+      </Button>
     </div>
   );
 }
