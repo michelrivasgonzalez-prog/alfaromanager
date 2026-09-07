@@ -73,7 +73,15 @@ import {
 } from "@/store/cuadreStore";
 import { generarPDF } from "@/lib/pdf";
 import { formatGastoDetalle } from "@/lib/dias";
-import { listClientes, upsertCliente, crearDeuda, type Cliente } from "@/lib/cobrar";
+import {
+  listClientes,
+  upsertCliente,
+  crearDeuda,
+  listDeudas,
+  registrarAbono,
+  type Cliente,
+  type Deuda,
+} from "@/lib/cobrar";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { pushAllCatalogo, pushCuadre } from "@/lib/sync";
@@ -2003,6 +2011,10 @@ function Step9() {
         <DeudaDependientePanel monto={c.deudaDependiente} />
       )}
 
+      <PagarDeudasDependientePanel disponible={c.salarioAntesDeudas} />
+
+
+
 
       <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
         <div className="mb-3 flex items-center justify-between">
@@ -2177,6 +2189,13 @@ function Step10({ onClose }: { onClose: () => void }) {
             highlight="destructive"
           />
         )}
+        {c.descuentoDeudas > 0 && (
+          <Row
+            label="− Deudas pagadas del dependiente"
+            value={fmt(c.descuentoDeudas)}
+            highlight="destructive"
+          />
+        )}
         {c.deudaDependiente > 0 ? (
           <Row label="Deuda" value={fmt(c.deudaDependiente)} highlight="destructive" />
         ) : (
@@ -2324,6 +2343,180 @@ function DeudaDependientePanel({ monto }: { monto: number }) {
           ? "Registrando…"
           : "Registrar como cuenta por cobrar"}
       </Button>
+    </div>
+  );
+}
+
+/* ========== Pagar deudas propias del dependiente con su salario ========== */
+function PagarDeudasDependientePanel({ disponible }: { disponible: number }) {
+  const { currents, activePunto, updateCurrent } = useCuadreStore();
+  const current = currents[activePunto];
+  const qc = useQueryClient();
+  const [abierto, setAbierto] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [sel, setSel] = useState<Record<string, number>>({});
+
+  const nombre = current?.dependiente?.trim() ?? "";
+  const { data: clientes = [] } = useQuery({ queryKey: ["clientes"], queryFn: listClientes });
+  const cliente = clientes.find(
+    (c) => c.nombre.trim().toLowerCase() === nombre.toLowerCase()
+  );
+  const { data: deudas = [] } = useQuery({
+    queryKey: ["deudas", cliente?.id],
+    queryFn: () => listDeudas(cliente!.id),
+    enabled: !!cliente?.id,
+  });
+
+  if (!current) return null;
+
+  const pendientes = (deudas as Deuda[]).filter((d) => d.saldo > 0.009);
+  const yaPagado = current.descuentoDeudas ?? 0;
+  const totalSel = Object.values(sel).reduce((s, n) => s + (n || 0), 0);
+  const restante = Math.max(0, disponible - yaPagado - totalSel);
+  const excede = totalSel > disponible - yaPagado + 0.009;
+
+  const registrar = async () => {
+    if (!cliente || totalSel <= 0) return;
+    setGuardando(true);
+    try {
+      const aplicaciones = Object.entries(sel)
+        .filter(([, m]) => m > 0)
+        .map(([deuda_id, monto]) => ({ deuda_id, monto }));
+      const abonoId = await registrarAbono({
+        cliente_id: cliente.id,
+        monto: totalSel,
+        aplicaciones,
+        usuario_nombre: nombre,
+        nota: `Descontado del salario · ${current.puntoVenta}`,
+      });
+      updateCurrent({
+        descuentoDeudas: yaPagado + totalSel,
+        abonoDeudasId: abonoId,
+      });
+      setSel({});
+      setAbierto(false);
+      qc.invalidateQueries({ queryKey: ["deudas"] });
+      qc.invalidateQueries({ queryKey: ["clientes"] });
+      toast.success("Deudas descontadas del salario");
+    } catch (e: any) {
+      toast.error(e?.message ?? "No se pudo descontar");
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <div className="text-sm font-semibold">Deudas del dependiente</div>
+          <div className="text-[11px] text-muted-foreground">
+            {!nombre
+              ? "Selecciona un dependiente en el paso 1"
+              : !cliente
+              ? `${nombre} no tiene ficha de cliente`
+              : pendientes.length === 0
+              ? `${nombre} no tiene deudas pendientes`
+              : `${pendientes.length} deuda(s) pendiente(s)`}
+          </div>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-9 rounded-xl text-xs"
+          disabled={!cliente || pendientes.length === 0 || disponible - yaPagado <= 0}
+          onClick={() => setAbierto(true)}
+        >
+          Pagar deudas
+        </Button>
+      </div>
+
+      {yaPagado > 0 && (
+        <div className="flex items-center justify-between rounded-xl bg-muted/50 px-3 py-2 text-xs">
+          <span className="text-muted-foreground">Descontado del salario</span>
+          <span className="font-mono font-bold tabular-nums text-destructive">
+            −{fmt(yaPagado)}
+          </span>
+        </div>
+      )}
+
+      <Dialog open={abierto} onOpenChange={setAbierto}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Pagar deudas de {nombre}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+            {pendientes.map((d) => (
+              <div key={d.id} className="rounded-xl border border-border p-3 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-medium">
+                    {d.cuadre_label ??
+                      format(new Date(d.fecha), "dd MMM yyyy", { locale: es })}
+                  </span>
+                  <span className="font-mono tabular-nums text-muted-foreground">
+                    saldo {fmt(d.saldo)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <NumberInput
+                    value={sel[d.id] ?? 0}
+                    onChange={(v) =>
+                      setSel((s) => ({ ...s, [d.id]: Math.min(v, d.saldo) }))
+                    }
+                    className="h-9 flex-1 rounded-lg"
+                    placeholder="0"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-9 rounded-lg text-xs"
+                    onClick={() =>
+                      setSel((s) => ({
+                        ...s,
+                        [d.id]: Math.min(
+                          d.saldo,
+                          Math.max(0, disponible - yaPagado - (totalSel - (s[d.id] ?? 0)))
+                        ),
+                      }))
+                    }
+                  >
+                    Máx
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="space-y-1 rounded-xl bg-muted/50 p-3 text-xs">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Salario disponible</span>
+              <span className="font-mono tabular-nums">{fmt(disponible - yaPagado)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">A descontar</span>
+              <span className="font-mono tabular-nums text-destructive">
+                −{fmt(totalSel)}
+              </span>
+            </div>
+            <div className="flex justify-between font-semibold">
+              <span>Queda por pagar</span>
+              <span className="font-mono tabular-nums text-secondary">{fmt(restante)}</span>
+            </div>
+          </div>
+          {excede && (
+            <p className="text-xs font-medium text-destructive">
+              El total supera el salario disponible.
+            </p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAbierto(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={registrar} disabled={totalSel <= 0 || excede || guardando}>
+              {guardando ? "Guardando…" : "Descontar y pagar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
