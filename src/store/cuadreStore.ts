@@ -115,6 +115,10 @@ export type Cuadre = {
   finalizado: boolean;
   /** ID de la cuenta por cobrar creada por el faltante del dependiente. */
   deudaDependienteId?: string | null;
+  /** Monto del salario usado para pagar deudas propias del dependiente. */
+  descuentoDeudas?: number;
+  /** ID del abono creado al descontar deudas del salario. */
+  abonoDeudasId?: string | null;
 };
 
 export type Settings = {
