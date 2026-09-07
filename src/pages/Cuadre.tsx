@@ -2172,7 +2172,11 @@ function Step10({ onClose }: { onClose: () => void }) {
             highlight="destructive"
           />
         )}
-        <Row label="Salario real (pagado)" value={fmt(c.salarioReal)} highlight="emerald" />
+        {c.deudaDependiente > 0 ? (
+          <Row label="Deuda" value={fmt(c.deudaDependiente)} highlight="destructive" />
+        ) : (
+          <Row label="Salario real (pagado)" value={fmt(c.salarioReal)} highlight="emerald" />
+        )}
       </div>
 
       {current.productos.some((p) => p.notaDesbloqueo) && (
