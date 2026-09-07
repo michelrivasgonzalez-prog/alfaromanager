@@ -2189,6 +2189,13 @@ function Step10({ onClose }: { onClose: () => void }) {
             highlight="destructive"
           />
         )}
+        {c.descuentoDeudas > 0 && (
+          <Row
+            label="− Deudas pagadas del dependiente"
+            value={fmt(c.descuentoDeudas)}
+            highlight="destructive"
+          />
+        )}
         {c.deudaDependiente > 0 ? (
           <Row label="Deuda" value={fmt(c.deudaDependiente)} highlight="destructive" />
         ) : (
