@@ -2011,6 +2011,10 @@ function Step9() {
         <DeudaDependientePanel monto={c.deudaDependiente} />
       )}
 
+      <PagarDeudasDependientePanel disponible={c.salarioAntesDeudas} />
+
+
+
 
       <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
         <div className="mb-3 flex items-center justify-between">
