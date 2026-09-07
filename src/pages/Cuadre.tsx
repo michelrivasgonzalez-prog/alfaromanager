@@ -1984,8 +1984,20 @@ function Step9() {
             <div className="text-lg font-bold">{fmt(c.propina)}</div>
           </div>
         )}
-        <SummaryTile label="A pagar" value={fmt(c.salarioReal)} accent="emerald" />
+        {c.deudaDependiente > 0 ? (
+          <div className="rounded-2xl bg-destructive p-3 text-destructive-foreground shadow-soft">
+            <div className="text-[10px] font-semibold uppercase opacity-80">Deuda</div>
+            <div className="text-lg font-bold">{fmt(c.deudaDependiente)}</div>
+          </div>
+        ) : (
+          <SummaryTile label="A pagar" value={fmt(c.salarioReal)} accent="emerald" />
+        )}
       </div>
+
+      {c.deudaDependiente > 0 && (
+        <DeudaDependientePanel monto={c.deudaDependiente} />
+      )}
+
 
       <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
         <div className="mb-3 flex items-center justify-between">
