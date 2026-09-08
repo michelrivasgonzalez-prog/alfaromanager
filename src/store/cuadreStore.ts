@@ -132,6 +132,9 @@ export type Settings = {
   diasNoTrabajadosPunto?: Partial<Record<PuntoVenta, string[]>>;
   /** Categorías de producto en el orden en que deben mostrarse. */
   categorias?: string[];
+  /** Reportes mensuales guardados (clave yyyy-MM). */
+  reportesMensuales?: Record<string, any>;
+
 };
 
 const DEFAULT_SETTINGS: Settings = {

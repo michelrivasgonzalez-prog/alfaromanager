@@ -97,10 +97,14 @@ export default function Historial() {
     return m;
   }, [deudasAll.data]);
 
-  const lista = useMemo(
-    () => (punto === "todos" ? history : history.filter((c) => c.puntoVenta === punto)),
-    [history, punto]
-  );
+  const lista = useMemo(() => {
+    const base = punto === "todos" ? history : history.filter((c) => c.puntoVenta === punto);
+    const fechaT = (c: Cuadre) => c.diasTrabajados?.[c.diasTrabajados.length - 1] ?? c.fecha;
+    return [...base].sort(
+      (a, b) => new Date(fechaT(b)).getTime() - new Date(fechaT(a)).getTime()
+    );
+  }, [history, punto]);
+
 
   return (
     <div className="space-y-4">
@@ -565,7 +569,19 @@ function CuadreDetalle({ c }: { c: Cuadre }) {
               tone="danger"
             />
           )}
-          <Row label="Salario real (pagado)" value={fmt(r.salarioReal)} bold tone="ok" />
+          {r.descuentoDeudas > 0 && (
+            <Row
+              label="− Deudas pagadas del dependiente"
+              value={fmt(r.descuentoDeudas)}
+              tone="danger"
+            />
+          )}
+          {r.deudaDependiente > 0 ? (
+            <Row label="Deuda" value={fmt(r.deudaDependiente)} bold tone="danger" />
+          ) : (
+            <Row label="Salario real (pagado)" value={fmt(r.salarioReal)} bold tone="ok" />
+          )}
+
         </Section>
         <Section title="Pago — billetes entregados">
           <DenomList den={c.salarioDenominaciones} />
