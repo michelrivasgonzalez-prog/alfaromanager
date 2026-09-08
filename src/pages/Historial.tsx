@@ -569,7 +569,19 @@ function CuadreDetalle({ c }: { c: Cuadre }) {
               tone="danger"
             />
           )}
-          <Row label="Salario real (pagado)" value={fmt(r.salarioReal)} bold tone="ok" />
+          {r.descuentoDeudas > 0 && (
+            <Row
+              label="− Deudas pagadas del dependiente"
+              value={fmt(r.descuentoDeudas)}
+              tone="danger"
+            />
+          )}
+          {r.deudaDependiente > 0 ? (
+            <Row label="Deuda" value={fmt(r.deudaDependiente)} bold tone="danger" />
+          ) : (
+            <Row label="Salario real (pagado)" value={fmt(r.salarioReal)} bold tone="ok" />
+          )}
+
         </Section>
         <Section title="Pago — billetes entregados">
           <DenomList den={c.salarioDenominaciones} />
