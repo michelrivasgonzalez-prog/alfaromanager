@@ -300,6 +300,45 @@ export default function Calendario() {
         </div>
       </div>
 
+      {/* Reporte mensual */}
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold">Reporte mensual</div>
+            <div className="text-[11px] text-muted-foreground">
+              {pendientes.length === 0
+                ? "Mes completo: todos los días tienen cuadre o están marcados."
+                : `Faltan ${pendientes.length} día(s) por cuadrar o marcar como no trabajados.`}
+            </div>
+            {reporteGuardado && (
+              <div className="mt-1 text-[11px] text-secondary">
+                Guardado el {format(new Date(reporteGuardado.creado), "dd/MM/yyyy HH:mm")}
+              </div>
+            )}
+          </div>
+          {reporteGuardado && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-xl"
+              onClick={() => generarPDFMensual(reporteGuardado)}
+            >
+              <FileDown className="mr-1 h-3.5 w-3.5" /> PDF
+            </Button>
+          )}
+        </div>
+        <Button
+          className="mt-3 w-full rounded-xl"
+          disabled={pendientes.length > 0 || cuadresMes.length === 0 || generando}
+          onClick={generarReporte}
+        >
+          <FileDown className="mr-2 h-4 w-4" />
+          {reporteGuardado ? "Regenerar reporte mensual" : "Generar reporte mensual"}
+        </Button>
+      </div>
+
+
+
       <Dialog open={!!diaSel} onOpenChange={(o) => !o && setDiaSel(null)}>
         <DialogContent className="max-h-[85vh] overflow-y-auto">
           <DialogHeader>
