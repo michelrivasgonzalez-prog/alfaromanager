@@ -97,10 +97,14 @@ export default function Historial() {
     return m;
   }, [deudasAll.data]);
 
-  const lista = useMemo(
-    () => (punto === "todos" ? history : history.filter((c) => c.puntoVenta === punto)),
-    [history, punto]
-  );
+  const lista = useMemo(() => {
+    const base = punto === "todos" ? history : history.filter((c) => c.puntoVenta === punto);
+    const fechaT = (c: Cuadre) => c.diasTrabajados?.[c.diasTrabajados.length - 1] ?? c.fecha;
+    return [...base].sort(
+      (a, b) => new Date(fechaT(b)).getTime() - new Date(fechaT(a)).getTime()
+    );
+  }, [history, punto]);
+
 
   return (
     <div className="space-y-4">
