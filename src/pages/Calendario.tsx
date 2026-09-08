@@ -102,6 +102,56 @@ export default function Calendario() {
   );
   const ventaMes = cuadresMes.reduce((s, c) => s + calcCuadre(c).totalVenta, 0);
 
+  const mesKeyStr = format(mes, "yyyy-MM");
+  const reporteGuardado: ReporteMensual | undefined =
+    (settings.reportesMensuales ?? {})[mesKeyStr];
+
+  // Días del mes que aún no tienen cuadre ni están marcados como no trabajados
+  // (solo se cuentan los días hasta hoy).
+  const pendientes = useMemo(() => {
+    const hoy = new Date();
+    return eachDayOfInterval({ start: startOfMonth(mes), end: endOfMonth(mes) })
+      .filter((d) => d <= hoy)
+      .map((d) => key(d))
+      .filter((k) => {
+        const cs = porDia.get(k) ?? [];
+        return (["Cafetería", "Mipyme"] as const).some(
+          (p) => !cs.some((c) => c.puntoVenta === p) && !esNoTrab(k, p)
+        );
+      });
+  }, [mes, porDia, noTrabajados, perPunto]);
+
+  const noTrabMes = useMemo(() => {
+    const set = new Set<string>();
+    for (const k of [...noTrabajados, ...listaPunto("Cafetería"), ...listaPunto("Mipyme")])
+      if (k.startsWith(mesKeyStr)) set.add(k);
+    return [...set];
+  }, [noTrabajados, perPunto, mesKeyStr]);
+
+  const [generando, setGenerando] = useState(false);
+
+  const generarReporte = async () => {
+    if (cuadresMes.length === 0) {
+      toast.error("No hay cuadres en este mes");
+      return;
+    }
+    setGenerando(true);
+    const rep = construirReporteMensual(mesKeyStr, cuadresMes, noTrabMes);
+    updateSettings({
+      reportesMensuales: { ...(settings.reportesMensuales ?? {}), [mesKeyStr]: rep },
+    });
+    try {
+      await pushSettings();
+      toast.success("Reporte mensual guardado");
+    } catch {
+      toast.error("Guardado local; se subirá al reconectar");
+    }
+    generarPDFMensual(rep);
+    setGenerando(false);
+  };
+
+
+
 
   /** Marca / desmarca "día no trabajado" para un punto de venta concreto. */
   const toggleNoTrabajado = async (k: string, punto: "Cafetería" | "Mipyme") => {
