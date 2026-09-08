@@ -35,9 +35,15 @@ import { useCuadreStore, calcCuadre, Cuadre } from "@/store/cuadreStore";
 import { generarPDF } from "@/lib/pdf";
 import { pushSettings } from "@/lib/sync";
 import { formatDiasTrabajados } from "@/lib/dias";
+import {
+  construirReporteMensual,
+  generarPDFMensual,
+  type ReporteMensual,
+} from "@/lib/reporteMensual";
 
 const key = (d: Date | string) => format(new Date(d), "yyyy-MM-dd");
 const fmt = (n: number) => `$${Math.round(n).toLocaleString("es-ES")}`;
+
 
 export default function Calendario() {
   const nav = useNavigate();
