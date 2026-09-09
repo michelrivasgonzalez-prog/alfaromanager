@@ -63,7 +63,9 @@ export function fechaTrabajada(c: Cuadre): string {
 function creditoPorCliente(c: Cuadre) {
   const map = new Map<string, { clienteId?: string; nombre: string; gastos: typeof c.gastos; total: number }>();
   for (const g of gastosCredito(c)) {
-    const key = g.clienteId || `__nn__${g.clienteNombre || g.nombre || "Sin asignar"}`;
+    const key =
+      g.clienteId ||
+      `__nn__${(g.clienteNombre || g.nombre || "Sin asignar").trim().toLowerCase()}`;
     const entry = map.get(key) ?? {
       clienteId: g.clienteId,
       nombre: g.clienteNombre || g.nombre || "Sin asignar",

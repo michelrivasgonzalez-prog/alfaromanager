@@ -59,12 +59,44 @@ export async function listClientes(): Promise<Cliente[]> {
   return (data ?? []) as any;
 }
 
+/** Busca un cliente activo por nombre (sin distinguir mayúsculas ni espacios). */
+export async function findClientePorNombre(nombre: string): Promise<Cliente | null> {
+  const n = nombre.trim();
+  if (!n) return null;
+  const { data, error } = await supabase
+    .from("clientes")
+    .select("*")
+    .is("deleted_at", null)
+    .ilike("nombre", n)
+    .limit(1);
+  if (error) throw error;
+  return ((data ?? [])[0] as any) ?? null;
+}
+
 export async function upsertCliente(c: Partial<Cliente> & { nombre: string }) {
+  const nombre = c.nombre.trim();
+  // Sin id explícito: reutilizar el cliente existente con el mismo nombre
+  // para no crear perfiles duplicados.
+  let id = c.id;
+  if (!id) {
+    const existente = await findClientePorNombre(nombre);
+    if (existente) {
+      if (
+        c.telefono == null &&
+        c.observaciones == null &&
+        c.uso_count == null &&
+        existente.nombre === nombre
+      ) {
+        return existente;
+      }
+      id = existente.id;
+    }
+  }
   const { data, error } = await supabase
     .from("clientes")
     .upsert({
-      id: c.id,
-      nombre: c.nombre.trim(),
+      id,
+      nombre,
       telefono: c.telefono ?? null,
       observaciones: c.observaciones ?? null,
       uso_count: c.uso_count ?? 0,
