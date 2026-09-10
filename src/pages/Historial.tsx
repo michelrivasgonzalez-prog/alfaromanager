@@ -18,6 +18,7 @@ import {
   Receipt,
   Pencil,
   CheckCircle2,
+  ChevronDown,
 } from "lucide-react";
 import { generarPDF } from "@/lib/pdf";
 import { deleteCuadreRemote } from "@/lib/sync";
