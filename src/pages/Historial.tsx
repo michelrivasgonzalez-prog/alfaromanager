@@ -198,6 +198,12 @@ export default function Historial() {
                 value={fmt(r.diferencia)}
                 tone={r.diferencia < 0 ? "danger" : r.diferencia > 0 ? "ok" : undefined}
               />
+              <Mini label="Salario bruto" value={fmt(r.salarioBruto)} />
+              {r.deudaDependiente > 0 ? (
+                <Mini label="Deuda" value={fmt(r.deudaDependiente)} tone="danger" />
+              ) : (
+                <Mini label="Salario pagado" value={fmt(r.salarioReal)} />
+              )}
             </div>
             {(() => {
               const credito = totalCredito(c);
