@@ -147,7 +147,28 @@ export default function Historial() {
           </p>
         </div>
       )}
-      {lista.map((c) => {
+      {grupos.map(([mesKey, items]) => {
+        const abierto = !cerrados[mesKey];
+        const ventaMes = items.reduce((s, c) => s + calcCuadre(c).totalVenta, 0);
+        return (
+      <section key={mesKey} className="space-y-3">
+        <button
+          onClick={() => toggleMes(mesKey)}
+          className="flex w-full items-center justify-between rounded-2xl border border-border bg-muted/50 px-3 py-2.5 text-left"
+        >
+          <div>
+            <div className="text-sm font-bold capitalize text-primary">
+              {format(new Date(`${mesKey}-01T12:00:00`), "MMMM yyyy", { locale: es })}
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              {items.length} cuadre(s) · {fmt(ventaMes)} en ventas
+            </div>
+          </div>
+          <ChevronDown
+            className={`h-4 w-4 text-muted-foreground transition-transform ${abierto ? "" : "-rotate-90"}`}
+          />
+        </button>
+        {abierto && items.map((c) => {
 
         const r = calcCuadre(c);
         return (
