@@ -99,13 +99,28 @@ export default function Historial() {
     return m;
   }, [deudasAll.data]);
 
+  const fechaT = (c: Cuadre) => c.diasTrabajados?.[c.diasTrabajados.length - 1] ?? c.fecha;
+
   const lista = useMemo(() => {
     const base = punto === "todos" ? history : history.filter((c) => c.puntoVenta === punto);
-    const fechaT = (c: Cuadre) => c.diasTrabajados?.[c.diasTrabajados.length - 1] ?? c.fecha;
     return [...base].sort(
       (a, b) => new Date(fechaT(b)).getTime() - new Date(fechaT(a)).getTime()
     );
   }, [history, punto]);
+
+  // Agrupado por mes (más recientes primero)
+  const grupos = useMemo(() => {
+    const m = new Map<string, Cuadre[]>();
+    for (const c of lista) {
+      const k = format(new Date(fechaT(c)), "yyyy-MM");
+      if (!m.has(k)) m.set(k, []);
+      m.get(k)!.push(c);
+    }
+    return Array.from(m.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+  }, [lista]);
+
+  const [cerrados, setCerrados] = useState<Record<string, boolean>>({});
+  const toggleMes = (k: string) => setCerrados((s) => ({ ...s, [k]: !s[k] }));
 
 
   return (
