@@ -40,6 +40,7 @@ import {
   generarPDFMensual,
   type ReporteMensual,
 } from "@/lib/reporteMensual";
+import ReporteMensualCards from "@/components/ReporteMensualCards";
 
 const key = (d: Date | string) => format(new Date(d), "yyyy-MM-dd");
 const fmt = (n: number) => `$${Math.round(n).toLocaleString("es-ES")}`;
