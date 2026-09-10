@@ -290,6 +290,9 @@ export default function Historial() {
           </div>
         );
       })}
+      </section>
+        );
+      })}
       <RegistrarDeudaDialog
         cuadre={deudaFor?.cuadre ?? null}
         pagada={!!deudaFor?.pagada}
