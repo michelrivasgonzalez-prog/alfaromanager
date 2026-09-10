@@ -132,7 +132,7 @@ export default function Cobrar() {
               Aún no hay clientes registrados.
             </div>
           )}
-          {clientes.data?.map((c) => {
+          {clientesOrdenados.map((c) => {
             const cliDeudas = (deudas.data ?? []).filter((d) => d.cliente_id === c.id);
             const saldo = cliDeudas.filter((d) => d.estado !== "pagada").reduce((s, d) => s + Number(d.saldo), 0);
             const sinTelefono = !c.telefono || !c.telefono.trim();
