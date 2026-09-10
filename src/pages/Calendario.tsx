@@ -129,6 +129,7 @@ export default function Calendario() {
   }, [noTrabajados, perPunto, mesKeyStr]);
 
   const [generando, setGenerando] = useState(false);
+  const [verReporte, setVerReporte] = useState(false);
 
   const generarReporte = async () => {
     if (cuadresMes.length === 0) {
