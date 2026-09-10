@@ -351,6 +351,15 @@ export default function Calendario() {
 
 
 
+      <Dialog open={verReporte} onOpenChange={setVerReporte}>
+        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Reporte mensual</DialogTitle>
+          </DialogHeader>
+          {reporteGuardado && <ReporteMensualCards rep={reporteGuardado} />}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!diaSel} onOpenChange={(o) => !o && setDiaSel(null)}>
         <DialogContent className="max-h-[85vh] overflow-y-auto">
           <DialogHeader>
