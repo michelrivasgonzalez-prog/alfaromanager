@@ -18,6 +18,7 @@ import {
   Receipt,
   Pencil,
   CheckCircle2,
+  ChevronDown,
 } from "lucide-react";
 import { generarPDF } from "@/lib/pdf";
 import { deleteCuadreRemote } from "@/lib/sync";
@@ -99,13 +100,28 @@ export default function Historial() {
     return m;
   }, [deudasAll.data]);
 
+  const fechaT = (c: Cuadre) => c.diasTrabajados?.[c.diasTrabajados.length - 1] ?? c.fecha;
+
   const lista = useMemo(() => {
     const base = punto === "todos" ? history : history.filter((c) => c.puntoVenta === punto);
-    const fechaT = (c: Cuadre) => c.diasTrabajados?.[c.diasTrabajados.length - 1] ?? c.fecha;
     return [...base].sort(
       (a, b) => new Date(fechaT(b)).getTime() - new Date(fechaT(a)).getTime()
     );
   }, [history, punto]);
+
+  // Agrupado por mes (más recientes primero)
+  const grupos = useMemo(() => {
+    const m = new Map<string, Cuadre[]>();
+    for (const c of lista) {
+      const k = format(new Date(fechaT(c)), "yyyy-MM");
+      if (!m.has(k)) m.set(k, []);
+      m.get(k)!.push(c);
+    }
+    return Array.from(m.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+  }, [lista]);
+
+  const [cerrados, setCerrados] = useState<Record<string, boolean>>({});
+  const toggleMes = (k: string) => setCerrados((s) => ({ ...s, [k]: !s[k] }));
 
 
   return (
@@ -132,7 +148,28 @@ export default function Historial() {
           </p>
         </div>
       )}
-      {lista.map((c) => {
+      {grupos.map(([mesKey, items]) => {
+        const abierto = !cerrados[mesKey];
+        const ventaMes = items.reduce((s, c) => s + calcCuadre(c).totalVenta, 0);
+        return (
+      <section key={mesKey} className="space-y-3">
+        <button
+          onClick={() => toggleMes(mesKey)}
+          className="flex w-full items-center justify-between rounded-2xl border border-border bg-muted/50 px-3 py-2.5 text-left"
+        >
+          <div>
+            <div className="text-sm font-bold capitalize text-primary">
+              {format(new Date(`${mesKey}-01T12:00:00`), "MMMM yyyy", { locale: es })}
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              {items.length} cuadre(s) · {fmt(ventaMes)} en ventas
+            </div>
+          </div>
+          <ChevronDown
+            className={`h-4 w-4 text-muted-foreground transition-transform ${abierto ? "" : "-rotate-90"}`}
+          />
+        </button>
+        {abierto && items.map((c) => {
 
         const r = calcCuadre(c);
         return (
@@ -162,6 +199,12 @@ export default function Historial() {
                 value={fmt(r.diferencia)}
                 tone={r.diferencia < 0 ? "danger" : r.diferencia > 0 ? "ok" : undefined}
               />
+              <Mini label="Salario bruto" value={fmt(r.salarioBruto)} />
+              {r.deudaDependiente > 0 ? (
+                <Mini label="Deuda" value={fmt(r.deudaDependiente)} tone="danger" />
+              ) : (
+                <Mini label="Salario pagado" value={fmt(r.salarioReal)} />
+              )}
             </div>
             {(() => {
               const credito = totalCredito(c);
@@ -252,6 +295,9 @@ export default function Historial() {
               )}
             </div>
           </div>
+        );
+      })}
+      </section>
         );
       })}
       <RegistrarDeudaDialog

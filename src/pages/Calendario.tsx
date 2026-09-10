@@ -40,6 +40,7 @@ import {
   generarPDFMensual,
   type ReporteMensual,
 } from "@/lib/reporteMensual";
+import ReporteMensualCards from "@/components/ReporteMensualCards";
 
 const key = (d: Date | string) => format(new Date(d), "yyyy-MM-dd");
 const fmt = (n: number) => `$${Math.round(n).toLocaleString("es-ES")}`;
@@ -129,6 +130,7 @@ export default function Calendario() {
   }, [noTrabajados, perPunto, mesKeyStr]);
 
   const [generando, setGenerando] = useState(false);
+  const [verReporte, setVerReporte] = useState(false);
 
   const generarReporte = async () => {
     if (cuadresMes.length === 0) {
@@ -317,14 +319,24 @@ export default function Calendario() {
             )}
           </div>
           {reporteGuardado && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="rounded-xl"
-              onClick={() => generarPDFMensual(reporteGuardado)}
-            >
-              <FileDown className="mr-1 h-3.5 w-3.5" /> PDF
-            </Button>
+            <div className="flex shrink-0 flex-col gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-xl"
+                onClick={() => setVerReporte(true)}
+              >
+                <Eye className="mr-1 h-3.5 w-3.5" /> Ver
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-xl"
+                onClick={() => generarPDFMensual(reporteGuardado)}
+              >
+                <FileDown className="mr-1 h-3.5 w-3.5" /> PDF
+              </Button>
+            </div>
           )}
         </div>
         <Button
@@ -338,6 +350,15 @@ export default function Calendario() {
       </div>
 
 
+
+      <Dialog open={verReporte} onOpenChange={setVerReporte}>
+        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Reporte mensual</DialogTitle>
+          </DialogHeader>
+          {reporteGuardado && <ReporteMensualCards rep={reporteGuardado} />}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!diaSel} onOpenChange={(o) => !o && setDiaSel(null)}>
         <DialogContent className="max-h-[85vh] overflow-y-auto">
