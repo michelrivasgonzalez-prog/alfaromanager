@@ -56,6 +56,27 @@ export default function Cobrar() {
   ).size;
   const deudasPendientes = (deudas.data ?? []).filter((d) => d.estado !== "pagada").length;
 
+  // Clientes ordenados: mayor consumo primero, luego alfabético; saldo 0 al final.
+  const clientesOrdenados = useMemo(() => {
+    const ds = deudas.data ?? [];
+    const info = (id: string) => {
+      const propias = ds.filter((d) => d.cliente_id === id);
+      return {
+        consumo: propias.reduce((s, d) => s + Number(d.total), 0),
+        saldo: propias
+          .filter((d) => d.estado !== "pagada")
+          .reduce((s, d) => s + Number(d.saldo), 0),
+      };
+    };
+    return [...(clientes.data ?? [])].sort((a, b) => {
+      const ia = info(a.id), ib = info(b.id);
+      const za = ia.saldo <= 0 ? 1 : 0, zb = ib.saldo <= 0 ? 1 : 0;
+      if (za !== zb) return za - zb;
+      if (ib.consumo !== ia.consumo) return ib.consumo - ia.consumo;
+      return a.nombre.localeCompare(b.nombre, "es");
+    });
+  }, [clientes.data, deudas.data]);
+
   const [cliDialog, setCliDialog] = useState<Partial<Cliente> | null>(null);
   const [deudaLibre, setDeudaLibre] = useState(false);
   const [estadoFilter, setEstadoFilter] = useState<string>("");
