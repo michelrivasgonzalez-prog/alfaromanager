@@ -317,14 +317,24 @@ export default function Calendario() {
             )}
           </div>
           {reporteGuardado && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="rounded-xl"
-              onClick={() => generarPDFMensual(reporteGuardado)}
-            >
-              <FileDown className="mr-1 h-3.5 w-3.5" /> PDF
-            </Button>
+            <div className="flex shrink-0 flex-col gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-xl"
+                onClick={() => setVerReporte(true)}
+              >
+                <Eye className="mr-1 h-3.5 w-3.5" /> Ver
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-xl"
+                onClick={() => generarPDFMensual(reporteGuardado)}
+              >
+                <FileDown className="mr-1 h-3.5 w-3.5" /> PDF
+              </Button>
+            </div>
           )}
         </div>
         <Button
