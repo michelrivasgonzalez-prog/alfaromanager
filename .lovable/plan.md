@@ -1,114 +1,89 @@
-## Alcance
+## Módulo WiFi_ALFARO_CAFE
 
-Añadir dos módulos nuevos a Alfaro Café Manager — **Almacén** y **Cuentas por Cobrar** — más búsqueda global, panel de indicadores, auditoría y validaciones. Todo debe convivir con el sistema actual de cuadres sin modificar su lógica ni su UI existente, respetando el diseño (tokens semánticos, `gradient-warm`, tarjetas con `shadow-soft`, navegación inferior).
-
-Dada la magnitud, propongo entregarlo en **5 fases** aprobadas por separado para poder validar cada bloque antes del siguiente. Cada fase incluye migración, sincronización con tombstones (mismo patrón que ya usamos) y UI.
+Añadir una sección nueva **WiFi** a la app, sin tocar nada de lo que ya funciona (Cuadre, Historial, Calendario, Almacén, Cobrar, Reportes, Productos, Usuarios, Ajustes). Reutiliza el acceso por PIN, los mismos estilos, tarjetas y el registro de auditoría que ya existen.
 
 ---
 
-## Fase 1 — Fundaciones (base de datos + navegación)
+### 1. Base de datos
 
-**Backend (una sola migración)**
+Dos tablas nuevas:
 
-Tablas nuevas en `public`, todas con `id uuid`, `created_at`, `updated_at`, `deleted_at` (soft-delete) y trigger `tg_set_updated_at`:
+- **Lotes de tickets**: nombre (ej. "Lote #2026-09-001"), perfil ("2Hrs"/"5Hrs"), horas, precio, cantidad, estado (disponible / entregado / completado / cancelado), fecha y quién lo creó.
+- **Tickets**: pertenece a un lote, usuario (único), contraseña, perfil, horas, precio, estado (Disponible, Entregado, Vendido, Activado, Expirado, Cancelado), fecha de creación, venta, quién vendió, activación y expiración.
 
-- `almacen_productos` — `nombre`, `unidad`, `stock_minimo`, `permite_negativo bool default false`
-- `almacen_movimientos` — `producto_id`, `tipo ('entrada'|'salida')`, `cantidad numeric`, `fecha timestamptz`, `receptor text null`, `observacion text`, `reversion_de uuid null` (para correcciones sin borrar)
-- `clientes` — `nombre`, `telefono`, `observaciones`, `uso_count int default 0` (para ordenar por frecuencia)
-- `deudas` — `cliente_id`, `cuadre_id` (FK lógica a `cuadres.id`), `cuadre_label text`, `fecha`, `productos jsonb` (nombre/cantidad/precio), `total numeric`, `saldo numeric`, `estado ('pendiente'|'parcial'|'pagada')`
-- `abonos` — `cliente_id`, `monto numeric`, `fecha`, `usuario_id`, `nota text`
-- `abono_aplicaciones` — `abono_id`, `deuda_id`, `monto numeric` (distribución)
-- `auditoria` — `fecha`, `usuario_id`, `usuario_nombre`, `accion`, `entidad`, `entidad_id`, `detalle jsonb`
+Acceso: lectura y escritura para cualquier usuario con sesión, más permisos de servicio. Índices por lote, estado y usuario.
 
-**Reglas de acceso** (RLS + GRANT):
+Los precios (2 h = 200 CUP, 5 h = 400 CUP) y los perfiles se guardan en la configuración global ya existente, editables desde la pestaña de configuración de WiFi.
 
-- Todas las tablas: lectura para `authenticated`; escritura sólo para `admin`/`duena` vía `has_role`.
-- `auditoria`: inserción abierta a `authenticated`, sin update/delete (append-only).
-- `service_role` full en todas.
-
-**Índices** relevantes: `deudas(cliente_id)`, `deudas(cuadre_id)`, `abono_aplicaciones(deuda_id)`, `almacen_movimientos(producto_id, fecha)`, `deleted_at` en cada tabla soft-delete.
-
-**Frontend (mínimo)**
-
-- Nuevas rutas y tabs en `AppLayout`: **Almacén** y **Cobrar** (icono `Warehouse` y `Wallet`). Visibles para `admin`/`duena`.
-- Páginas placeholder con la estructura visual del resto (mismo `gradient-warm`, `StepShell`, tarjetas).
-- Extender `cuadreStore` con `tombstones` para las nuevas entidades y stubs de sync en `src/lib/sync.ts` (mismo patrón soft-delete que ya usamos).
-
-Entregable de Fase 1: esquema listo, navegación funcional, sincronización preparada.
+Cada acción importante (crear lote, entregarlo, vender ticket, cancelar, cambiar precios) queda registrada en la auditoría actual.
 
 ---
 
-## Fase 2 — Almacén completo
+### 2. Navegación y permisos
 
-- **Productos** (`/almacen`): lista con existencia calculada (SUM entradas − SUM salidas), badge rojo si ≤ `stock_minimo`, alta/edición/soft-delete.
-- **Movimientos** (`/almacen/movimientos`): formulario de Entrada / Salida con fecha-hora prellenada y editable, selector de producto, receptor obligatorio en salidas, observación opcional. Validación: bloquear stock negativo salvo que el producto tenga `permite_negativo=true`.
-- **Historial**: listado paginado, filtro por producto/tipo/rango. Botón "Corregir" que crea un movimiento inverso con `reversion_de` apuntando al original (nunca borra).
-- **Panel** superior con KPIs: total productos, productos bajo mínimo, últimos 5 movimientos.
-
----
-
-## Fase 3 — Cuentas por Cobrar (clientes + deudas)
-
-- **Clientes** (`/cobrar/clientes`): CRUD; lista ordenada por `uso_count desc, nombre asc`. Ficha del cliente con: deudas pendientes/pagadas, historial de abonos, totales (comprado, pagado, pendiente), fecha del último abono y última compra a crédito.
-- **Deudas** (`/cobrar/deudas`): listado con filtros por estado y cliente, badge de estado.
-- **Generación desde cuadre**: en `Cuadre.tsx` Step final, si hay venta a crédito, añadir sección "Registrar como deuda" con selector de cliente (crear inline). Al finalizar el cuadre se crea **una sola** deuda con `cuadre_id`, `cuadre_label` = título actual del cuadre, `productos` = snapshot de la venta a crédito, `total`, `saldo=total`, `estado='pendiente'`. Incrementar `uso_count` del cliente.
-- **Navegación bidireccional**: botón "Ver cuadre" en la deuda (abre `/historial` filtrado/expandido en ese id), y en el detalle del cuadre en `Historial` un botón "Ver deuda" cuando exista.
+- Nueva pestaña **WiFi** en la barra inferior, con icono de señal.
+- **Dependiente**: entra directo a la pantalla de *Venta rápida*, nada más.
+- **Admin / Dueña**: módulo completo con pestañas: Panel, Venta rápida, Tickets, Lotes, Impresión y Precios.
 
 ---
 
-## Fase 4 — Abonos, comprobante y validaciones
+### 3. Generar lote
 
-- **Nuevo abono** (`/cobrar/clientes/:id/abonar`): input de monto entregado + lista de deudas pendientes con inputs para distribuir; auto-completado "aplicar al más antiguo". Bloqueo si suma > monto o si algún renglón > saldo de esa deuda. Guardado transaccional vía RPC `registrar_abono(cliente_id, monto, aplicaciones jsonb, usuario_id)` que:
-  1. inserta `abonos`
-  2. inserta filas en `abono_aplicaciones`
-  3. actualiza `saldo` y `estado` de cada `deudas`
-  4. inserta registro en `auditoria`
-  
-  Todo en una sola transacción para evitar inconsistencias.
-- **Comprobante**: modal + PDF (reusar `src/lib/pdf.ts`) con cliente, fecha, monto, distribución, saldo por deuda, total pendiente y usuario. Botón "Compartir por WhatsApp" con `wa.me/<telefono>?text=<resumen encodeURIComponent>`.
-- **Validaciones globales** (zod + servidor):
-  - abono ≤ saldo, montos > 0
-  - no borrar deudas con abonos
-  - abonos inmutables: para corregir se crea un abono de reversión (monto negativo) que revierte aplicaciones
-  - stock negativo bloqueado salvo flag
+Formulario con cantidad (ej. 100), perfil (2 h, 5 h o personalizado), horas y precio. Genera usuarios y contraseñas aleatorios legibles (sin 0/O ni 1/l/I), crea el lote y todos los tickets, y ofrece pasar directo a imprimir.
 
 ---
 
-## Fase 5 — Panel, búsqueda global y auditoría
+### 4. Impresión A4 con QR
 
-- **Panel Cobrar**: total pendiente, nº clientes con deuda, nº deudas pendientes, cobrado hoy, cobrado mes.
-- **Panel Almacén**: los ya citados en Fase 2 (se refina aquí).
-- **Búsqueda global** (barra en `Index.tsx`, `/buscar`): consulta única sobre `clientes`, `almacen_productos`, `deudas` (por cuadre_label / cliente) y `cuadres`. Resultados agrupados y con navegación directa.
-- **Auditoría** (`/ajustes` sección "Auditoría", sólo admin): log paginado, filtros por usuario/entidad/rango. Append-only por RLS.
+Vista de impresión con 21 tickets por hoja (3 columnas × 7 filas). Cada ticket lleva:
 
----
+```text
++---------------------------+
+|   WiFi_ALFARO_CAFE        |
+|        2 HORAS            |
+|  Usuario:  abcd1234       |
+|  Clave:    xyz7k9p2       |
+|  [QR]        200 CUP      |
+|  1. Conéctate a la red    |
+|  2. Escanea o escribe     |
++---------------------------+
+```
 
-## Sincronización
-
-Extender `fullSync` en `src/lib/sync.ts` con los mismos pasos que catálogo/dependientes/cuadres para cada tabla nueva:
-
-1. pull remoto (incluye `deleted_at`)
-2. aplicar tombstones remotos al local
-3. push tombstones locales (sólo admin)
-4. merge y upsert
-5. las operaciones financieras (abonos) se sincronizan por RPC transaccional, no por upsert directo, para no perder atomicidad.
-
-Cola offline: si la RPC falla por red, se almacena en `pendingOps` del store y se reintenta en la próxima sync.
+El QR apunta a `alfarowifi.com/login?username=...&password=...`. Al imprimir se oculta la navegación y todo lo que no sea la hoja de tickets.
 
 ---
 
-## Diseño
+### 5. Venta rápida (dependienta)
 
-Reutilizar `StepShell`, `Card`, `Button`, `Input`, tokens (`primary`, `muted`, `accent`, `gradient-warm`, `shadow-soft`). Nada de colores hardcodeados. Iconos de `lucide-react` a juego: `Warehouse`, `PackagePlus`, `PackageMinus`, `Wallet`, `Users`, `Receipt`, `Search`, `ShieldCheck`.
-
----
-
-## Sobre el Excel de AppSheet
-
-No hace falta para arrancar — el modelo propuesto es un rediseño limpio. Si me lo compartes antes de la Fase 3, mapeo tus datos actuales en un script de importación (`INSERT` vía tool) para que empieces con toda tu cartera ya cargada.
+Pantalla pensada para el móvil: buscador por código de usuario y lista de tickets listos (Disponible o Entregado) agrupados por perfil. Un toque selecciona, un botón grande confirma la venta ("Confirmar venta · 200 CUP"). Al confirmar, el ticket pasa a Vendido con la fecha y el nombre de quien vendió, y sale un aviso de confirmación.
 
 ---
 
-## Confirmación
+### 6. Tickets y Lotes
 
-¿Empiezo por la **Fase 1** (migración + navegación + estructura de sync)? Cuando esté aprobada, sigo con Almacén (Fase 2) sin más preguntas.
+- **Tickets**: filtros por estado, lote y perfil, búsqueda por usuario, y tarjetas responsivas con usuario, perfil, precio, lote, estado y fecha de venta.
+- **Lotes**: lista con fecha, total, disponibles, entregados, vendidos, activados y recaudación en CUP; botones para marcar como entregado a la dependienta, imprimir y cancelar.
+
+---
+
+### 7. Panel WiFi
+
+Tarjetas: tickets disponibles, vendidos, usuarios activos (0 por ahora), lotes, ventas del día, ventas del mes y horas vendidas. Aviso fijo "MikroTik: no conectado (Fase 2)". Debajo, ventas por día y desglose 2 h vs 5 h con las mismas barras que usan los reportes.
+
+---
+
+### Detalles técnicos
+
+- Migración con las dos tablas, GRANT para `authenticated` y `service_role`, RLS permisiva para autenticados, e índices.
+- Nueva librería `qrcode.react` para los QR (SVG, imprime nítido).
+- `src/lib/wifi.ts`: tipos, generador de credenciales, consultas y mutaciones (crear lote, vender ticket, entregar/cancelar lote) + escritura en `auditoria`.
+- `src/pages/Wifi.tsx` con pestañas shadcn; subcomponentes en `src/components/wifi/`: `WifiDashboard`, `VentaRapida`, `TicketsPanel`, `LotesPanel`, `GenerarLote`, `ImpresionTickets`, `PreciosWifi`.
+- Ruta `/wifi` en `App.tsx` (todos los roles; el contenido se limita por rol dentro de la página) y pestaña en `AppLayout.tsx`.
+- Precios en `settings.wifi` del store existente, persistidos con `pushSettings`.
+- React Query para datos; nada de credenciales de MikroTik en el cliente — la Fase 2 se hará con una función de servidor.
+
+---
+
+### Fuera de alcance (Fase 2)
+
+Conexión real con MikroTik (RouterOS API), activación/expiración automática de tickets y usuarios activos en vivo.
