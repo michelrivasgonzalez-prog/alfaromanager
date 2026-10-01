@@ -133,7 +133,12 @@ function Step1() {
     startCuadre,
     updateCurrent,
     dependientes,
+    history,
   } = useCuadreStore();
+  const registrados = history
+    .filter((h) => h.puntoVenta === activePunto)
+    .flatMap((h) => (h.diasTrabajados?.length ? h.diasTrabajados : [h.fecha]))
+    .map((d) => new Date(d));
   const dependientesList = [...dependientes].sort((a, b) => a.localeCompare(b));
   const current = currents[activePunto];
   if (!current) return null;
@@ -240,7 +245,14 @@ function Step1() {
                 }
                 className={cn("p-3 pointer-events-auto")}
                 locale={es}
+                modifiers={{ registrado: registrados }}
+                modifiersClassNames={{
+                  registrado: "relative after:absolute after:bottom-0.5 after:left-1/2 after:h-1 after:w-1 after:-translate-x-1/2 after:rounded-full after:bg-secondary bg-secondary/15 text-secondary font-semibold",
+                }}
               />
+              <div className="flex items-center gap-2 border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
+                <span className="h-2 w-2 rounded-full bg-secondary" /> Días con cuadre en {activePunto}
+              </div>
             </PopoverContent>
           </Popover>
 
@@ -1043,6 +1055,86 @@ function Step5() {
         onSave={(tramos) => mixtoId && updateProducto(mixtoId, { tramos } as any)}
       />
     </StepShell>
+  );
+}
+
+function PreciosMixtosDialog({
+  producto,
+  onClose,
+  onSave,
+}: {
+  producto: import("@/store/cuadreStore").Producto | null;
+  onClose: () => void;
+  onSave: (t: import("@/store/cuadreStore").PrecioTramo[]) => void;
+}) {
+  const [tramos, setTramos] = useState<import("@/store/cuadreStore").PrecioTramo[]>([]);
+  useEffect(() => {
+    setTramos(producto?.tramos ?? []);
+  }, [producto?.id]);
+  if (!producto) return null;
+  const c = calcProducto({ ...producto, tramos });
+  const upd = (id: string, patch: any) =>
+    setTramos((ts) => ts.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Precios mixtos · {producto.nombre}</DialogTitle>
+        </DialogHeader>
+        <p className="text-xs text-muted-foreground">
+          Vendidos: <strong>{n2(c.venta)}</strong>. Indica cuántas unidades se vendieron con otro
+          precio de venta o de costo (cambio de precio o lote nuevo). El resto (
+          <strong>{n2(c.resto)}</strong>) usa el precio base {fmt(producto.precio)} / costo{" "}
+          {fmt(producto.costo)}.
+        </p>
+        <div className="space-y-2">
+          <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 text-[10px] uppercase text-muted-foreground">
+            <span>Cantidad</span><span>Precio</span><span>Costo</span><span />
+          </div>
+          {tramos.map((t) => (
+            <div key={t.id} className="grid grid-cols-[1fr_1fr_1fr_auto] items-center gap-2">
+              <NumberInput value={t.cantidad} onChange={(v) => upd(t.id, { cantidad: v })} className="h-9" />
+              <NumberInput value={t.precio} onChange={(v) => upd(t.id, { precio: v })} className="h-9" />
+              <NumberInput value={t.costo} onChange={(v) => upd(t.id, { costo: v })} className="h-9" />
+              <Button variant="ghost" size="sm" onClick={() => setTramos((ts) => ts.filter((x) => x.id !== t.id))}>
+                ✕
+              </Button>
+            </div>
+          ))}
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full"
+            onClick={() =>
+              setTramos((ts) => [
+                ...ts,
+                { id: crypto.randomUUID(), cantidad: 0, precio: producto.precio, costo: producto.costo },
+              ])
+            }
+          >
+            + Añadir otro precio
+          </Button>
+        </div>
+        {c.resto < 0 && (
+          <p className="text-xs text-destructive">Las cantidades superan las unidades vendidas.</p>
+        )}
+        <div className="rounded-xl bg-muted p-2 text-xs">
+          Importe: <strong>{fmt(c.importe)}</strong> · Costo: <strong>{fmt(c.costoTotal)}</strong>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button
+            disabled={c.resto < 0}
+            onClick={() => {
+              onSave(tramos.filter((t) => t.cantidad > 0));
+              onClose();
+            }}
+          >
+            Guardar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
