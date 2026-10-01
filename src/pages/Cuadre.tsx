@@ -889,7 +889,7 @@ function Step5() {
   const current = currents[activePunto];
   const [mixtoId, setMixtoId] = useState<string | null>(null);
   if (!current) return null;
-  const isAdmin = role === "admin" || role === "duena";
+  const isAdmin = role === "admin";
   const totalImporte = current.productos.reduce(
     (s, p) => s + calcProducto(p).importe,
     0
