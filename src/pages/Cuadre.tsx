@@ -888,6 +888,9 @@ function Step5() {
     useCuadreStore();
   const current = currents[activePunto];
   const [mixtoId, setMixtoId] = useState<string | null>(null);
+  const [expandidos, setExpandidos] = useState<Record<string, boolean>>({});
+  const toggleExpandido = (id: string) =>
+    setExpandidos((s) => ({ ...s, [id]: !s[id] }));
   if (!current) return null;
   const isAdmin = role === "admin";
   const totalImporte = current.productos.reduce(
