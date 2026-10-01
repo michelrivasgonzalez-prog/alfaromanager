@@ -17,6 +17,17 @@ export type Producto = {
   bloqueado?: boolean;
   // Nota obligatoria registrada al desbloquear el producto.
   notaDesbloqueo?: string;
+  // Precios mixtos: parte de lo vendido a otro precio de venta/costo
+  // (cambio de precio a mitad del turno o lote con costo diferente).
+  tramos?: PrecioTramo[];
+};
+
+export type PrecioTramo = {
+  id: string;
+  cantidad: number;
+  precio: number;
+  costo: number;
+  nota?: string;
 };
 
 export type CatalogoItem = {
@@ -734,10 +745,16 @@ export const useCurrent = () => {
 export const calcProducto = (p: Producto) => {
   const total = p.inicio + p.entradas - p.traslados;
   const venta = total - p.final;
-  const importe = venta * p.precio;
-  const costoTotal = venta * p.costo;
+  // Precios mixtos: unidades vendidas a otros precios; el resto va al precio base.
+  const tramos = (p.tramos ?? []).filter((t) => Number(t.cantidad) > 0);
+  const cantTramos = tramos.reduce((s, t) => s + Number(t.cantidad), 0);
+  const resto = venta - cantTramos;
+  const importe =
+    resto * p.precio + tramos.reduce((s, t) => s + Number(t.cantidad) * Number(t.precio), 0);
+  const costoTotal =
+    resto * p.costo + tramos.reduce((s, t) => s + Number(t.cantidad) * Number(t.costo), 0);
   const ganancia = importe - costoTotal;
-  return { total, venta, importe, costoTotal, ganancia };
+  return { total, venta, importe, costoTotal, ganancia, resto, mixto: tramos.length > 0 };
 };
 
 export const calcCuadre = (c: Cuadre) => {
