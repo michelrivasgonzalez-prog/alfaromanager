@@ -875,8 +875,9 @@ function Step5() {
   const { currents, activePunto, updateProducto, syncProductoToCatalog, role } =
     useCuadreStore();
   const current = currents[activePunto];
+  const [mixtoId, setMixtoId] = useState<string | null>(null);
   if (!current) return null;
-  const isAdmin = role === "admin";
+  const isAdmin = role === "admin" || role === "duena";
   const totalImporte = current.productos.reduce(
     (s, p) => s + calcProducto(p).importe,
     0
@@ -898,6 +899,8 @@ function Step5() {
         errs.push("Falta precio de venta");
       if (c.venta > 0 && (!p.costo || p.costo <= 0))
         errs.push("Falta precio de costo");
+      if (c.mixto && c.resto < 0)
+        errs.push("Los precios mixtos superan las unidades vendidas");
       return errs.length ? { nombre: p.nombre, errs } : null;
     })
     .filter(Boolean) as { nombre: string; errs: string[] }[];
@@ -970,7 +973,20 @@ function Step5() {
               const c = calcProducto(p);
               return (
                 <tr key={p.id} className="border-t border-border">
-                  <td className="px-2 py-1 font-medium min-w-[11rem] leading-tight">{p.nombre}</td>
+                  <td className="px-2 py-1 font-medium min-w-[11rem] leading-tight">
+                    {p.nombre}
+                    {isAdmin && c.venta > 0 && (
+                      <button
+                        onClick={() => setMixtoId(p.id)}
+                        className={cn(
+                          "ml-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold",
+                          c.mixto ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground"
+                        )}
+                      >
+                        {c.mixto ? `Mixto (${(p.tramos ?? []).length})` : "+ Precio mixto"}
+                      </button>
+                    )}
+                  </td>
                   <td className="px-2 py-1 text-right tabular-nums">{n2(p.inicio)}</td>
                   <td className="px-2 py-1 text-right tabular-nums">{n2(p.entradas)}</td>
                   <td className="px-2 py-1 text-right tabular-nums">{n2(p.traslados)}</td>
@@ -1021,6 +1037,11 @@ function Step5() {
         </p>
       )}
 
+      <PreciosMixtosDialog
+        producto={current.productos.find((p) => p.id === mixtoId) ?? null}
+        onClose={() => setMixtoId(null)}
+        onSave={(tramos) => mixtoId && updateProducto(mixtoId, { tramos } as any)}
+      />
     </StepShell>
   );
 }
