@@ -986,9 +986,25 @@ function Step5() {
             {visibles.map((p) => {
 
               const c = calcProducto(p);
+              const tramos = (p.tramos ?? []).filter((t) => Number(t.cantidad) > 0);
+              const abierto = !!expandidos[p.id];
               return (
-                <tr key={p.id} className="border-t border-border">
+                <Fragment key={p.id}>
+                <tr className="border-t border-border">
                   <td className="px-2 py-1 font-medium min-w-[11rem] leading-tight">
+                    {c.mixto && (
+                      <button
+                        onClick={() => toggleExpandido(p.id)}
+                        className="mr-1 inline-flex items-center align-middle text-muted-foreground"
+                        aria-label={abierto ? "Cerrar desglose" : "Ver desglose de precios mixtos"}
+                      >
+                        {abierto ? (
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        ) : (
+                          <ChevronRight className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                    )}
                     {p.nombre}
                     {isAdmin && c.venta > 0 && (
                       <button
