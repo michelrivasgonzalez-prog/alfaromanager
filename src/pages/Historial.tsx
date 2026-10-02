@@ -90,7 +90,7 @@ export default function Historial() {
   const canEdit = role === "admin" || role === "duena";
   const [detalle, setDetalle] = useState<Cuadre | null>(null);
   const [deudaFor, setDeudaFor] = useState<{ cuadre: Cuadre; pagada: boolean } | null>(null);
-  const [punto, setPunto] = useState<"todos" | "Cafetería" | "Mipyme">("todos");
+  const [punto, setPunto] = useState<"Cafetería" | "Mipyme">("Cafetería");
 
   const clientes = useQuery({ queryKey: ["clientes"], queryFn: listClientes, enabled: canDeuda });
   const deudasAll = useQuery({ queryKey: ["deudas-all"], queryFn: () => listDeudas(), enabled: canDeuda });
@@ -103,7 +103,7 @@ export default function Historial() {
   const fechaT = (c: Cuadre) => c.diasTrabajados?.[c.diasTrabajados.length - 1] ?? c.fecha;
 
   const lista = useMemo(() => {
-    const base = punto === "todos" ? history : history.filter((c) => c.puntoVenta === punto);
+    const base = history.filter((c) => c.puntoVenta === punto);
     return [...base].sort(
       (a, b) => new Date(fechaT(b)).getTime() - new Date(fechaT(a)).getTime()
     );
@@ -127,8 +127,8 @@ export default function Historial() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">Historial de cuadres</h1>
-      <div className="grid grid-cols-3 gap-1 rounded-2xl bg-muted/60 p-1">
-        {(["todos", "Cafetería", "Mipyme"] as const).map((p) => (
+      <div className="grid grid-cols-2 gap-1 rounded-2xl bg-muted/60 p-1">
+        {(["Cafetería", "Mipyme"] as const).map((p) => (
           <button
             key={p}
             onClick={() => setPunto(p)}
@@ -136,7 +136,7 @@ export default function Historial() {
               punto === p ? "bg-card shadow-soft text-primary" : "text-muted-foreground"
             }`}
           >
-            {p === "todos" ? "Todos" : p}
+            {p}
           </button>
         ))}
       </div>
@@ -207,8 +207,8 @@ export default function Historial() {
             </div>
             <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
               <Mini label="Venta" value={fmt(r.totalVenta)} />
-              <Mini label="Gastos Yanitza" value={fmt(gastosYanitza)} compactLabel />
-              <Mini label="Otros movimientos" value={fmt(otrosMovimientos)} compactLabel />
+              <Mini label="Gastos Yanitza" value={fmt(gastosYanitza)} />
+              <Mini label="Otros" value={fmt(otrosMovimientos)} />
               <Mini
                 label="Diferencia"
                 value={fmt(r.diferencia)}
@@ -737,22 +737,14 @@ function Mini({
   label,
   value,
   tone,
-  compactLabel,
 }: {
   label: string;
   value: string;
   tone?: "ok" | "danger";
-  compactLabel?: boolean;
 }) {
   return (
     <div className="rounded-xl bg-muted/60 p-2">
-      <div
-        className={
-          compactLabel
-            ? "min-h-5 text-[9px] font-medium leading-tight text-muted-foreground"
-            : "text-[10px] uppercase text-muted-foreground"
-        }
-      >
+      <div className="text-[10px] uppercase text-muted-foreground">
         {label}
       </div>
       <div
