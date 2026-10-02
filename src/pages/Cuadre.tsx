@@ -1065,6 +1065,36 @@ function Step5() {
                     </td>
                   )}
                 </tr>
+                {abierto &&
+                  c.mixto &&
+                  tramos.map((t) => (
+                    <tr
+                      key={`${p.id}-mixto-${t.id}`}
+                      className="border-t border-border/60 bg-muted/30 text-[11px]"
+                    >
+                      <td className="px-2 py-1 pl-8 text-muted-foreground">
+                        Precio mixto · {n2(Number(t.cantidad))} × {fmt(Number(t.precio))}
+                      </td>
+                      <td colSpan={6 + (isAdmin ? 1 : 0)} />
+                      <td className="px-2 py-1 text-right tabular-nums text-muted-foreground">
+                        {fmt(Number(t.cantidad) * Number(t.precio))}
+                      </td>
+                      {isAdmin && <td colSpan={2} />}
+                    </tr>
+                  ))}
+                {abierto && c.mixto && c.resto > 0 && (
+                  <tr className="border-t border-border/60 bg-muted/30 text-[11px]">
+                    <td className="px-2 py-1 pl-8 text-muted-foreground">
+                      Precio base · {n2(c.resto)} × {fmt(p.precio)}
+                    </td>
+                    <td colSpan={6 + (isAdmin ? 1 : 0)} />
+                    <td className="px-2 py-1 text-right tabular-nums text-muted-foreground">
+                      {fmt(c.resto * p.precio)}
+                    </td>
+                    {isAdmin && <td colSpan={2} />}
+                  </tr>
+                )}
+                </Fragment>
               );
             })}
           </tbody>
