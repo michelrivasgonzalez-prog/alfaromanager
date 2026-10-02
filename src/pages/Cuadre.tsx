@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -18,6 +18,8 @@ import {
   Lock,
   LockOpen,
   Search,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -1040,6 +1042,12 @@ function Step5() {
                   )}
                   <td className="px-2 py-1 text-right tabular-nums font-semibold text-secondary">
                     {fmt(c.importe)}
+                    {c.mixto && (
+                      <span
+                        className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-secondary align-middle"
+                        title="Incluye precios mixtos"
+                      />
+                    )}
                   </td>
                   {isAdmin && (
                     <td className="px-2 py-1 text-right tabular-nums">
