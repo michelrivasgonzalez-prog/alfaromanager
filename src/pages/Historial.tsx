@@ -737,14 +737,24 @@ function Mini({
   label,
   value,
   tone,
+  compactLabel,
 }: {
   label: string;
   value: string;
   tone?: "ok" | "danger";
+  compactLabel?: boolean;
 }) {
   return (
     <div className="rounded-xl bg-muted/60 p-2">
-      <div className="text-[10px] uppercase text-muted-foreground">{label}</div>
+      <div
+        className={
+          compactLabel
+            ? "min-h-5 text-[9px] font-medium leading-tight text-muted-foreground"
+            : "text-[10px] uppercase text-muted-foreground"
+        }
+      >
+        {label}
+      </div>
       <div
         className={`font-mono font-semibold tabular-nums ${
           tone === "ok" ? "text-secondary" : tone === "danger" ? "text-destructive" : ""
