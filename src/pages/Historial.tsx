@@ -172,6 +172,20 @@ export default function Historial() {
         {abierto && items.map((c) => {
 
         const r = calcCuadre(c);
+        const gastosYanitza =
+          (r.gastosPorCategoria["Local"] || 0) +
+          (r.gastosPorCategoria["Yanitza"] || 0) +
+          r.salarioBruto;
+        const otrosMovimientos = c.gastos.reduce(
+          (total, gasto) =>
+            gasto.categoria === "Salida de efectivo" ||
+            gasto.categoria === "Compras" ||
+            gasto.categoria === "Transferencia" ||
+            gasto.categoria === "Cuentas por Cobrar"
+              ? total + gasto.monto
+              : total,
+          0
+        );
         return (
           <div
             key={c.id}
@@ -193,7 +207,8 @@ export default function Historial() {
             </div>
             <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
               <Mini label="Venta" value={fmt(r.totalVenta)} />
-              <Mini label="Gastos" value={fmt(r.totalGastos)} />
+              <Mini label="Gastos Yanitza" value={fmt(gastosYanitza)} compactLabel />
+              <Mini label="Otros movimientos" value={fmt(otrosMovimientos)} compactLabel />
               <Mini
                 label="Diferencia"
                 value={fmt(r.diferencia)}
@@ -722,14 +737,24 @@ function Mini({
   label,
   value,
   tone,
+  compactLabel,
 }: {
   label: string;
   value: string;
   tone?: "ok" | "danger";
+  compactLabel?: boolean;
 }) {
   return (
     <div className="rounded-xl bg-muted/60 p-2">
-      <div className="text-[10px] uppercase text-muted-foreground">{label}</div>
+      <div
+        className={
+          compactLabel
+            ? "min-h-5 text-[9px] font-medium leading-tight text-muted-foreground"
+            : "text-[10px] uppercase text-muted-foreground"
+        }
+      >
+        {label}
+      </div>
       <div
         className={`font-mono font-semibold tabular-nums ${
           tone === "ok" ? "text-secondary" : tone === "danger" ? "text-destructive" : ""
