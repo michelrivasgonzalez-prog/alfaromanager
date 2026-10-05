@@ -1,0 +1,1 @@
+- Finalized cuadres are queued in cuadreStore.pendingCuadres and flushed before pulling in syncCuadres; why: cloud pull replaces local history and would drop offline cuadres.

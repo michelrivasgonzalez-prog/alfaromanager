@@ -96,9 +96,20 @@ export default function Historial() {
   const deudasAll = useQuery({ queryKey: ["deudas-all"], queryFn: () => listDeudas(), enabled: canDeuda });
   const deudaByCuadre = useMemo(() => {
     const m = new Map<string, string>();
-    for (const d of deudasAll.data ?? []) if (d.cuadre_id) m.set(d.cuadre_id, d.id);
+    // Solo cuentan las deudas de ventas a crédito; la deuda del faltante del
+    // dependiente (o la de pagos con salario) también lleva el cuadre_id y no
+    // debe marcar las ventas a crédito como ya registradas.
+    const faltanteIds = new Set(
+      history.map((c) => c.deudaDependienteId).filter(Boolean) as string[]
+    );
+    for (const d of deudasAll.data ?? []) {
+      if (!d.cuadre_id) continue;
+      if (faltanteIds.has(d.id)) continue;
+      if ((d.cuadre_label ?? "").startsWith("Faltante")) continue;
+      m.set(d.cuadre_id, d.id);
+    }
     return m;
-  }, [deudasAll.data]);
+  }, [deudasAll.data, history]);
 
   const fechaT = (c: Cuadre) => c.diasTrabajados?.[c.diasTrabajados.length - 1] ?? c.fecha;
 
