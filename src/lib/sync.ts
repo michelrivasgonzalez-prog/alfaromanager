@@ -193,6 +193,11 @@ export async function pushSettings(settings?: Settings) {
 
 // ---------- Catálogo ----------
 async function syncCatalogo(isAdmin: boolean) {
+  // Si un cuadre se cerró sin conexión, su catálogo actualizado se sube primero.
+  if (localStorage.getItem("alfaro-catalogo-pending") === "1") {
+    await pushAllCatalogo();
+    localStorage.removeItem("alfaro-catalogo-pending");
+  }
   const state = useCuadreStore.getState();
   const { data: remote, error } = await (supabase as any)
     .from("catalogo")

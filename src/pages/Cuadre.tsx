@@ -2303,7 +2303,10 @@ function Step10({ onClose }: { onClose: () => void }) {
         console.error(e);
         toast.warning("Guardado en el teléfono. Se subirá cuando haya conexión.");
       });
-    pushAllCatalogo().catch(console.warn);
+    localStorage.setItem("alfaro-catalogo-pending", "1");
+    pushAllCatalogo()
+      .then(() => localStorage.removeItem("alfaro-catalogo-pending"))
+      .catch(console.warn);
     toast.success("Cuadre guardado en historial");
     onClose();
   };
