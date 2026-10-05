@@ -255,6 +255,9 @@ async function syncDependientes(isAdmin: boolean) {
 
 // ---------- Cuadres ----------
 async function syncCuadres(isAdmin: boolean) {
+  // 1) Subir primero los cuadres guardados sin conexión, para no perderlos.
+  await flushPendingCuadres();
+
   const state = useCuadreStore.getState();
   const { data: remote, error } = await (supabase as any)
     .from("cuadres")
@@ -268,7 +271,15 @@ async function syncCuadres(isAdmin: boolean) {
     return;
   }
 
-  const merged: Cuadre[] = remoteRows.map((r) => r.data as Cuadre).sort(
+  const remoteList: Cuadre[] = remoteRows.map((r) => r.data as Cuadre);
+  const remoteIds = new Set(remoteList.map((c) => c.id));
+  // Conservar los cuadres locales que todavía no se pudieron subir.
+  const pending = new Set(useCuadreStore.getState().pendingCuadres ?? []);
+  const localPendientes = useCuadreStore
+    .getState()
+    .history.filter((c) => pending.has(c.id) && !remoteIds.has(c.id));
+
+  const merged: Cuadre[] = [...remoteList, ...localPendientes].sort(
     (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
   );
 
@@ -276,6 +287,22 @@ async function syncCuadres(isAdmin: boolean) {
     history: merged,
     tombstones: { ...state.tombstones, cuadres: {} },
   });
+}
+
+/** Sube los cuadres marcados como pendientes (guardados sin conexión). */
+export async function flushPendingCuadres() {
+  const st = useCuadreStore.getState();
+  const ids = st.pendingCuadres ?? [];
+  if (ids.length === 0) return;
+  for (const id of ids) {
+    const c = useCuadreStore.getState().history.find((h) => h.id === id);
+    if (!c) {
+      useCuadreStore.getState().clearPendingCuadre(id);
+      continue;
+    }
+    await pushCuadre(c); // si falla, lanza y se reintenta en la próxima sincronización
+    useCuadreStore.getState().clearPendingCuadre(id);
+  }
 }
 
 export async function pushCuadre(c: Cuadre) {

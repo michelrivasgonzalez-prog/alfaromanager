@@ -2293,10 +2293,17 @@ function Step10({ onClose }: { onClose: () => void }) {
     // Snapshot ANTES de finalizar (finalizar limpia currents)
     const snap = { ...current, finalizado: true, fecha: new Date().toISOString() };
     finalizar();
-    Promise.all([pushCuadre(snap), pushAllCatalogo()]).catch((e) => {
-      console.error(e);
-      toast.warning("Guardado local. Se sincronizará cuando haya conexión.");
-    });
+    // Marcar como pendiente ANTES de subir: si no hay conexión, la próxima
+    // sincronización lo sube en vez de borrarlo.
+    const store = useCuadreStore.getState();
+    store.markPendingCuadre(snap.id);
+    pushCuadre(snap)
+      .then(() => useCuadreStore.getState().clearPendingCuadre(snap.id))
+      .catch((e) => {
+        console.error(e);
+        toast.warning("Guardado en el teléfono. Se subirá cuando haya conexión.");
+      });
+    pushAllCatalogo().catch(console.warn);
     toast.success("Cuadre guardado en historial");
     onClose();
   };

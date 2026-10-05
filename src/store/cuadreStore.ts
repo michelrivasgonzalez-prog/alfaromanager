@@ -278,6 +278,10 @@ interface State {
     dependientes: Record<string, string>; // por nombre
     cuadres: Record<string, string>;      // por id
   };
+  /** IDs de cuadres guardados localmente que aún no se han subido a la nube. */
+  pendingCuadres: string[];
+  markPendingCuadre: (id: string) => void;
+  clearPendingCuadre: (id: string) => void;
 
   setRole: (r: "admin" | "dependiente") => void;
   updateSettings: (patch: Partial<Settings>) => void;
@@ -351,6 +355,15 @@ export const useCuadreStore = create<State>()(
       settings: DEFAULT_SETTINGS,
       settingsUpdatedAt: new Date(0).toISOString(),
       tombstones: { catalogo: {}, dependientes: {}, cuadres: {} },
+      pendingCuadres: [],
+      markPendingCuadre: (id) =>
+        set((s) => ({
+          pendingCuadres: (s.pendingCuadres ?? []).includes(id)
+            ? s.pendingCuadres
+            : [...(s.pendingCuadres ?? []), id],
+        })),
+      clearPendingCuadre: (id) =>
+        set((s) => ({ pendingCuadres: (s.pendingCuadres ?? []).filter((x) => x !== id) })),
 
       setRole: (r) => set({ role: r }),
       updateSettings: (patch) =>
@@ -655,6 +668,7 @@ export const useCuadreStore = create<State>()(
       deleteHistory: (id) =>
         set((s) => ({
           history: s.history.filter((c) => c.id !== id),
+          pendingCuadres: (s.pendingCuadres ?? []).filter((x) => x !== id),
         })),
       addTombstone: (kind, key) =>
         set((s) => ({
