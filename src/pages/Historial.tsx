@@ -248,6 +248,11 @@ export default function Historial() {
                 <div className="text-xs text-muted-foreground">
                   {formatDiasTrabajados(c.diasTrabajados)}
                 </div>
+                {pendientes.includes(c.id) && (
+                  <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400">
+                    <CloudOff className="h-3 w-3" /> Pendiente de sincronizar
+                  </span>
+                )}
               </div>
               <div className="text-right">
                 <div className="text-xs text-muted-foreground">Ganancia neta</div>
