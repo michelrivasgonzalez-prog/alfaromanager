@@ -19,9 +19,11 @@ import {
   Pencil,
   CheckCircle2,
   ChevronDown,
+  CloudOff,
+  RefreshCw,
 } from "lucide-react";
 import { generarPDF } from "@/lib/pdf";
-import { deleteCuadreRemote } from "@/lib/sync";
+import { deleteCuadreRemote, flushPendingCuadres } from "@/lib/sync";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import {
@@ -81,7 +83,25 @@ function creditoPorCliente(c: Cuadre) {
 }
 
 export default function Historial() {
-  const { history, deleteHistory, editCuadre } = useCuadreStore();
+  const { history, deleteHistory, editCuadre, pendingCuadres } = useCuadreStore();
+  const [reintentando, setReintentando] = useState(false);
+  const pendientes = useMemo(
+    () => (pendingCuadres ?? []).filter((id) => history.some((c) => c.id === id)),
+    [pendingCuadres, history]
+  );
+  const reintentarSync = async () => {
+    setReintentando(true);
+    try {
+      await flushPendingCuadres();
+      const restantes = (useCuadreStore.getState().pendingCuadres ?? []).length;
+      if (restantes === 0) toast.success("Cuadres sincronizados correctamente.");
+      else toast.warning(`Quedan ${restantes} cuadre(s) sin sincronizar. Revisa la conexión.`);
+    } catch {
+      toast.error("No se pudo sincronizar. Revisa la conexión e inténtalo de nuevo.");
+    } finally {
+      setReintentando(false);
+    }
+  };
   const nav = useNavigate();
   const { role } = useAuth();
   const canDelete = role === "admin" || role === "duena";
@@ -151,6 +171,26 @@ export default function Historial() {
           </button>
         ))}
       </div>
+      {pendientes.length > 0 && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3">
+          <div className="flex items-center gap-2 text-xs">
+            <CloudOff className="h-4 w-4 shrink-0 text-amber-600" />
+            <span className="font-medium text-amber-700 dark:text-amber-400">
+              {pendientes.length} cuadre(s) pendiente(s) de sincronizar con la nube.
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 shrink-0 rounded-lg border-amber-500/40"
+            disabled={reintentando}
+            onClick={reintentarSync}
+          >
+            <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${reintentando ? "animate-spin" : ""}`} />
+            {reintentando ? "Sincronizando…" : "Reintentar"}
+          </Button>
+        </div>
+      )}
       {lista.length === 0 && (
         <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">
           <HistoryIcon className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
@@ -208,6 +248,11 @@ export default function Historial() {
                 <div className="text-xs text-muted-foreground">
                   {formatDiasTrabajados(c.diasTrabajados)}
                 </div>
+                {pendientes.includes(c.id) && (
+                  <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400">
+                    <CloudOff className="h-3 w-3" /> Pendiente de sincronizar
+                  </span>
+                )}
               </div>
               <div className="text-right">
                 <div className="text-xs text-muted-foreground">Ganancia neta</div>
