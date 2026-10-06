@@ -80,6 +80,23 @@ export default function Cobrar() {
   const [cliDialog, setCliDialog] = useState<Partial<Cliente> | null>(null);
   const [deudaLibre, setDeudaLibre] = useState(false);
   const [estadoFilter, setEstadoFilter] = useState<string>("");
+  const [busqueda, setBusqueda] = useState("");
+  const [soloDeuda, setSoloDeuda] = useState(false);
+  const clientesFiltrados = useMemo(() => {
+    const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const q = norm(busqueda.trim());
+    const ds = deudas.data ?? [];
+    return clientesOrdenados.filter((c) => {
+      if (q && !norm(c.nombre).includes(q) && !(c.telefono ?? "").includes(q)) return false;
+      if (soloDeuda) {
+        const saldo = ds
+          .filter((d) => d.cliente_id === c.id && d.estado !== "pagada")
+          .reduce((s, d) => s + Number(d.saldo), 0);
+        if (saldo <= 0) return false;
+      }
+      return true;
+    });
+  }, [clientesOrdenados, busqueda, soloDeuda, deudas.data]);
 
   return (
     <div className="space-y-4 pb-24">
@@ -127,12 +144,27 @@ export default function Cobrar() {
               <Receipt className="mr-2 h-4 w-4" /> Nueva deuda
             </Button>
           </div>
-          {clientes.data?.length === 0 && (
+          <Input
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar por nombre o teléfono…"
+            className="h-10 rounded-xl"
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <Button size="sm" variant={soloDeuda ? "outline" : "default"} className="rounded-xl" onClick={() => setSoloDeuda(false)}>
+              Todos
+            </Button>
+            <Button size="sm" variant={soloDeuda ? "default" : "outline"} className="rounded-xl" onClick={() => setSoloDeuda(true)}>
+              Solo con saldo pendiente
+            </Button>
+          </div>
+          <div className="text-[11px] text-muted-foreground">{clientesFiltrados.length} cliente(s)</div>
+          {clientesFiltrados.length === 0 && (
             <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
-              Aún no hay clientes registrados.
+              No hay clientes que coincidan.
             </div>
           )}
-          {clientesOrdenados.map((c) => {
+          {clientesFiltrados.map((c) => {
             const cliDeudas = (deudas.data ?? []).filter((d) => d.cliente_id === c.id);
             const saldo = cliDeudas.filter((d) => d.estado !== "pagada").reduce((s, d) => s + Number(d.saldo), 0);
             const sinTelefono = !c.telefono || !c.telefono.trim();

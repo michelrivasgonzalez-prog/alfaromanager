@@ -239,6 +239,8 @@ export default function Ajustes() {
         </div>
       )}
 
+      {(isAdmin || role === "duena") && <RespaldoPanel />}
+
       {isAdmin && <CategoriasPanel />}
 
       {isAdmin && <AuditoriaPanel />}
