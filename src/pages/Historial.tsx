@@ -171,6 +171,26 @@ export default function Historial() {
           </button>
         ))}
       </div>
+      {pendientes.length > 0 && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3">
+          <div className="flex items-center gap-2 text-xs">
+            <CloudOff className="h-4 w-4 shrink-0 text-amber-600" />
+            <span className="font-medium text-amber-700 dark:text-amber-400">
+              {pendientes.length} cuadre(s) pendiente(s) de sincronizar con la nube.
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 shrink-0 rounded-lg border-amber-500/40"
+            disabled={reintentando}
+            onClick={reintentarSync}
+          >
+            <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${reintentando ? "animate-spin" : ""}`} />
+            {reintentando ? "Sincronizando…" : "Reintentar"}
+          </Button>
+        </div>
+      )}
       {lista.length === 0 && (
         <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">
           <HistoryIcon className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
