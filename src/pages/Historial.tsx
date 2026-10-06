@@ -19,9 +19,11 @@ import {
   Pencil,
   CheckCircle2,
   ChevronDown,
+  CloudOff,
+  RefreshCw,
 } from "lucide-react";
 import { generarPDF } from "@/lib/pdf";
-import { deleteCuadreRemote } from "@/lib/sync";
+import { deleteCuadreRemote, flushPendingCuadres } from "@/lib/sync";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import {
@@ -81,7 +83,25 @@ function creditoPorCliente(c: Cuadre) {
 }
 
 export default function Historial() {
-  const { history, deleteHistory, editCuadre } = useCuadreStore();
+  const { history, deleteHistory, editCuadre, pendingCuadres } = useCuadreStore();
+  const [reintentando, setReintentando] = useState(false);
+  const pendientes = useMemo(
+    () => (pendingCuadres ?? []).filter((id) => history.some((c) => c.id === id)),
+    [pendingCuadres, history]
+  );
+  const reintentarSync = async () => {
+    setReintentando(true);
+    try {
+      await flushPendingCuadres();
+      const restantes = (useCuadreStore.getState().pendingCuadres ?? []).length;
+      if (restantes === 0) toast.success("Cuadres sincronizados correctamente.");
+      else toast.warning(`Quedan ${restantes} cuadre(s) sin sincronizar. Revisa la conexión.`);
+    } catch {
+      toast.error("No se pudo sincronizar. Revisa la conexión e inténtalo de nuevo.");
+    } finally {
+      setReintentando(false);
+    }
+  };
   const nav = useNavigate();
   const { role } = useAuth();
   const canDelete = role === "admin" || role === "duena";
