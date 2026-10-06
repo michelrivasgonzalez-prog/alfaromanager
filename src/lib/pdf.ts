@@ -43,7 +43,19 @@ export function generarPDF(c: Cuadre) {
         <td class="r">${fmt(p.costo)}</td>
         <td class="r">${fmt(p.costoTotal)}</td>
         <td class="r b">${fmt(p.ganancia)}</td>
-      </tr>`
+      </tr>${
+        (p as any).mixto
+          ? [
+              ...((p as any).tramos ?? []).map(
+                (t: any) =>
+                  `<tr class="sub"><td class="l name">↳ Precio mixto${t.nota ? ` (${escape(t.nota)})` : ""}</td><td colspan="5"></td><td class="r">${n2(t.cantidad)}</td><td class="r">${fmt(t.precio)}</td><td class="r">${fmt(Number(t.cantidad) * Number(t.precio))}</td><td class="r">${fmt(t.costo)}</td><td class="r">${fmt(Number(t.cantidad) * Number(t.costo))}</td><td class="r">${fmt(Number(t.cantidad) * (Number(t.precio) - Number(t.costo)))}</td></tr>`
+              ),
+              Number((p as any).resto) > 0
+                ? `<tr class="sub"><td class="l name">↳ Precio base</td><td colspan="5"></td><td class="r">${n2((p as any).resto)}</td><td class="r">${fmt(p.precio)}</td><td class="r">${fmt(Number((p as any).resto) * Number(p.precio))}</td><td class="r">${fmt(p.costo)}</td><td class="r">${fmt(Number((p as any).resto) * Number(p.costo))}</td><td class="r">${fmt(Number((p as any).resto) * (Number(p.precio) - Number(p.costo)))}</td></tr>`
+                : "",
+            ].join("")
+          : ""
+      }`
     )
     .join("");
 
@@ -124,6 +136,7 @@ export function generarPDF(c: Cuadre) {
   td.l { text-align: left; }
   td.name, th.name { width: 26%; white-space: normal; word-break: break-word; }
   td.b { font-weight: 700; }
+  tr.sub td { color: #666; font-size: 9.5px; background: #fafafa; }
 
   tfoot td { font-weight: 700; background: #faf6f0; border-top: 2px solid #4B3621; }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
