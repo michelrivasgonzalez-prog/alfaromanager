@@ -258,6 +258,17 @@ function Step1() {
             </PopoverContent>
           </Popover>
 
+          {(() => {
+            const dup = days.filter((d) =>
+              registrados.some((r) => r.toDateString() === d.toDateString())
+            );
+            return dup.length > 0 ? (
+              <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                Ya existe un cuadre en {activePunto} para:{" "}
+                <strong>{dup.map((d) => format(d, "dd MMM", { locale: es })).join(", ")}</strong>
+              </div>
+            ) : null;
+          })()}
           {days.length > 0 && (
             <div className="flex flex-wrap gap-1.5 pt-1">
               {days.map((d) => (
@@ -434,6 +445,11 @@ function StepInventario({
                   )}
                 </td>
                 <td className="px-3 py-1 text-right">
+                  {!isInicio && (
+                    <div className="text-[10px] text-muted-foreground leading-tight">
+                      Existencia previa: <span className="font-semibold tabular-nums">{fmtCant(calcProducto(p).total)}</span>
+                    </div>
+                  )}
                   {isInicio && p.bloqueado ? (
                     <span className="font-mono tabular-nums text-muted-foreground">{p[field]}</span>
                   ) : (
@@ -2284,6 +2300,7 @@ function Step9() {
 /* ================== Step 10: Resumen ================== */
 function Step10({ onClose }: { onClose: () => void }) {
   const { currents, activePunto, finalizar, role } = useCuadreStore();
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const current = currents[activePunto];
   if (!current) return null;
   const isAdmin = role === "admin";
@@ -2413,12 +2430,37 @@ function Step10({ onClose }: { onClose: () => void }) {
           <div />
         )}
         <Button
-          onClick={finalizarTurno}
+          onClick={() => setConfirmOpen(true)}
           className="h-12 rounded-xl gradient-emerald text-secondary-foreground shadow-emerald"
         >
           <CheckCircle2 className="mr-2 h-4 w-4" /> Finalizar turno
         </Button>
       </div>
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent className="rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>¿Finalizar el turno?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Se cerrará el cuadre de <strong>{current.dependiente || "—"}</strong> en {current.puntoVenta} y
+            se guardará en el historial. Revisa que todo esté correcto antes de continuar.
+          </p>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" className="rounded-xl" onClick={() => setConfirmOpen(false)}>
+              Revisar
+            </Button>
+            <Button
+              className="rounded-xl gradient-emerald text-secondary-foreground"
+              onClick={() => {
+                setConfirmOpen(false);
+                finalizarTurno();
+              }}
+            >
+              Sí, finalizar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </StepShell>
   );
 }
