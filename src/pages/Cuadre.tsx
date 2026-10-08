@@ -1270,7 +1270,9 @@ function Step6() {
   const [trTransaccion, setTrTransaccion] = useState("");
   const [trImporte, setTrImporte] = useState(0);
   const [trPorcentaje, setTrPorcentaje] = useState(settings.porcentajeTransferencia);
-  const trMontoRecibido = trImporte + (trImporte * trPorcentaje) / 100;
+  // En Transferencia con tipo Producto el importe sale de cantidad × precio
+  const trImporteEfectivo = cat === "Transferencia" && tipo === "Producto" ? cantidad * precio : trImporte;
+  const trMontoRecibido = trImporteEfectivo + (trImporteEfectivo * trPorcentaje) / 100;
   // Si cambia la categoría a Transferencia, resetea el % al predeterminado
   useEffect(() => {
     if (cat === "Transferencia") setTrPorcentaje(settings.porcentajeTransferencia);
@@ -1314,6 +1316,11 @@ function Step6() {
       setTrTransaccion(g.transaccion || "");
       setTrImporte(g.importe || g.monto || 0);
       setTrPorcentaje(g.porcentaje ?? settings.porcentajeTransferencia);
+      if (g.tipo === "Producto") {
+        setProductoId(g.productoId || "");
+        setCantidad(g.cantidad || 0);
+        setPrecio(g.precio || 0);
+      }
     } else if (g.tipo === "Producto") {
       setProductoId(g.productoId || "");
       setCantidad(g.cantidad || 0);
@@ -1327,18 +1334,28 @@ function Step6() {
   const guardar = async () => {
     const baseId = editingGastoId;
     if (isTransfer) {
-      if (!trImporte) return;
+      const esProducto = tipo === "Producto";
+      if (esProducto ? (!productoId || !cantidad || !precio) : !trImporte) return;
+      // Descripción automática, discreta y entre paréntesis: monto recibido,
+      // % de cargo y fecha de la transferencia.
+      const descAuto = `(recibido ${fmt(trMontoRecibido)} · cargo ${trPorcentaje}% · ${
+        trFecha ? format(trFecha, "dd MMM yyyy", { locale: es }) : "sin fecha"
+      })`;
       const payload: Omit<Gasto, "id"> = {
         categoria: "Transferencia",
         nombre: trTransaccion || "—",
-        tipo: "Efectivo",
-        descripcion: "",
+        tipo,
+        descripcion: descAuto,
         fecha: trFecha?.toISOString(),
         transaccion: trTransaccion,
-        importe: trImporte,
+        importe: trImporteEfectivo,
         porcentaje: trPorcentaje,
         montoRecibido: trMontoRecibido,
-        monto: trImporte,
+        productoId: esProducto ? productoId : undefined,
+        productoNombre: esProducto ? productoSel?.nombre : undefined,
+        cantidad: esProducto ? cantidad : undefined,
+        precio: esProducto ? precio : undefined,
+        monto: trImporteEfectivo,
       };
       if (baseId) updateGasto(baseId, payload);
       else addGasto(payload);
@@ -1412,7 +1429,7 @@ function Step6() {
               </SelectContent>
             </Select>
           </div>
-          <div className={cn(isTransfer && "opacity-50 pointer-events-none")}>
+          <div>
             <Label className="text-xs">Tipo</Label>
             <Select value={tipo} onValueChange={(v) => setTipo(v as any)}>
               <SelectTrigger className="mt-1 h-11 rounded-xl">
@@ -1536,14 +1553,91 @@ function Step6() {
                 className="mt-1 h-11 rounded-xl"
               />
             </div>
+            {tipo === "Producto" && (
+              <>
+                <div>
+                  <Label className="text-xs">Producto</Label>
+                  <Popover open={productoOpen} onOpenChange={setProductoOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="mt-1 h-11 w-full justify-between rounded-xl font-normal"
+                      >
+                        <span className="flex items-center gap-2 truncate">
+                          <Search className="h-4 w-4 opacity-60" />
+                          {productoSel ? (
+                            <span className="truncate">
+                              {productoSel.nombre} · {fmt(productoSel.precio)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">Buscar producto…</span>
+                          )}
+                        </span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Escribe para buscar…" />
+                        <CommandList>
+                          <CommandEmpty>Sin resultados</CommandEmpty>
+                          <CommandGroup>
+                            {current.productos.map((p) => (
+                              <CommandItem
+                                key={p.id}
+                                value={p.nombre}
+                                onSelect={() => {
+                                  setProductoId(p.id);
+                                  setPrecio(p.precio);
+                                  setProductoOpen(false);
+                                }}
+                              >
+                                {p.nombre} · {fmt(p.precio)}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs">Cantidad</Label>
+                    <NumberInput
+                      value={cantidad}
+                      onChange={setCantidad}
+                      className="mt-1 h-11 rounded-xl"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Precio</Label>
+                    <NumberInput
+                      value={precio}
+                      onChange={setPrecio}
+                      className="mt-1 h-11 rounded-xl"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
             <div className="grid grid-cols-3 gap-2">
               <div>
                 <Label className="text-xs">Importe</Label>
-                <NumberInput
-                  value={trImporte}
-                  onChange={setTrImporte}
-                  className="mt-1 h-11 rounded-xl"
-                />
+                {tipo === "Producto" ? (
+                  <Input
+                    value={fmt(trImporteEfectivo)}
+                    readOnly
+                    disabled
+                    className="mt-1 h-11 rounded-xl bg-muted text-right font-mono"
+                  />
+                ) : (
+                  <NumberInput
+                    value={trImporte}
+                    onChange={setTrImporte}
+                    className="mt-1 h-11 rounded-xl"
+                  />
+                )}
               </div>
               <div>
                 <Label className="text-xs">Cargo %</Label>
