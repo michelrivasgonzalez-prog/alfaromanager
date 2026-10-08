@@ -1412,7 +1412,7 @@ function Step6() {
               </SelectContent>
             </Select>
           </div>
-          <div className={cn(isTransfer && "opacity-50 pointer-events-none")}>
+          <div>
             <Label className="text-xs">Tipo</Label>
             <Select value={tipo} onValueChange={(v) => setTipo(v as any)}>
               <SelectTrigger className="mt-1 h-11 rounded-xl">
