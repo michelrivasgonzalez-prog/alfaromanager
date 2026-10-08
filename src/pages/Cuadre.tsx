@@ -1316,6 +1316,11 @@ function Step6() {
       setTrTransaccion(g.transaccion || "");
       setTrImporte(g.importe || g.monto || 0);
       setTrPorcentaje(g.porcentaje ?? settings.porcentajeTransferencia);
+      if (g.tipo === "Producto") {
+        setProductoId(g.productoId || "");
+        setCantidad(g.cantidad || 0);
+        setPrecio(g.precio || 0);
+      }
     } else if (g.tipo === "Producto") {
       setProductoId(g.productoId || "");
       setCantidad(g.cantidad || 0);
