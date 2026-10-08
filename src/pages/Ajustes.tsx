@@ -365,6 +365,100 @@ export default function Ajustes() {
   );
 }
 
+const RESPALDO_TABLAS = [
+  "clientes",
+  "deudas",
+  "abonos",
+  "abono_aplicaciones",
+  "cuadres",
+  "catalogo",
+  "dependientes",
+  "almacen_productos",
+  "almacen_movimientos",
+  "app_settings",
+] as const;
+
+async function fetchAll(tabla: string) {
+  const rows: any[] = [];
+  const page = 1000;
+  for (let from = 0; ; from += page) {
+    const { data, error } = await (supabase as any).from(tabla).select("*").range(from, from + page - 1);
+    if (error) throw new Error(`${tabla}: ${error.message}`);
+    rows.push(...(data ?? []));
+    if (!data || data.length < page) break;
+  }
+  return rows;
+}
+
+function RespaldoPanel() {
+  const [busy, setBusy] = useState(false);
+
+  const descargar = async () => {
+    setBusy(true);
+    try {
+      const nube: Record<string, any[]> = {};
+      const avisos: string[] = [];
+      const ok = navigator.onLine ? await ensureCloudSession() : false;
+      if (ok) {
+        for (const t of RESPALDO_TABLAS) {
+          try {
+            nube[t] = await fetchAll(t);
+          } catch (e: any) {
+            avisos.push(e.message);
+          }
+        }
+      } else {
+        avisos.push("Sin conexión: solo se incluyen los datos guardados en este dispositivo");
+      }
+      let local: any = null;
+      try {
+        local = JSON.parse(localStorage.getItem("alfarocafe-store") || "null");
+      } catch {
+        local = null;
+      }
+      const respaldo = {
+        app: "AlfaroCafe",
+        generado: new Date().toISOString(),
+        nube,
+        local,
+        avisos,
+      };
+      const blob = new Blob([JSON.stringify(respaldo, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `alfarocafe-respaldo-${format(new Date(), "yyyy-MM-dd")}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      if (avisos.length) toast.warning(`Respaldo descargado con ${avisos.length} aviso(s)`);
+      else toast.success("Copia de seguridad descargada");
+    } catch (e: any) {
+      toast.error("Error al crear el respaldo: " + (e.message || ""));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3">
+      <div className="flex items-center gap-2">
+        <FileDown className="h-4 w-4 text-primary" />
+        <div className="text-sm font-semibold">Copia de seguridad</div>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Descarga un archivo con clientes, deudas, abonos, cuadres, catálogo y almacén. Guárdalo en
+        tu PC, memoria USB o Google Drive.
+      </p>
+      <Button onClick={descargar} disabled={busy} className="w-full rounded-xl gradient-primary">
+        <FileDown className={`mr-1 h-4 w-4 ${busy ? "animate-pulse" : ""}`} />
+        {busy ? "Preparando…" : "Descargar respaldo completo"}
+      </Button>
+    </div>
+  );
+}
+
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between text-sm">
