@@ -1270,7 +1270,9 @@ function Step6() {
   const [trTransaccion, setTrTransaccion] = useState("");
   const [trImporte, setTrImporte] = useState(0);
   const [trPorcentaje, setTrPorcentaje] = useState(settings.porcentajeTransferencia);
-  const trMontoRecibido = trImporte + (trImporte * trPorcentaje) / 100;
+  // En Transferencia con tipo Producto el importe sale de cantidad × precio
+  const trImporteEfectivo = cat === "Transferencia" && tipo === "Producto" ? cantidad * precio : trImporte;
+  const trMontoRecibido = trImporteEfectivo + (trImporteEfectivo * trPorcentaje) / 100;
   // Si cambia la categoría a Transferencia, resetea el % al predeterminado
   useEffect(() => {
     if (cat === "Transferencia") setTrPorcentaje(settings.porcentajeTransferencia);
