@@ -1281,19 +1281,36 @@ function Step6() {
   const isCredito = cat === "Cuentas por Cobrar";
   if (!current) return null;
 
-  const importeProducto = cantidad * precio;
   const total = current.gastos.reduce((s, g) => s + g.monto, 0);
   const productoSel = current.productos.find((p) => p.id === productoId);
   const clienteSel = clientesQ.data?.find((c) => c.id === clienteId);
+  // Canasta: líneas ya añadidas + la línea en edición (si está completa)
+  const lineaPendiente: GastoItem | null =
+    productoId && cantidad && precio
+      ? { productoId, productoNombre: productoSel?.nombre ?? "Producto", cantidad, precio }
+      : null;
+  const itemsFinal: GastoItem[] = lineaPendiente ? [...items, lineaPendiente] : items;
+  const importeProducto = itemsFinal.reduce((s, it) => s + it.cantidad * it.precio, 0);
+
+  const limpiarLinea = () => {
+    setCantidad(0);
+    setPrecio(0);
+    setProductoId("");
+  };
+
+  const anadirLinea = () => {
+    if (!lineaPendiente) return toast.error("Elige producto, cantidad y precio");
+    setItems((xs) => [...xs, lineaPendiente]);
+    limpiarLinea();
+  };
 
   const limpiar = (opts?: { keepCliente?: boolean }) => {
     setEditingGastoId(null);
     setNombre("");
     setDesc("");
     setMonto(0);
-    setCantidad(0);
-    setPrecio(0);
-    setProductoId("");
+    limpiarLinea();
+    setItems([]);
     if (!opts?.keepCliente) {
       setClienteId("");
       setNuevoCliente("");
@@ -1304,6 +1321,13 @@ function Step6() {
     setTrPorcentaje(settings.porcentajeTransferencia);
   };
 
+  const itemsDeGasto = (g: Gasto): GastoItem[] =>
+    g.items?.length
+      ? g.items
+      : g.tipo === "Producto" && g.productoId
+      ? [{ productoId: g.productoId, productoNombre: g.productoNombre ?? "Producto", cantidad: g.cantidad ?? 1, precio: g.precio ?? 0 }]
+      : [];
+
   const cargarParaEditar = (g: Gasto) => {
     setEditingGastoId(g.id);
     setCat(g.categoria);
@@ -1311,33 +1335,42 @@ function Step6() {
     setNombre(g.nombre || "");
     setDesc(g.descripcion || "");
     setClienteId(g.clienteId || "");
+    limpiarLinea();
+    setItems(itemsDeGasto(g));
     if (g.categoria === "Transferencia") {
       setTrFecha(g.fecha ? new Date(g.fecha) : new Date());
       setTrTransaccion(g.transaccion || "");
       setTrImporte(g.importe || g.monto || 0);
       setTrPorcentaje(g.porcentaje ?? settings.porcentajeTransferencia);
-      if (g.tipo === "Producto") {
-        setProductoId(g.productoId || "");
-        setCantidad(g.cantidad || 0);
-        setPrecio(g.precio || 0);
-      }
-    } else if (g.tipo === "Producto") {
-      setProductoId(g.productoId || "");
-      setCantidad(g.cantidad || 0);
-      setPrecio(g.precio || 0);
-    } else {
+    } else if (g.tipo !== "Producto") {
       setMonto(g.monto || 0);
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  const camposProducto = (its: GastoItem[]) =>
+    its.length === 1
+      ? {
+          items: its,
+          productoId: its[0].productoId,
+          productoNombre: its[0].productoNombre,
+          cantidad: its[0].cantidad,
+          precio: its[0].precio,
+        }
+      : {
+          items: its,
+          productoId: undefined,
+          productoNombre: its.map((i) => i.productoNombre).join(", "),
+          cantidad: undefined,
+          precio: undefined,
+        };
+
   const guardar = async () => {
     const baseId = editingGastoId;
+    const esProducto = tipo === "Producto";
+    if (esProducto && itemsFinal.length === 0) return toast.error("Añade al menos un producto");
     if (isTransfer) {
-      const esProducto = tipo === "Producto";
-      if (esProducto ? (!productoId || !cantidad || !precio) : !trImporte) return;
-      // Descripción automática, discreta y entre paréntesis: monto recibido,
-      // % de cargo y fecha de la transferencia.
+      if (!esProducto && !trImporte) return;
       const descAuto = `(recibido ${fmt(trMontoRecibido)} · cargo ${trPorcentaje}% · ${
         trFecha ? format(trFecha, "dd MMM yyyy", { locale: es }) : "sin fecha"
       })`;
@@ -1351,10 +1384,7 @@ function Step6() {
         importe: trImporteEfectivo,
         porcentaje: trPorcentaje,
         montoRecibido: trMontoRecibido,
-        productoId: esProducto ? productoId : undefined,
-        productoNombre: esProducto ? productoSel?.nombre : undefined,
-        cantidad: esProducto ? cantidad : undefined,
-        precio: esProducto ? precio : undefined,
+        ...(esProducto ? camposProducto(itemsFinal) : {}),
         monto: trImporteEfectivo,
       };
       if (baseId) updateGasto(baseId, payload);
@@ -1385,30 +1415,125 @@ function Step6() {
         return;
       }
     }
-    if (tipo === "Efectivo" && !monto) return;
-    if (tipo === "Producto" && (!productoId || !cantidad || !precio)) return;
+    if (!esProducto && !monto) return;
     const payload: Omit<Gasto, "id"> = {
       categoria: cat,
       nombre: cliNombre || nombre || "—",
       tipo,
-      // Solo se guarda la descripción si el usuario escribió algo,
-      // para no duplicar información ya visible en la fila del gasto.
       descripcion: desc.trim(),
-      productoId: tipo === "Producto" ? productoId : undefined,
-      productoNombre: tipo === "Producto" ? productoSel?.nombre : undefined,
-      cantidad: tipo === "Producto" ? cantidad : undefined,
-      precio: tipo === "Producto" ? precio : undefined,
+      ...(esProducto ? camposProducto(itemsFinal) : {}),
       clienteId: cliId,
       clienteNombre: cliNombre,
-      monto: tipo === "Producto" ? importeProducto : monto,
+      monto: esProducto ? importeProducto : monto,
     };
-    if (baseId) updateGasto(baseId, payload);
+    // Cuentas por Cobrar con productos: una sola cuenta por cliente.
+    // Si ya existe una para ese cliente, se suman los productos a ella.
+    const existente =
+      !baseId && isCredito && esProducto
+        ? current.gastos.find(
+            (g) => g.categoria === "Cuentas por Cobrar" && g.tipo === "Producto" && g.clienteId === cliId
+          )
+        : undefined;
+    if (existente) {
+      const merged = [...itemsDeGasto(existente), ...itemsFinal];
+      updateGasto(existente.id, {
+        ...existente,
+        ...camposProducto(merged),
+        descripcion: [existente.descripcion, desc.trim()].filter(Boolean).join(" · "),
+        monto: merged.reduce((s, i) => s + i.cantidad * i.precio, 0),
+      });
+    } else if (baseId) updateGasto(baseId, payload);
     else addGasto(payload);
-    // En Cuentas por Cobrar mantenemos el cliente seleccionado para agregar
-    // varios gastos seguidos sin tener que elegirlo de nuevo.
     limpiar({ keepCliente: isCredito });
-    toast.success(baseId ? "Gasto actualizado" : "Gasto agregado");
+    toast.success(existente ? `Productos sumados a la cuenta de ${cliNombre}` : baseId ? "Gasto actualizado" : "Gasto agregado");
   };
+
+  const canastaUI = (
+    <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-2">
+      <div className="text-[11px] font-semibold text-primary">Productos de esta operación</div>
+      {items.length > 0 && (
+        <ul className="space-y-1">
+          {items.map((it, i) => (
+            <li key={i} className="flex items-center justify-between gap-2 rounded-lg bg-card px-2 py-1 text-xs">
+              <span className="truncate">
+                {it.productoNombre} · {it.cantidad} × {fmt(it.precio)}
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="font-mono tabular-nums">{fmt(it.cantidad * it.precio)}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-destructive"
+                  onClick={() => setItems((xs) => xs.filter((_, j) => j !== i))}
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <Popover open={productoOpen} onOpenChange={setProductoOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" role="combobox" className="h-11 w-full justify-between rounded-xl font-normal">
+            <span className="flex items-center gap-2 truncate">
+              <Search className="h-4 w-4 opacity-60" />
+              {productoSel ? (
+                <span className="truncate">
+                  {productoSel.nombre} · {fmt(productoSel.precio)}
+                </span>
+              ) : (
+                <span className="text-muted-foreground">Buscar producto…</span>
+              )}
+            </span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+          <Command>
+            <CommandInput placeholder="Escribe para buscar…" />
+            <CommandList>
+              <CommandEmpty>Sin resultados</CommandEmpty>
+              <CommandGroup>
+                {current.productos.map((p) => (
+                  <CommandItem
+                    key={p.id}
+                    value={p.nombre}
+                    onSelect={() => {
+                      setProductoId(p.id);
+                      setPrecio(p.precio);
+                      if (!cantidad) setCantidad(1);
+                      setProductoOpen(false);
+                    }}
+                  >
+                    {p.nombre} · {fmt(p.precio)}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+      <div className="grid grid-cols-[1fr_1fr_auto] items-end gap-2">
+        <div>
+          <Label className="text-xs">Cantidad</Label>
+          <NumberInput value={cantidad} onChange={setCantidad} className="mt-1 h-10 rounded-xl" />
+        </div>
+        <div>
+          <Label className="text-xs">Precio</Label>
+          <NumberInput value={precio} onChange={setPrecio} className="mt-1 h-10 rounded-xl" />
+        </div>
+        <Button variant="outline" className="h-10 rounded-xl" onClick={anadirLinea}>
+          <Plus className="mr-1 h-4 w-4" /> Añadir
+        </Button>
+      </div>
+      <div className="flex items-center justify-between border-t border-border pt-2 text-xs">
+        <span className="text-muted-foreground">
+          Subtotal ({itemsFinal.length} producto{itemsFinal.length === 1 ? "" : "s"})
+        </span>
+        <span className="font-mono font-bold tabular-nums">{fmt(importeProducto)}</span>
+      </div>
+    </div>
+  );
 
   return (
     <StepShell>
@@ -1553,74 +1678,7 @@ function Step6() {
                 className="mt-1 h-11 rounded-xl"
               />
             </div>
-            {tipo === "Producto" && (
-              <>
-                <div>
-                  <Label className="text-xs">Producto</Label>
-                  <Popover open={productoOpen} onOpenChange={setProductoOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        className="mt-1 h-11 w-full justify-between rounded-xl font-normal"
-                      >
-                        <span className="flex items-center gap-2 truncate">
-                          <Search className="h-4 w-4 opacity-60" />
-                          {productoSel ? (
-                            <span className="truncate">
-                              {productoSel.nombre} · {fmt(productoSel.precio)}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">Buscar producto…</span>
-                          )}
-                        </span>
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                      <Command>
-                        <CommandInput placeholder="Escribe para buscar…" />
-                        <CommandList>
-                          <CommandEmpty>Sin resultados</CommandEmpty>
-                          <CommandGroup>
-                            {current.productos.map((p) => (
-                              <CommandItem
-                                key={p.id}
-                                value={p.nombre}
-                                onSelect={() => {
-                                  setProductoId(p.id);
-                                  setPrecio(p.precio);
-                                  setProductoOpen(false);
-                                }}
-                              >
-                                {p.nombre} · {fmt(p.precio)}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-xs">Cantidad</Label>
-                    <NumberInput
-                      value={cantidad}
-                      onChange={setCantidad}
-                      className="mt-1 h-11 rounded-xl"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Precio</Label>
-                    <NumberInput
-                      value={precio}
-                      onChange={setPrecio}
-                      className="mt-1 h-11 rounded-xl"
-                    />
-                  </div>
-                </div>
-              </>
-            )}
+            {tipo === "Producto" && canastaUI}
             <div className="grid grid-cols-3 gap-2">
               <div>
                 <Label className="text-xs">Importe</Label>
@@ -1693,81 +1751,7 @@ function Step6() {
             />
           </div>
         ) : (
-          <>
-            <div>
-              <Label className="text-xs">Producto</Label>
-              <Popover open={productoOpen} onOpenChange={setProductoOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    className="mt-1 h-11 w-full justify-between rounded-xl font-normal"
-                  >
-                    <span className="flex items-center gap-2 truncate">
-                      <Search className="h-4 w-4 opacity-60" />
-                      {productoSel ? (
-                        <span className="truncate">
-                          {productoSel.nombre} · {fmt(productoSel.precio)}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">Buscar producto…</span>
-                      )}
-                    </span>
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                  <Command>
-                    <CommandInput placeholder="Escribe para buscar…" />
-                    <CommandList>
-                      <CommandEmpty>Sin resultados</CommandEmpty>
-                      <CommandGroup>
-                        {current.productos.map((p) => (
-                          <CommandItem
-                            key={p.id}
-                            value={p.nombre}
-                            onSelect={() => {
-                              setProductoId(p.id);
-                              setPrecio(p.precio);
-                              setProductoOpen(false);
-                            }}
-                          >
-                            {p.nombre} · {fmt(p.precio)}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-          <div className="grid grid-cols-3 gap-2">
-            <div>
-              <Label className="text-xs">Cantidad</Label>
-              <NumberInput
-                value={cantidad}
-                onChange={setCantidad}
-                className="mt-1 h-11 rounded-xl"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Precio</Label>
-              <NumberInput
-                value={precio}
-                onChange={setPrecio}
-                className="mt-1 h-11 rounded-xl"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Importe</Label>
-              <Input
-                value={fmt(importeProducto)}
-                readOnly
-                disabled
-                className="mt-1 h-11 rounded-xl bg-muted text-right font-mono"
-              />
-            </div>
-          </div>
-          </>
+          canastaUI
         )}
           </>
         )}
