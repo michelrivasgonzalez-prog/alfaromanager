@@ -1553,14 +1553,91 @@ function Step6() {
                 className="mt-1 h-11 rounded-xl"
               />
             </div>
+            {tipo === "Producto" && (
+              <>
+                <div>
+                  <Label className="text-xs">Producto</Label>
+                  <Popover open={productoOpen} onOpenChange={setProductoOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="mt-1 h-11 w-full justify-between rounded-xl font-normal"
+                      >
+                        <span className="flex items-center gap-2 truncate">
+                          <Search className="h-4 w-4 opacity-60" />
+                          {productoSel ? (
+                            <span className="truncate">
+                              {productoSel.nombre} · {fmt(productoSel.precio)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">Buscar producto…</span>
+                          )}
+                        </span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Escribe para buscar…" />
+                        <CommandList>
+                          <CommandEmpty>Sin resultados</CommandEmpty>
+                          <CommandGroup>
+                            {current.productos.map((p) => (
+                              <CommandItem
+                                key={p.id}
+                                value={p.nombre}
+                                onSelect={() => {
+                                  setProductoId(p.id);
+                                  setPrecio(p.precio);
+                                  setProductoOpen(false);
+                                }}
+                              >
+                                {p.nombre} · {fmt(p.precio)}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs">Cantidad</Label>
+                    <NumberInput
+                      value={cantidad}
+                      onChange={setCantidad}
+                      className="mt-1 h-11 rounded-xl"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Precio</Label>
+                    <NumberInput
+                      value={precio}
+                      onChange={setPrecio}
+                      className="mt-1 h-11 rounded-xl"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
             <div className="grid grid-cols-3 gap-2">
               <div>
                 <Label className="text-xs">Importe</Label>
-                <NumberInput
-                  value={trImporte}
-                  onChange={setTrImporte}
-                  className="mt-1 h-11 rounded-xl"
-                />
+                {tipo === "Producto" ? (
+                  <Input
+                    value={fmt(trImporteEfectivo)}
+                    readOnly
+                    disabled
+                    className="mt-1 h-11 rounded-xl bg-muted text-right font-mono"
+                  />
+                ) : (
+                  <NumberInput
+                    value={trImporte}
+                    onChange={setTrImporte}
+                    className="mt-1 h-11 rounded-xl"
+                  />
+                )}
               </div>
               <div>
                 <Label className="text-xs">Cargo %</Label>
