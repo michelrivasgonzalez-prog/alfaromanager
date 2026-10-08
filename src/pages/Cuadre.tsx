@@ -1334,18 +1334,28 @@ function Step6() {
   const guardar = async () => {
     const baseId = editingGastoId;
     if (isTransfer) {
-      if (!trImporte) return;
+      const esProducto = tipo === "Producto";
+      if (esProducto ? (!productoId || !cantidad || !precio) : !trImporte) return;
+      // Descripción automática, discreta y entre paréntesis: monto recibido,
+      // % de cargo y fecha de la transferencia.
+      const descAuto = `(recibido ${fmt(trMontoRecibido)} · cargo ${trPorcentaje}% · ${
+        trFecha ? format(trFecha, "dd MMM yyyy", { locale: es }) : "sin fecha"
+      })`;
       const payload: Omit<Gasto, "id"> = {
         categoria: "Transferencia",
         nombre: trTransaccion || "—",
-        tipo: "Efectivo",
-        descripcion: "",
+        tipo,
+        descripcion: descAuto,
         fecha: trFecha?.toISOString(),
         transaccion: trTransaccion,
-        importe: trImporte,
+        importe: trImporteEfectivo,
         porcentaje: trPorcentaje,
         montoRecibido: trMontoRecibido,
-        monto: trImporte,
+        productoId: esProducto ? productoId : undefined,
+        productoNombre: esProducto ? productoSel?.nombre : undefined,
+        cantidad: esProducto ? cantidad : undefined,
+        precio: esProducto ? precio : undefined,
+        monto: trImporteEfectivo,
       };
       if (baseId) updateGasto(baseId, payload);
       else addGasto(payload);
