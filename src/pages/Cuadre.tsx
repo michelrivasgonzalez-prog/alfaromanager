@@ -20,6 +20,7 @@ import {
   Search,
   ChevronDown,
   ChevronRight,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -1367,7 +1368,11 @@ function Step6() {
           precio: undefined,
         };
 
+  const [guardando, setGuardando] = useState(false);
   const guardar = async () => {
+    if (guardando) return;
+    setGuardando(true);
+    try {
     const baseId = editingGastoId;
     const esProducto = tipo === "Producto";
     if (esProducto && itemsFinal.length === 0) return toast.error("Añade al menos un producto");
@@ -1448,6 +1453,9 @@ function Step6() {
     else addGasto(payload);
     limpiar({ keepCliente: isCredito });
     toast.success(existente ? `Productos sumados a la cuenta de ${cliNombre}` : baseId ? "Gasto actualizado" : "Gasto agregado");
+    } finally {
+      setGuardando(false);
+    }
   };
 
   const canastaUI = (
@@ -1760,10 +1768,15 @@ function Step6() {
 
         <Button
           onClick={guardar}
+          disabled={guardando}
           className="h-11 w-full rounded-xl bg-primary text-primary-foreground"
         >
-          <Plus className="mr-2 h-4 w-4" />
-          {editingGastoId ? "Guardar cambios" : "Agregar gasto"}
+          {guardando ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Plus className="mr-2 h-4 w-4" />
+          )}
+          {guardando ? "Guardando…" : editingGastoId ? "Guardar cambios" : "Agregar gasto"}
         </Button>
         {editingGastoId && (
           <Button
