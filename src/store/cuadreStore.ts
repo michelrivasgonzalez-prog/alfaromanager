@@ -56,6 +56,8 @@ export type GastoCategoria =
 export const catLabel = (c: GastoCategoria) =>
   c === "Compras" ? "Salida de efectivo" : c;
 
+export type GastoItem = { productoId?: string; productoNombre: string; cantidad: number; precio: number };
+
 export type Gasto = {
   id: string;
   categoria: GastoCategoria;
@@ -67,6 +69,8 @@ export type Gasto = {
   productoNombre?: string;
   cantidad?: number;
   precio?: number;
+  // Canasta: varios productos en una sola operación
+  items?: GastoItem[];
   // Para Transferencia:
   fecha?: string;          // ISO
   transaccion?: string;    // nº/ref

@@ -59,7 +59,14 @@ export function formatGastoDetalle(g: {
   precio?: number;
   descripcion?: string;
   nombre?: string;
+  items?: { productoNombre: string; cantidad: number; precio: number }[];
 }): string {
+  if (g.tipo === "Producto" && g.items && g.items.length > 1) {
+    const base = g.items
+      .map((i) => `${i.productoNombre} ${i.cantidad} × ${Math.round(i.precio * 100) / 100}`)
+      .join(" + ");
+    return base + (g.descripcion?.trim() ? ` (${g.descripcion.trim()})` : "");
+  }
   if (g.tipo === "Producto") {
     const nombre = g.productoNombre ?? "Producto";
     const base = `${nombre} ${g.cantidad ?? 1} × ${Math.round((g.precio ?? 0) * 100) / 100}`;

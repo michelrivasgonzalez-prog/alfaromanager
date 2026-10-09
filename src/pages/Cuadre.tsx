@@ -1259,6 +1259,7 @@ function Step6() {
   const [productoId, setProductoId] = useState<string>("");
   const [editingGastoId, setEditingGastoId] = useState<string | null>(null);
   const [productoOpen, setProductoOpen] = useState(false);
+  const [items, setItems] = useState<GastoItem[]>([]);
   // Cuentas por Cobrar: cliente asignado + creación rápida
   const qc = useQueryClient();
   const clientesQ = useQuery({ queryKey: ["clientes"], queryFn: listClientes });
@@ -1271,8 +1272,6 @@ function Step6() {
   const [trImporte, setTrImporte] = useState(0);
   const [trPorcentaje, setTrPorcentaje] = useState(settings.porcentajeTransferencia);
   // En Transferencia con tipo Producto el importe sale de cantidad × precio
-  const trImporteEfectivo = cat === "Transferencia" && tipo === "Producto" ? cantidad * precio : trImporte;
-  const trMontoRecibido = trImporteEfectivo + (trImporteEfectivo * trPorcentaje) / 100;
   // Si cambia la categoría a Transferencia, resetea el % al predeterminado
   useEffect(() => {
     if (cat === "Transferencia") setTrPorcentaje(settings.porcentajeTransferencia);
@@ -1291,6 +1290,8 @@ function Step6() {
       : null;
   const itemsFinal: GastoItem[] = lineaPendiente ? [...items, lineaPendiente] : items;
   const importeProducto = itemsFinal.reduce((s, it) => s + it.cantidad * it.precio, 0);
+  const trImporteEfectivo = isTransfer && tipo === "Producto" ? importeProducto : trImporte;
+  const trMontoRecibido = trImporteEfectivo + (trImporteEfectivo * trPorcentaje) / 100;
 
   const limpiarLinea = () => {
     setCantidad(0);
