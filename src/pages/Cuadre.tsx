@@ -1367,7 +1367,11 @@ function Step6() {
           precio: undefined,
         };
 
+  const [guardando, setGuardando] = useState(false);
   const guardar = async () => {
+    if (guardando) return;
+    setGuardando(true);
+    try {
     const baseId = editingGastoId;
     const esProducto = tipo === "Producto";
     if (esProducto && itemsFinal.length === 0) return toast.error("Añade al menos un producto");
