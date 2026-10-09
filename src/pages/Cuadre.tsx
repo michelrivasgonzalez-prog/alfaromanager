@@ -1452,6 +1452,9 @@ function Step6() {
     else addGasto(payload);
     limpiar({ keepCliente: isCredito });
     toast.success(existente ? `Productos sumados a la cuenta de ${cliNombre}` : baseId ? "Gasto actualizado" : "Gasto agregado");
+    } finally {
+      setGuardando(false);
+    }
   };
 
   const canastaUI = (
