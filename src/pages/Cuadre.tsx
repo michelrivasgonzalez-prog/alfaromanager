@@ -1767,10 +1767,15 @@ function Step6() {
 
         <Button
           onClick={guardar}
+          disabled={guardando}
           className="h-11 w-full rounded-xl bg-primary text-primary-foreground"
         >
-          <Plus className="mr-2 h-4 w-4" />
-          {editingGastoId ? "Guardar cambios" : "Agregar gasto"}
+          {guardando ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Plus className="mr-2 h-4 w-4" />
+          )}
+          {guardando ? "Guardando…" : editingGastoId ? "Guardar cambios" : "Agregar gasto"}
         </Button>
         {editingGastoId && (
           <Button
