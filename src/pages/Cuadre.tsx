@@ -60,6 +60,7 @@ import { NumberInput } from "@/components/NumberInput";
 import {
   DENOMINACIONES,
   Gasto,
+  GastoItem,
   GastoCategoria,
   catLabel,
   PUNTOS,
