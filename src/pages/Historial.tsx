@@ -440,11 +440,11 @@ function RegistrarDeudaDialog({
             return;
           }
         }
-        const productos = grupo.gastos.map((g) => ({
+        const productos = grupo.gastos.flatMap((g) => g.items && g.items.length ? g.items.map((i) => ({ nombre: i.productoNombre, cantidad: i.cantidad, precio: i.precio })) : [{
           nombre: g.tipo === "Producto" ? (g.productoNombre ?? g.descripcion) : g.descripcion || g.nombre || "Venta",
           cantidad: g.tipo === "Producto" ? (g.cantidad ?? 1) : 1,
           precio: g.tipo === "Producto" ? (g.precio ?? g.monto) : g.monto,
-        }));
+        }]);
         await crearDeuda({
           cliente_id: cliId!,
           cuadre_id: cuadre.id,
