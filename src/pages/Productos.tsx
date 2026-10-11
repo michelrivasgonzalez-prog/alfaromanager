@@ -96,7 +96,7 @@ export default function Productos() {
     toast.success("Plantilla descargada");
   };
 
-  const exportarExcel = () => {
+  const exportarExcel = (modo: "todos" | "existencia") => {
     const items = sortCatalogo(catalogo, categorias).filter(
       (p) => (p.punto ?? "Cafetería") === punto
     );
@@ -104,15 +104,62 @@ export default function Productos() {
       toast.info(`No hay productos en ${punto}`);
       return;
     }
+    let filas = items.map((p, i) => ({
+      orden: i + 1,
+      nombre: p.nombre,
+      categoria: p.categoria ?? "",
+      costo: p.costo,
+      precio: p.precio,
+      existencia: null as number | null,
+    }));
+    let sufijo = "completo";
+    if (modo === "existencia") {
+      const history = useCuadreStore.getState().history;
+      const ultimo = history
+        .filter((c) => c.puntoVenta === punto && c.finalizado)
+        .sort((a, b) => {
+          const da = a.diasTrabajados?.[a.diasTrabajados.length - 1] ?? a.fecha;
+          const db = b.diasTrabajados?.[b.diasTrabajados.length - 1] ?? b.fecha;
+          return String(db).localeCompare(String(da));
+        })[0];
+      if (!ultimo) {
+        toast.info(`No hay ningún turno finalizado en ${punto}`);
+        return;
+      }
+      const finales = new Map(
+        ultimo.productos.map((p) => [p.nombre.trim().toLowerCase(), Number(p.final) || 0])
+      );
+      filas = filas
+        .map((f) => ({ ...f, existencia: finales.get(f.nombre.trim().toLowerCase()) ?? 0 }))
+        .filter((f) => (f.existencia ?? 0) > 0);
+      if (filas.length === 0) {
+        toast.info(`Ningún producto tiene existencia en el último turno de ${punto}`);
+        return;
+      }
+      sufijo = "con-existencia";
+    }
+    const conExistencia = modo === "existencia";
     const ws = XLSX.utils.aoa_to_sheet([
-      ["orden", "nombre", "categoria", "costo", "precio"],
-      ...items.map((p, i) => [i + 1, p.nombre, p.categoria ?? "", p.costo, p.precio]),
+      conExistencia
+        ? ["orden", "nombre", "categoria", "existencia", "costo", "precio"]
+        : ["orden", "nombre", "categoria", "costo", "precio"],
+      ...filas.map((f) =>
+        conExistencia
+          ? [f.orden, f.nombre, f.categoria, f.existencia, f.costo, f.precio]
+          : [f.orden, f.nombre, f.categoria, f.costo, f.precio]
+      ),
     ]);
-    ws["!cols"] = [{ wch: 7 }, { wch: 34 }, { wch: 18 }, { wch: 10 }, { wch: 10 }];
+    ws["!cols"] = conExistencia
+      ? [{ wch: 7 }, { wch: 34 }, { wch: 18 }, { wch: 11 }, { wch: 10 }, { wch: 10 }]
+      : [{ wch: 7 }, { wch: 34 }, { wch: 18 }, { wch: 10 }, { wch: 10 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Productos");
-    XLSX.writeFile(wb, `productos-${punto}.xlsx`);
-    toast.success("Productos exportados");
+    XLSX.writeFile(wb, `productos-${punto}-${sufijo}.xlsx`);
+    toast.success(
+      conExistencia
+        ? `${filas.length} productos con existencia exportados`
+        : "Productos exportados"
+    );
   };
 
 
