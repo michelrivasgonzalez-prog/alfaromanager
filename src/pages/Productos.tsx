@@ -44,6 +44,7 @@ export default function Productos() {
   const categorias = useCuadreStore((s) => s.settings.categorias ?? []);
   const fileRef = useRef<HTMLInputElement>(null);
   const [nuevoOpen, setNuevoOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [nuevo, setNuevo] = useState({ nombre: "", precio: 0, costo: 0, categoria: "" });
 
 
@@ -296,7 +297,7 @@ export default function Productos() {
             <Download className="mr-1.5 h-4 w-4" /> Plantilla
           </Button>
         </div>
-        <Button variant="outline" className="mt-2 h-10 w-full rounded-xl" onClick={exportarExcel}>
+        <Button variant="outline" className="mt-2 h-10 w-full rounded-xl" onClick={() => setExportOpen(true)}>
           <Download className="mr-1.5 h-4 w-4" /> Exportar productos de {punto} a Excel
         </Button>
         <Button
