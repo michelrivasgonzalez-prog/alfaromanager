@@ -441,6 +441,42 @@ export default function Productos() {
         <Plus className="mr-2 h-4 w-4" /> Nuevo producto
       </Button>
 
+      <Dialog open={exportOpen} onOpenChange={setExportOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Exportar productos de {punto}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            ¿Qué productos quieres incluir en el Excel?
+          </p>
+          <div className="space-y-2">
+            <Button
+              variant="outline"
+              className="h-11 w-full rounded-xl"
+              onClick={() => {
+                setExportOpen(false);
+                exportarExcel("todos");
+              }}
+            >
+              <Download className="mr-2 h-4 w-4" /> Lista completa
+            </Button>
+            <Button
+              className="h-11 w-full rounded-xl gradient-primary text-primary-foreground"
+              onClick={() => {
+                setExportOpen(false);
+                exportarExcel("existencia");
+              }}
+            >
+              <Package className="mr-2 h-4 w-4" /> Solo con existencia en el último turno
+            </Button>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            La opción de existencia toma el inventario final del último turno finalizado de{" "}
+            {punto} e incluye la columna "existencia", ideal para el IPV de entrega.
+          </p>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={nuevoOpen} onOpenChange={setNuevoOpen}>
         <DialogContent>
           <DialogHeader>
