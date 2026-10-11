@@ -44,6 +44,7 @@ export default function Productos() {
   const categorias = useCuadreStore((s) => s.settings.categorias ?? []);
   const fileRef = useRef<HTMLInputElement>(null);
   const [nuevoOpen, setNuevoOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [nuevo, setNuevo] = useState({ nombre: "", precio: 0, costo: 0, categoria: "" });
 
 
@@ -96,7 +97,7 @@ export default function Productos() {
     toast.success("Plantilla descargada");
   };
 
-  const exportarExcel = () => {
+  const exportarExcel = (modo: "todos" | "existencia") => {
     const items = sortCatalogo(catalogo, categorias).filter(
       (p) => (p.punto ?? "Cafetería") === punto
     );
@@ -104,15 +105,62 @@ export default function Productos() {
       toast.info(`No hay productos en ${punto}`);
       return;
     }
+    let filas = items.map((p, i) => ({
+      orden: i + 1,
+      nombre: p.nombre,
+      categoria: p.categoria ?? "",
+      costo: p.costo,
+      precio: p.precio,
+      existencia: null as number | null,
+    }));
+    let sufijo = "completo";
+    if (modo === "existencia") {
+      const history = useCuadreStore.getState().history;
+      const ultimo = history
+        .filter((c) => c.puntoVenta === punto && c.finalizado)
+        .sort((a, b) => {
+          const da = a.diasTrabajados?.[a.diasTrabajados.length - 1] ?? a.fecha;
+          const db = b.diasTrabajados?.[b.diasTrabajados.length - 1] ?? b.fecha;
+          return String(db).localeCompare(String(da));
+        })[0];
+      if (!ultimo) {
+        toast.info(`No hay ningún turno finalizado en ${punto}`);
+        return;
+      }
+      const finales = new Map(
+        ultimo.productos.map((p) => [p.nombre.trim().toLowerCase(), Number(p.final) || 0])
+      );
+      filas = filas
+        .map((f) => ({ ...f, existencia: finales.get(f.nombre.trim().toLowerCase()) ?? 0 }))
+        .filter((f) => (f.existencia ?? 0) > 0);
+      if (filas.length === 0) {
+        toast.info(`Ningún producto tiene existencia en el último turno de ${punto}`);
+        return;
+      }
+      sufijo = "con-existencia";
+    }
+    const conExistencia = modo === "existencia";
     const ws = XLSX.utils.aoa_to_sheet([
-      ["orden", "nombre", "categoria", "costo", "precio"],
-      ...items.map((p, i) => [i + 1, p.nombre, p.categoria ?? "", p.costo, p.precio]),
+      conExistencia
+        ? ["orden", "nombre", "categoria", "existencia", "costo", "precio"]
+        : ["orden", "nombre", "categoria", "costo", "precio"],
+      ...filas.map((f) =>
+        conExistencia
+          ? [f.orden, f.nombre, f.categoria, f.existencia, f.costo, f.precio]
+          : [f.orden, f.nombre, f.categoria, f.costo, f.precio]
+      ),
     ]);
-    ws["!cols"] = [{ wch: 7 }, { wch: 34 }, { wch: 18 }, { wch: 10 }, { wch: 10 }];
+    ws["!cols"] = conExistencia
+      ? [{ wch: 7 }, { wch: 34 }, { wch: 18 }, { wch: 11 }, { wch: 10 }, { wch: 10 }]
+      : [{ wch: 7 }, { wch: 34 }, { wch: 18 }, { wch: 10 }, { wch: 10 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Productos");
-    XLSX.writeFile(wb, `productos-${punto}.xlsx`);
-    toast.success("Productos exportados");
+    XLSX.writeFile(wb, `productos-${punto}-${sufijo}.xlsx`);
+    toast.success(
+      conExistencia
+        ? `${filas.length} productos con existencia exportados`
+        : "Productos exportados"
+    );
   };
 
 
@@ -249,7 +297,7 @@ export default function Productos() {
             <Download className="mr-1.5 h-4 w-4" /> Plantilla
           </Button>
         </div>
-        <Button variant="outline" className="mt-2 h-10 w-full rounded-xl" onClick={exportarExcel}>
+        <Button variant="outline" className="mt-2 h-10 w-full rounded-xl" onClick={() => setExportOpen(true)}>
           <Download className="mr-1.5 h-4 w-4" /> Exportar productos de {punto} a Excel
         </Button>
         <Button
@@ -392,6 +440,42 @@ export default function Productos() {
       >
         <Plus className="mr-2 h-4 w-4" /> Nuevo producto
       </Button>
+
+      <Dialog open={exportOpen} onOpenChange={setExportOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Exportar productos de {punto}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            ¿Qué productos quieres incluir en el Excel?
+          </p>
+          <div className="space-y-2">
+            <Button
+              variant="outline"
+              className="h-11 w-full rounded-xl"
+              onClick={() => {
+                setExportOpen(false);
+                exportarExcel("todos");
+              }}
+            >
+              <Download className="mr-2 h-4 w-4" /> Lista completa
+            </Button>
+            <Button
+              className="h-11 w-full rounded-xl gradient-primary text-primary-foreground"
+              onClick={() => {
+                setExportOpen(false);
+                exportarExcel("existencia");
+              }}
+            >
+              <Package className="mr-2 h-4 w-4" /> Solo con existencia en el último turno
+            </Button>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            La opción de existencia toma el inventario final del último turno finalizado de{" "}
+            {punto} e incluye la columna "existencia", ideal para el IPV de entrega.
+          </p>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={nuevoOpen} onOpenChange={setNuevoOpen}>
         <DialogContent>
