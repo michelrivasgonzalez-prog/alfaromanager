@@ -2176,7 +2176,7 @@ function Step9() {
     () => sugerirPagoSalario(c.salarioReal, current.denominaciones),
     [c.salarioReal, current.denominaciones]
   );
-  const efectivoRecibido = c.efectivoEnCaja;
+  const efectivoRecibido = c.efectivoCajaFinal;
   const noHayEfectivo = efectivoRecibido <= 0;
 
   useEffect(() => {
