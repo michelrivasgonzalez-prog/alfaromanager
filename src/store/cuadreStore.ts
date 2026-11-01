@@ -134,7 +134,22 @@ export type Cuadre = {
   descuentoDeudas?: number;
   /** ID del abono creado al descontar deudas del salario. */
   abonoDeudasId?: string | null;
+  /** Recogidas de efectivo hechas durante el turno (antes del arqueo final). */
+  recogidas?: Recogida[];
+  /** Turno del que se importaron los finales como inicios. */
+  importadoDe?: string;
 };
+
+export type Recogida = {
+  id: string;
+  fecha: string; // yyyy-MM-dd
+  quien?: string;
+  denominaciones: Denominaciones;
+  monto: number;
+};
+
+export const totalRecogidas = (r?: Recogida[]) =>
+  (r ?? []).reduce((s, x) => s + Number(x.monto || 0), 0);
 
 export type Settings = {
   salarioBase: Record<PuntoVenta, number>;
@@ -164,7 +179,7 @@ const DEFAULT_SETTINGS: Settings = {
 
 const DEFAULT_CATALOG: CatalogoItem[] = [];
 
-export const DENOMINACIONES = [5000, 2000, 1000, 500, 200, 100, 50, 20, 10, 5];
+export const DENOMINACIONES = [20000, 10000, 5000, 2000, 1000, 500, 200, 100, 50, 20, 10, 5];
 
 const emptyDen = (): Denominaciones =>
   Object.fromEntries(DENOMINACIONES.map((d) => [String(d), 0]));
@@ -323,6 +338,8 @@ interface State {
   setSalarioDen: (billete: string, cantidad: number) => void;
   addDivisa: (d: Omit<Divisa, "id">) => void;
   removeDivisa: (id: string) => void;
+  addRecogida: (r: Omit<Recogida, "id">) => void;
+  removeRecogida: (id: string) => void;
 
   finalizar: () => void;
   cancelar: (punto?: PuntoVenta) => void;
@@ -617,6 +634,20 @@ export const useCuadreStore = create<State>()(
             divisas: (c.divisas ?? []).filter((d) => d.id !== id),
           }))
         ),
+      addRecogida: (r) =>
+        set((s) =>
+          updateActive(s, (c) => ({
+            ...c,
+            recogidas: [...(c.recogidas ?? []), { ...r, id: crypto.randomUUID() }],
+          }))
+        ),
+      removeRecogida: (id) =>
+        set((s) =>
+          updateActive(s, (c) => ({
+            ...c,
+            recogidas: (c.recogidas ?? []).filter((r) => r.id !== id),
+          }))
+        ),
       finalizar: () => {
         const s = get();
         const c = s.currents[s.activePunto];
@@ -729,7 +760,10 @@ export const useCuadreStore = create<State>()(
             s.settings.categorias
           );
           return {
-            currents: { ...s.currents, [s.activePunto]: { ...c, productos } },
+            currents: {
+              ...s.currents,
+              [s.activePunto]: { ...c, productos, importadoDe: cuadreId },
+            },
           };
         }),
       editCuadre: (cuadreId) =>
