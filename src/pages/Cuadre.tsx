@@ -2648,7 +2648,13 @@ function Step10({ onClose }: { onClose: () => void }) {
 
       <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-1.5 text-sm">
         <Row label="Efectivo a depositar" value={fmt(c.efectivoADepositar)} />
-        <Row label="Efectivo en caja" value={fmt(c.efectivoEnCaja)} />
+        {c.efectivoRecogido > 0 && (
+          <Row label="Recogidas de efectivo" value={fmt(c.efectivoRecogido)} />
+        )}
+        <Row
+          label={c.efectivoRecogido > 0 ? "Efectivo entregado (total)" : "Efectivo en caja"}
+          value={fmt(c.efectivoEnCaja)}
+        />
         <Row
           label="Diferencia"
           value={fmt(c.diferencia)}
