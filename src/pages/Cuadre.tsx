@@ -72,7 +72,7 @@ import {
   calcProducto,
   sugerirPagoSalario,
   totalDivisas,
-
+  totalRecogidas,
   useCuadreStore,
 } from "@/store/cuadreStore";
 import { generarPDF } from "@/lib/pdf";
@@ -354,6 +354,7 @@ function StepInventario({
             Importar finales del turno anterior
           </Label>
           <Select
+            value={current.importadoDe ?? undefined}
             onValueChange={(v) => {
               importarFinales(v);
               toast.success("Inicios cargados desde el turno seleccionado");
@@ -904,8 +905,14 @@ function Step4() {
 
 /* ================== Step 5: Resultados ================== */
 function Step5() {
-  const { currents, activePunto, updateProducto, syncProductoToCatalog, role } =
+  const { currents, activePunto, updateProducto, syncProductoToCatalog, role, catalogo } =
     useCuadreStore();
+  const refCat = (nombre: string) => {
+    const k = nombre.trim().toLowerCase();
+    return catalogo.find(
+      (x) => (x.punto ?? "Cafetería") === activePunto && x.nombre.trim().toLowerCase() === k
+    );
+  };
   const current = currents[activePunto];
   const [mixtoId, setMixtoId] = useState<string | null>(null);
   const [expandidos, setExpandidos] = useState<Record<string, boolean>>({});
@@ -932,14 +939,15 @@ function Step5() {
       if (p.final > c.total) errs.push("Final mayor al Total");
       if (c.venta > 0 && (!p.precio || p.precio <= 0))
         errs.push("Falta precio de venta");
-      if (c.venta > 0 && (!p.costo || p.costo <= 0))
-        errs.push("Falta precio de costo");
       if (c.mixto && c.resto < 0)
         errs.push("Los precios mixtos superan las unidades vendidas");
       return errs.length ? { nombre: p.nombre, errs } : null;
     })
     .filter(Boolean) as { nombre: string; errs: string[] }[];
   const hayErrores = errores.length > 0;
+  const sinCosto = current.productos.filter(
+    (p) => calcProducto(p).venta > 0 && (!p.costo || p.costo <= 0)
+  );
 
   // Se ocultan los productos sin existencia (inicio, entradas y total en 0)
   // para reducir ruido visual y no ocuparlos en el PDF.
@@ -970,6 +978,15 @@ function Step5() {
           </ul>
         </div>
       )}
+      {sinCosto.length > 0 && (
+        <div className="rounded-2xl border border-amber-300/60 bg-amber-50 p-3 text-xs dark:bg-amber-950/30">
+          <div className="mb-1 flex items-center gap-1.5 font-semibold">
+            <AlertTriangle className="h-4 w-4" /> Faltan precios de costo ({sinCosto.length})
+          </div>
+          Puedes seguir hasta el salario, pero no podrás finalizar el turno sin ponerlos:{" "}
+          {sinCosto.map((p) => p.nombre).join(", ")}.
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <SummaryTile label="Venta total" value={fmt(totalImporte)} accent="emerald" />
         {isAdmin ? (
@@ -985,8 +1002,8 @@ function Step5() {
         )}
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-soft">
-        <table className="w-full min-w-[640px] text-xs">
+      <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-soft lg:-mx-40 xl:-mx-64">
+        <table className="w-full min-w-[640px] text-xs lg:min-w-0">
           <thead className="bg-muted/60 text-[10px] uppercase tracking-wider text-muted-foreground">
             <tr>
               <th className="px-2 py-1 text-left">Producto</th>
@@ -1056,6 +1073,19 @@ function Step5() {
                         onBlur={() => syncProductoToCatalog(p.id)}
                         className="ml-auto h-7 w-16 rounded-md text-right text-xs"
                       />
+                      {(() => {
+                        const r = refCat(p.nombre);
+                        return r && Number(r.precio) > 0 && Number(r.precio) !== Number(p.precio) ? (
+                          <button
+                            type="button"
+                            onClick={() => updateProducto(p.id, { precio: Number(r.precio) })}
+                            className="mt-0.5 block w-full text-right text-[9px] text-muted-foreground underline"
+                            title="Último precio en Productos (toca para usarlo)"
+                          >
+                            Últ. {fmt(Number(r.precio))}
+                          </button>
+                        ) : null;
+                      })()}
                     </td>
                   )}
                   <td className="px-2 py-1 text-right tabular-nums font-semibold text-secondary">
@@ -1075,6 +1105,19 @@ function Step5() {
                         onBlur={() => syncProductoToCatalog(p.id)}
                         className="ml-auto h-7 w-16 rounded-md text-right text-xs"
                       />
+                      {(() => {
+                        const r = refCat(p.nombre);
+                        return r && Number(r.costo) > 0 && Number(r.costo) !== Number(p.costo) ? (
+                          <button
+                            type="button"
+                            onClick={() => updateProducto(p.id, { costo: Number(r.costo) })}
+                            className="mt-0.5 block w-full text-right text-[9px] text-muted-foreground underline"
+                            title="Último costo en Productos (toca para usarlo)"
+                          >
+                            Últ. {fmt(Number(r.costo))}
+                          </button>
+                        ) : null;
+                      })()}
                     </td>
                   )}
                   {isAdmin && (
@@ -1384,14 +1427,21 @@ function Step6() {
       const payload: Omit<Gasto, "id"> = {
         categoria: "Transferencia",
         nombre: trTransaccion || "—",
-        tipo,
-        descripcion: descAuto,
+        // Los productos solo sirven de calculadora: se guarda una transferencia limpia.
+        tipo: "Efectivo",
+        descripcion: esProducto
+          ? `${itemsFinal.map((i) => `${i.productoNombre} ×${i.cantidad}`).join(", ")} ${descAuto}`
+          : descAuto,
         fecha: trFecha?.toISOString(),
         transaccion: trTransaccion,
         importe: trImporteEfectivo,
         porcentaje: trPorcentaje,
         montoRecibido: trMontoRecibido,
-        ...(esProducto ? camposProducto(itemsFinal) : {}),
+        items: undefined,
+        productoId: undefined,
+        productoNombre: undefined,
+        cantidad: undefined,
+        precio: undefined,
         monto: trImporteEfectivo,
       };
       if (baseId) updateGasto(baseId, payload);
@@ -1504,7 +1554,7 @@ function Step6() {
             <CommandList>
               <CommandEmpty>Sin resultados</CommandEmpty>
               <CommandGroup>
-                {current.productos.map((p) => (
+                {current.productos.filter((p) => calcProducto(p).total > 0).map((p) => (
                   <CommandItem
                     key={p.id}
                     value={p.nombre}
@@ -1873,10 +1923,14 @@ function Step6() {
 
 /* ================== Step 7: Cuadre de efectivo ================== */
 function Step7() {
-  const { currents, activePunto, setDenominacion, addDivisa, removeDivisa } =
+  const { currents, activePunto, setDenominacion, addDivisa, removeDivisa, addRecogida, removeRecogida } =
     useCuadreStore();
   const current = currents[activePunto];
   const [divisaOpen, setDivisaOpen] = useState(false);
+  const [recOpen, setRecOpen] = useState(false);
+  const [recFecha, setRecFecha] = useState(() => format(new Date(), "yyyy-MM-dd"));
+  const [recQuien, setRecQuien] = useState("Yanitza");
+  const [recDen, setRecDen] = useState<Record<string, number>>({});
   const [divisa, setDivisa] = useState({
     moneda: "USD",
     denominacion: 0,
@@ -1891,8 +1945,23 @@ function Step7() {
     (s, [b, n]) => s + Number(b) * n,
     0
   );
+  const recogidas = current.recogidas ?? [];
+  const totalRec = totalRecogidas(recogidas);
   const total = totalCup + totalMonedas;
-  const restante = r.efectivoADepositar - total;
+  const restante = r.efectivoADepositar - total - totalRec;
+  const recTotal = Object.entries(recDen).reduce((s, [b, n]) => s + Number(b) * (n || 0), 0);
+  const guardarRecogida = () => {
+    if (recTotal <= 0) return toast.error("Introduce las denominaciones recogidas");
+    addRecogida({
+      fecha: recFecha,
+      quien: recQuien.trim() || undefined,
+      denominaciones: recDen,
+      monto: recTotal,
+    });
+    setRecDen({});
+    setRecOpen(false);
+    toast.success("Recogida agregada");
+  };
 
   const guardarDivisa = () => {
     if (!divisa.moneda.trim() || !divisa.denominacion || !divisa.cantidad || !divisa.tasa) {
@@ -1926,6 +1995,11 @@ function Step7() {
           <Wallet className="h-3.5 w-3.5" /> Efectivo en caja
         </div>
         <div className="mt-1 text-4xl font-bold">{fmt(total)}</div>
+        {totalRec > 0 && (
+          <div className="mt-1 text-[11px] opacity-90">
+            + Recogidas {fmt(totalRec)} · Total entregado {fmt(total + totalRec)}
+          </div>
+        )}
         {totalMonedas > 0 && (
           <div className="mt-1 text-[11px] opacity-90">
             CUP {fmt(totalCup)} · Divisas {fmt(totalMonedas)}
@@ -1933,6 +2007,58 @@ function Step7() {
         )}
       </div>
 
+      <div className="rounded-2xl border border-border bg-card p-3 shadow-soft space-y-2">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs uppercase tracking-widest text-muted-foreground">
+            Recogidas de efectivo
+          </Label>
+          <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setRecOpen(true)}>
+            <Plus className="mr-1 h-3.5 w-3.5" /> Agregar recogida
+          </Button>
+        </div>
+        {recogidas.length === 0 ? (
+          <p className="text-[11px] text-muted-foreground">
+            Sin recogidas. El conteo de abajo es el efectivo que queda en caja al cuadrar (con él se paga el salario).
+          </p>
+        ) : (
+          <div className="space-y-1.5">
+            {recogidas.map((rc) => (
+              <div key={rc.id} className="flex items-center gap-2 rounded-xl border border-border p-2 text-xs">
+                <div className="flex-1">
+                  <div className="font-semibold">
+                    {format(new Date(rc.fecha + "T12:00:00"), "dd MMM yyyy", { locale: es })}
+                    {rc.quien ? ` · ${rc.quien}` : ""}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {Object.entries(rc.denominaciones)
+                      .filter(([, n]) => n > 0)
+                      .sort((a, b) => Number(b[0]) - Number(a[0]))
+                      .map(([b, n]) => `${n}×$${b}`)
+                      .join(" · ")}
+                  </div>
+                </div>
+                <div className="font-mono font-semibold tabular-nums">{fmt(rc.monto)}</div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-lg text-destructive"
+                  onClick={() => removeRecogida(rc.id)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ))}
+            <div className="flex justify-between border-t border-border pt-1.5 text-xs font-bold">
+              <span>Total recogido</span>
+              <span className="font-mono tabular-nums">{fmt(totalRec)}</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <Label className="block text-xs uppercase tracking-widest text-muted-foreground">
+        Efectivo en caja al cuadrar
+      </Label>
       <div className="space-y-2">
         {DENOMINACIONES.map((d) => {
           const n = current.denominaciones[String(d)] || 0;
@@ -2013,6 +2139,50 @@ function Step7() {
           </div>
         )}
       </div>
+
+      <Dialog open={recOpen} onOpenChange={setRecOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Agregar recogida de efectivo</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label>Día de recogida</Label>
+                <Input type="date" value={recFecha} onChange={(e) => setRecFecha(e.target.value)} className="h-11 rounded-xl" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Quién recoge (opcional)</Label>
+                <Input value={recQuien} onChange={(e) => setRecQuien(e.target.value)} className="h-11 rounded-xl" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              {DENOMINACIONES.map((d) => (
+                <div key={d} className="flex items-center gap-2">
+                  <div className="w-16 text-sm font-bold">${d}</div>
+                  <NumberInput
+                    value={recDen[String(d)] || 0}
+                    onChange={(v) => setRecDen((x) => ({ ...x, [String(d)]: v }))}
+                    className="h-9 flex-1 rounded-lg"
+                    placeholder="0"
+                  />
+                  <div className="w-20 text-right font-mono text-xs tabular-nums">
+                    {fmt(d * (recDen[String(d)] || 0))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="rounded-xl bg-muted/60 p-2 text-center text-sm">
+              Total recogido: <strong>{fmt(recTotal)}</strong>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={guardarRecogida} className="h-11 w-full rounded-xl gradient-emerald text-secondary-foreground">
+              Guardar recogida
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={divisaOpen} onOpenChange={setDivisaOpen}>
         <DialogContent>
@@ -2176,7 +2346,7 @@ function Step9() {
     () => sugerirPagoSalario(c.salarioReal, current.denominaciones),
     [c.salarioReal, current.denominaciones]
   );
-  const efectivoRecibido = c.efectivoEnCaja;
+  const efectivoRecibido = c.efectivoCajaFinal;
   const noHayEfectivo = efectivoRecibido <= 0;
 
   useEffect(() => {
@@ -2398,8 +2568,15 @@ function Step10({ onClose }: { onClose: () => void }) {
   if (!current) return null;
   const isAdmin = role === "admin";
   const c = calcCuadre(current);
+  const sinCosto10 = current.productos.filter(
+    (p) => calcProducto(p).venta > 0 && (!p.costo || p.costo <= 0)
+  );
 
   const finalizarTurno = () => {
+    if (sinCosto10.length > 0) {
+      toast.error("Faltan precios de costo: no se puede finalizar");
+      return;
+    }
     // Snapshot ANTES de finalizar (finalizar limpia currents)
     const snap = { ...current, finalizado: true, fecha: new Date().toISOString() };
     finalizar();
@@ -2423,6 +2600,14 @@ function Step10({ onClose }: { onClose: () => void }) {
 
   return (
     <StepShell hideNext>
+      {sinCosto10.length > 0 && (
+        <div className="rounded-2xl border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+          <div className="mb-1 flex items-center gap-1.5 font-semibold">
+            <AlertTriangle className="h-4 w-4" /> No se puede finalizar: faltan precios de costo
+          </div>
+          Vuelve al paso 5 y ponlos en: {sinCosto10.map((p) => p.nombre).join(", ")}.
+        </div>
+      )}
       <div className="rounded-2xl gradient-primary p-5 text-primary-foreground shadow-elegant">
         <div className="text-xs font-semibold uppercase tracking-widest opacity-80">
           {current.puntoVenta} · {current.dependiente} ·{" "}
@@ -2463,7 +2648,13 @@ function Step10({ onClose }: { onClose: () => void }) {
 
       <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-1.5 text-sm">
         <Row label="Efectivo a depositar" value={fmt(c.efectivoADepositar)} />
-        <Row label="Efectivo en caja" value={fmt(c.efectivoEnCaja)} />
+        {c.efectivoRecogido > 0 && (
+          <Row label="Recogidas de efectivo" value={fmt(c.efectivoRecogido)} />
+        )}
+        <Row
+          label={c.efectivoRecogido > 0 ? "Efectivo entregado (total)" : "Efectivo en caja"}
+          value={fmt(c.efectivoEnCaja)}
+        />
         <Row
           label="Diferencia"
           value={fmt(c.diferencia)}
@@ -2524,6 +2715,7 @@ function Step10({ onClose }: { onClose: () => void }) {
         )}
         <Button
           onClick={() => setConfirmOpen(true)}
+          disabled={sinCosto10.length > 0}
           className="h-12 rounded-xl gradient-emerald text-secondary-foreground shadow-emerald"
         >
           <CheckCircle2 className="mr-2 h-4 w-4" /> Finalizar turno
