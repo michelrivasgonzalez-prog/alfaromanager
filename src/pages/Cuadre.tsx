@@ -354,6 +354,7 @@ function StepInventario({
             Importar finales del turno anterior
           </Label>
           <Select
+            value={current.importadoDe ?? undefined}
             onValueChange={(v) => {
               importarFinales(v);
               toast.success("Inicios cargados desde el turno seleccionado");
@@ -932,14 +933,15 @@ function Step5() {
       if (p.final > c.total) errs.push("Final mayor al Total");
       if (c.venta > 0 && (!p.precio || p.precio <= 0))
         errs.push("Falta precio de venta");
-      if (c.venta > 0 && (!p.costo || p.costo <= 0))
-        errs.push("Falta precio de costo");
       if (c.mixto && c.resto < 0)
         errs.push("Los precios mixtos superan las unidades vendidas");
       return errs.length ? { nombre: p.nombre, errs } : null;
     })
     .filter(Boolean) as { nombre: string; errs: string[] }[];
   const hayErrores = errores.length > 0;
+  const sinCosto = current.productos.filter(
+    (p) => calcProducto(p).venta > 0 && (!p.costo || p.costo <= 0)
+  );
 
   // Se ocultan los productos sin existencia (inicio, entradas y total en 0)
   // para reducir ruido visual y no ocuparlos en el PDF.
@@ -970,6 +972,15 @@ function Step5() {
           </ul>
         </div>
       )}
+      {sinCosto.length > 0 && (
+        <div className="rounded-2xl border border-amber-300/60 bg-amber-50 p-3 text-xs dark:bg-amber-950/30">
+          <div className="mb-1 flex items-center gap-1.5 font-semibold">
+            <AlertTriangle className="h-4 w-4" /> Faltan precios de costo ({sinCosto.length})
+          </div>
+          Puedes seguir hasta el salario, pero no podrás finalizar el turno sin ponerlos:{" "}
+          {sinCosto.map((p) => p.nombre).join(", ")}.
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <SummaryTile label="Venta total" value={fmt(totalImporte)} accent="emerald" />
         {isAdmin ? (
@@ -986,7 +997,7 @@ function Step5() {
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-soft">
-        <table className="w-full min-w-[640px] text-xs">
+        <table className="w-full min-w-[640px] text-xs lg:min-w-0">
           <thead className="bg-muted/60 text-[10px] uppercase tracking-wider text-muted-foreground">
             <tr>
               <th className="px-2 py-1 text-left">Producto</th>
@@ -1384,14 +1395,21 @@ function Step6() {
       const payload: Omit<Gasto, "id"> = {
         categoria: "Transferencia",
         nombre: trTransaccion || "—",
-        tipo,
-        descripcion: descAuto,
+        // Los productos solo sirven de calculadora: se guarda una transferencia limpia.
+        tipo: "Efectivo",
+        descripcion: esProducto
+          ? `${itemsFinal.map((i) => `${i.productoNombre} ×${i.cantidad}`).join(", ")} ${descAuto}`
+          : descAuto,
         fecha: trFecha?.toISOString(),
         transaccion: trTransaccion,
         importe: trImporteEfectivo,
         porcentaje: trPorcentaje,
         montoRecibido: trMontoRecibido,
-        ...(esProducto ? camposProducto(itemsFinal) : {}),
+        items: undefined,
+        productoId: undefined,
+        productoNombre: undefined,
+        cantidad: undefined,
+        precio: undefined,
         monto: trImporteEfectivo,
       };
       if (baseId) updateGasto(baseId, payload);
@@ -1504,7 +1522,7 @@ function Step6() {
             <CommandList>
               <CommandEmpty>Sin resultados</CommandEmpty>
               <CommandGroup>
-                {current.productos.map((p) => (
+                {current.productos.filter((p) => calcProducto(p).total > 0).map((p) => (
                   <CommandItem
                     key={p.id}
                     value={p.nombre}
