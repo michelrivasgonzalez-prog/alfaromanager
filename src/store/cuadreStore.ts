@@ -830,7 +830,10 @@ export const calcCuadre = (c: Cuadre) => {
     (s, [b, n]) => s + Number(b) * n,
     0
   );
-  const efectivoEnCaja = efectivoCup + efectivoDivisas;
+  const efectivoCajaFinal = efectivoCup + efectivoDivisas;
+  const efectivoRecogido = totalRecogidas(c.recogidas);
+  // Total entregado = recogidas parciales + arqueo final en caja.
+  const efectivoEnCaja = efectivoCajaFinal + efectivoRecogido;
 
   const efectivoADepositar = totalVenta - totalGastos;
   // Diferencia simple: en caja - a depositar  (positivo = sobrante / propina, negativo = faltante)
@@ -873,6 +876,8 @@ export const calcCuadre = (c: Cuadre) => {
     gastosPorCategoria,
     totalGastos,
     efectivoEnCaja,
+    efectivoCajaFinal,
+    efectivoRecogido,
     efectivoCup,
     efectivoDivisas,
 
