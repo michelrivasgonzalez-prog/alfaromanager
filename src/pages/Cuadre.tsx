@@ -905,8 +905,14 @@ function Step4() {
 
 /* ================== Step 5: Resultados ================== */
 function Step5() {
-  const { currents, activePunto, updateProducto, syncProductoToCatalog, role } =
+  const { currents, activePunto, updateProducto, syncProductoToCatalog, role, catalogo } =
     useCuadreStore();
+  const refCat = (nombre: string) => {
+    const k = nombre.trim().toLowerCase();
+    return catalogo.find(
+      (x) => (x.punto ?? "Cafetería") === activePunto && x.nombre.trim().toLowerCase() === k
+    );
+  };
   const current = currents[activePunto];
   const [mixtoId, setMixtoId] = useState<string | null>(null);
   const [expandidos, setExpandidos] = useState<Record<string, boolean>>({});
@@ -996,7 +1002,7 @@ function Step5() {
         )}
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-soft">
+      <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-soft lg:-mx-40 xl:-mx-64">
         <table className="w-full min-w-[640px] text-xs lg:min-w-0">
           <thead className="bg-muted/60 text-[10px] uppercase tracking-wider text-muted-foreground">
             <tr>
@@ -1067,6 +1073,19 @@ function Step5() {
                         onBlur={() => syncProductoToCatalog(p.id)}
                         className="ml-auto h-7 w-16 rounded-md text-right text-xs"
                       />
+                      {(() => {
+                        const r = refCat(p.nombre);
+                        return r && Number(r.precio) > 0 && Number(r.precio) !== Number(p.precio) ? (
+                          <button
+                            type="button"
+                            onClick={() => updateProducto(p.id, { precio: Number(r.precio) })}
+                            className="mt-0.5 block w-full text-right text-[9px] text-muted-foreground underline"
+                            title="Último precio en Productos (toca para usarlo)"
+                          >
+                            Últ. {fmt(Number(r.precio))}
+                          </button>
+                        ) : null;
+                      })()}
                     </td>
                   )}
                   <td className="px-2 py-1 text-right tabular-nums font-semibold text-secondary">
@@ -1086,6 +1105,19 @@ function Step5() {
                         onBlur={() => syncProductoToCatalog(p.id)}
                         className="ml-auto h-7 w-16 rounded-md text-right text-xs"
                       />
+                      {(() => {
+                        const r = refCat(p.nombre);
+                        return r && Number(r.costo) > 0 && Number(r.costo) !== Number(p.costo) ? (
+                          <button
+                            type="button"
+                            onClick={() => updateProducto(p.id, { costo: Number(r.costo) })}
+                            className="mt-0.5 block w-full text-right text-[9px] text-muted-foreground underline"
+                            title="Último costo en Productos (toca para usarlo)"
+                          >
+                            Últ. {fmt(Number(r.costo))}
+                          </button>
+                        ) : null;
+                      })()}
                     </td>
                   )}
                   {isAdmin && (
