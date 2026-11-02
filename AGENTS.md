@@ -1,1 +1,2 @@
 - Finalized cuadres are queued in cuadreStore.pendingCuadres and flushed before pulling in syncCuadres; why: cloud pull replaces local history and would drop offline cuadres.
+- Use productosSinCosto from src/lib/costosCuadre.ts for closing and Step 10 PDF validation; why: mixed-price segments must validate the cost of each sold portion consistently.

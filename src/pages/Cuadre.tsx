@@ -76,6 +76,7 @@ import {
   useCuadreStore,
 } from "@/store/cuadreStore";
 import { generarPDF } from "@/lib/pdf";
+import { productosSinCosto } from "@/lib/costosCuadre";
 import { formatGastoDetalle } from "@/lib/dias";
 import {
   listClientes,
@@ -2141,43 +2142,53 @@ function Step7() {
       </div>
 
       <Dialog open={recOpen} onOpenChange={setRecOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogContent
+          className="flex max-h-[90dvh] w-[calc(100%_-_2rem)] max-w-lg flex-col gap-0 overflow-hidden p-0"
+          onOpenAutoFocus={(event) => event.preventDefault()}
+        >
           <DialogHeader>
-            <DialogTitle>Agregar recogida de efectivo</DialogTitle>
+            <DialogTitle className="px-5 pb-4 pt-6 pr-12 text-left">Agregar recogida de efectivo</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2">
+          <div className="min-h-0 space-y-5 overflow-y-auto px-5 pb-5">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label>Día de recogida</Label>
-                <Input type="date" value={recFecha} onChange={(e) => setRecFecha(e.target.value)} className="h-11 rounded-xl" />
+                <Label htmlFor="recogida-fecha">Día de recogida</Label>
+                <Input id="recogida-fecha" type="date" value={recFecha} onChange={(e) => setRecFecha(e.target.value)} className="h-11 w-full min-w-0 rounded-lg" />
               </div>
               <div className="space-y-1.5">
-                <Label>Quién recoge (opcional)</Label>
-                <Input value={recQuien} onChange={(e) => setRecQuien(e.target.value)} className="h-11 rounded-xl" />
+                <Label htmlFor="recogida-quien">Quién recoge (opcional)</Label>
+                <Input id="recogida-quien" value={recQuien} onChange={(e) => setRecQuien(e.target.value)} className="h-11 rounded-lg" />
               </div>
             </div>
-            <div className="space-y-1.5">
+            <div>
+              <div className="grid grid-cols-[4rem_minmax(0,1fr)_5.5rem] gap-3 border-b border-border pb-2 text-xs text-muted-foreground">
+                <span>Billete</span><span>Cantidad</span><span className="text-right">Subtotal</span>
+              </div>
               {DENOMINACIONES.map((d) => (
-                <div key={d} className="flex items-center gap-2">
-                  <div className="w-16 text-sm font-bold">${d}</div>
+                <div key={d} className="grid grid-cols-[4rem_minmax(0,1fr)_5.5rem] items-center gap-3 border-b border-border/60 py-2">
+                  <Label htmlFor={`recogida-${d}`} className="text-sm font-semibold tabular-nums">${d.toLocaleString("es-ES")}</Label>
                   <NumberInput
+                    id={`recogida-${d}`}
+                    aria-label={`Cantidad de billetes de ${d}`}
+                    min={0}
+                    step={1}
                     value={recDen[String(d)] || 0}
                     onChange={(v) => setRecDen((x) => ({ ...x, [String(d)]: v }))}
-                    className="h-9 flex-1 rounded-lg"
+                    className="h-10 w-full min-w-0 rounded-lg"
                     placeholder="0"
                   />
-                  <div className="w-20 text-right font-mono text-xs tabular-nums">
+                  <div className="break-words text-right font-mono text-xs tabular-nums">
                     {fmt(d * (recDen[String(d)] || 0))}
                   </div>
                 </div>
               ))}
             </div>
-            <div className="rounded-xl bg-muted/60 p-2 text-center text-sm">
-              Total recogido: <strong>{fmt(recTotal)}</strong>
-            </div>
           </div>
-          <DialogFooter>
-            <Button onClick={guardarRecogida} className="h-11 w-full rounded-xl gradient-emerald text-secondary-foreground">
+          <DialogFooter className="flex-col gap-3 border-t border-border bg-background p-5 sm:flex-col sm:space-x-0">
+            <div className="flex w-full flex-wrap items-center justify-between gap-2 text-sm">
+              <span className="text-muted-foreground">Total recogido</span><strong className="font-mono text-lg tabular-nums">{fmt(recTotal)}</strong>
+            </div>
+            <Button onClick={guardarRecogida} disabled={recTotal <= 0 || !recFecha} className="h-11 w-full rounded-lg gradient-emerald text-secondary-foreground">
               Guardar recogida
             </Button>
           </DialogFooter>
@@ -2568,9 +2579,7 @@ function Step10({ onClose }: { onClose: () => void }) {
   if (!current) return null;
   const isAdmin = role === "admin";
   const c = calcCuadre(current);
-  const sinCosto10 = current.productos.filter(
-    (p) => calcProducto(p).venta > 0 && (!p.costo || p.costo <= 0)
-  );
+  const sinCosto10 = productosSinCosto(current.productos);
 
   const finalizarTurno = () => {
     if (sinCosto10.length > 0) {
@@ -2603,7 +2612,7 @@ function Step10({ onClose }: { onClose: () => void }) {
       {sinCosto10.length > 0 && (
         <div className="rounded-2xl border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
           <div className="mb-1 flex items-center gap-1.5 font-semibold">
-            <AlertTriangle className="h-4 w-4" /> No se puede finalizar: faltan precios de costo
+            <AlertTriangle className="h-4 w-4" /> No se puede finalizar ni generar PDF: faltan precios de costo
           </div>
           Vuelve al paso 5 y ponlos en: {sinCosto10.map((p) => p.nombre).join(", ")}.
         </div>
@@ -2706,6 +2715,7 @@ function Step10({ onClose }: { onClose: () => void }) {
           <Button
             variant="outline"
             className="h-12 rounded-xl"
+            disabled={sinCosto10.length > 0}
             onClick={() => generarPDF(current)}
           >
             <FileDown className="mr-2 h-4 w-4" /> Generar PDF

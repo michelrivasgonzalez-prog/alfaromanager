@@ -1,4 +1,17 @@
 # Roadmap
+- [x] Recogidas: campos separados, columnas estables y total/botón visibles; calendario sin apertura automática.
+- [x] Paso 10: bloquear PDF y cierre con costos faltantes, incluidos precios mixtos (4 pruebas aprobadas).
+- [ ] Verificar visualmente recogidas y PDF en sesión PIN real: el navegador de prueba sigue en la pantalla de acceso por PIN.
+- [ ] Próxima sesión: unificar Mayabe 700, Bucanero 700, Englishman y Ron Poncho conservando su historia.
+- [ ] Gastos: productos agrupados en líneas editables y orden por categoría en Cuadre, Historial y PDF.
+- [ ] Conciliar salidas de efectivo históricas antes de trasladarlas a recogidas (evitar doble conteo).
+- [ ] Cuadres en curso guardados en la nube para continuar desde otro dispositivo.
+- [ ] Corregir cuentas por cobrar y deuda del dependiente después de editar un cuadre cerrado.
+- [ ] Cobrar: abrir directamente el cuadre asociado y selector de orden de clientes.
+- [ ] Productos: historial completo por producto y alertas de stock mínimo descartables en Inicio.
+- [ ] Remodelar Inicio con datos importantes y permitir ocultar Almacén desde Ajustes.
+- [ ] Reportes: desglose mensual de gastos, salarios y cuentas por cobrar; mejorar Auditoría.
+- [ ] Perfiles con fotos y acceso privado de dependientes habilitado por administrador; recuperación segura del PIN.
 - [x] Paso 1: marcar en el selector de días los días con cuadre del punto de venta
 - [x] Precios mixtos en un turno (venta y costo)
 - [ ] Módulo WiFi_ALFARO_CAFE (plan pendiente de aprobación)
