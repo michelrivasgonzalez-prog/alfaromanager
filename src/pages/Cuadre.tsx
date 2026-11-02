@@ -2143,7 +2143,7 @@ function Step7() {
 
       <Dialog open={recOpen} onOpenChange={setRecOpen}>
         <DialogContent
-          className="flex max-h-[90dvh] w-[calc(100%-2rem)] max-w-lg flex-col gap-0 overflow-hidden p-0"
+          className="flex max-h-[90dvh] w-[calc(100%_-_2rem)] max-w-lg flex-col gap-0 overflow-hidden p-0"
           onOpenAutoFocus={(event) => event.preventDefault()}
         >
           <DialogHeader>
@@ -2184,7 +2184,7 @@ function Step7() {
               ))}
             </div>
           </div>
-          <DialogFooter className="gap-3 border-t border-border bg-background p-5 sm:flex-col sm:space-x-0">
+          <DialogFooter className="flex-col gap-3 border-t border-border bg-background p-5 sm:flex-col sm:space-x-0">
             <div className="flex w-full flex-wrap items-center justify-between gap-2 text-sm">
               <span className="text-muted-foreground">Total recogido</span><strong className="font-mono text-lg tabular-nums">{fmt(recTotal)}</strong>
             </div>
