@@ -248,10 +248,35 @@ export function generarPDF(c: Cuadre) {
           `<tr><td colspan="3" style="text-align:center;color:#999">—</td></tr>`
         }</tbody>
       </table>
-      <div class="row total"><span>Efectivo en caja</span><span class="v">${fmt(
-        r.efectivoEnCaja
+      <div class="row total"><span>Efectivo final en caja</span><span class="v">${fmt(
+        r.efectivoCajaFinal
       )}</span></div>
     </div>
+    ${
+      (c.recogidas ?? []).length
+        ? `<div class="card">
+      <h3>Efectivo recogido</h3>
+      <table>
+        <thead><tr><th>Fecha</th><th>Recoge</th><th>Billetes</th><th class="r">Importe</th></tr></thead>
+        <tbody>${(c.recogidas ?? [])
+          .map(
+            (rc) =>
+              `<tr><td>${format(new Date(rc.fecha + "T12:00:00"), "d MMM", { locale: es })}</td><td>${
+                rc.quien ?? "—"
+              }</td><td>${Object.entries(rc.denominaciones)
+                .filter(([, n]) => Number(n) > 0)
+                .sort((a, b) => Number(b[0]) - Number(a[0]))
+                .map(([b, n]) => `${n}×${Number(b).toLocaleString("es")}`)
+                .join(", ")}</td><td class="r">${fmt(rc.monto)}</td></tr>`
+          )
+          .join("")}</tbody>
+      </table>
+      <div class="row total"><span>Total recogido</span><span class="v">${fmt(
+        r.efectivoRecogido
+      )}</span></div>
+    </div>`
+        : ""
+    }
     <div class="card">
       <h3>Resumen de caja</h3>
       <div class="row"><span>Venta total</span><span class="v">${fmt(r.totalVenta)}</span></div>
@@ -261,7 +286,16 @@ export function generarPDF(c: Cuadre) {
       <div class="row"><span>= A depositar</span><span class="v">${fmt(
         r.efectivoADepositar
       )}</span></div>
-      <div class="row"><span>Efectivo en caja</span><span class="v">${fmt(
+      ${
+        r.efectivoRecogido > 0
+          ? `<div class="row"><span>Efectivo recogido</span><span class="v">${fmt(
+              r.efectivoRecogido
+            )}</span></div><div class="row"><span>Efectivo final en caja</span><span class="v">${fmt(
+              r.efectivoCajaFinal
+            )}</span></div>`
+          : ""
+      }
+      <div class="row"><span>Total entregado</span><span class="v">${fmt(
         r.efectivoEnCaja
       )}</span></div>
       <div class="row total ${

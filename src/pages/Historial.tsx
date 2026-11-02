@@ -634,13 +634,33 @@ function CuadreDetalle({ c }: { c: Cuadre }) {
       <div className="grid gap-3 md:grid-cols-2">
         <Section title="Denominación recibida">
           <DenomList den={c.denominaciones} />
-          <Row label="Efectivo en caja" value={fmt(r.efectivoEnCaja)} bold />
+          <Row label="Efectivo final en caja" value={fmt(r.efectivoCajaFinal)} bold />
         </Section>
+        {(c.recogidas ?? []).length > 0 && (
+          <Section title="Efectivo recogido">
+            {(c.recogidas ?? []).map((rc) => (
+              <div key={rc.id} className="border-b border-border py-1 last:border-0">
+                <Row
+                  label={`${format(new Date(rc.fecha + "T12:00:00"), "d MMM", { locale: es })}${rc.quien ? ` · ${rc.quien}` : ""}`}
+                  value={fmt(rc.monto)}
+                />
+                <DenomList den={rc.denominaciones} />
+              </div>
+            ))}
+            <Row label="Total recogido" value={fmt(r.efectivoRecogido)} bold />
+          </Section>
+        )}
         <Section title="Resumen de caja">
           <Row label="Venta total" value={fmt(r.totalVenta)} />
           <Row label="− Total gastos" value={fmt(r.totalGastos)} />
           <Row label="= A depositar" value={fmt(r.efectivoADepositar)} />
-          <Row label="Efectivo en caja" value={fmt(r.efectivoEnCaja)} />
+          {r.efectivoRecogido > 0 && (
+            <>
+              <Row label="Efectivo recogido" value={fmt(r.efectivoRecogido)} />
+              <Row label="Efectivo final en caja" value={fmt(r.efectivoCajaFinal)} />
+            </>
+          )}
+          <Row label="Total entregado" value={fmt(r.efectivoEnCaja)} />
           <Row
             label={
               r.diferencia < 0
