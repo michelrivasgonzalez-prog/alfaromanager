@@ -78,7 +78,7 @@ import {
 } from "@/store/cuadreStore";
 import { generarPDF } from "@/lib/pdf";
 import { productosSinCosto } from "@/lib/costosCuadre";
-import { formatGastoDetalle, gastoLineas } from "@/lib/dias";
+import { formatGastoDetalle, gastoLineas, ordenarGastos } from "@/lib/dias";
 import {
   listClientes,
   upsertCliente,

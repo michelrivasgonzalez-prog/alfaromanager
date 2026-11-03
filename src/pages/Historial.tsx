@@ -42,7 +42,7 @@ import {
 } from "@/components/ui/select";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { listClientes, listDeudas, crearDeuda, upsertCliente } from "@/lib/cobrar";
-import { formatDiasTrabajados, formatGastoDetalle, gastoLineas } from "@/lib/dias";
+import { formatDiasTrabajados, formatGastoDetalle, gastoLineas, ordenarGastos } from "@/lib/dias";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
