@@ -4,7 +4,7 @@
 - [x] PDF y Ver: efectivo recogido separado del efectivo final en caja.
 - [ ] Verificar visualmente recogidas y PDF en sesión PIN real: el navegador de prueba sigue en la pantalla de acceso por PIN.
 - [ ] Próxima sesión: unificar Mayabe 700, Bucanero 700, Englishman y Ron Poncho conservando su historia.
-- [ ] Gastos: productos agrupados en líneas editables y orden por categoría en Cuadre, Historial y PDF.
+- [x] Gastos: productos agrupados en líneas verticales (Cuadre, Historial, PDF). [ ] Pendiente: edición por línea, y orden por categoría en Cuadre, Historial y PDF.
 - [ ] Conciliar salidas de efectivo históricas antes de trasladarlas a recogidas (evitar doble conteo).
 - [ ] Cuadres en curso guardados en la nube para continuar desde otro dispositivo.
 - [ ] Corregir cuentas por cobrar y deuda del dependiente después de editar un cuadre cerrado.

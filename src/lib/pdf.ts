@@ -2,7 +2,7 @@ import { Cuadre, calcCuadre, DENOMINACIONES, catLabel } from "@/store/cuadreStor
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import logoUrl from "@/assets/alfaro-logo.jpg";
-import { formatDiasTrabajados, formatGastoDetalle } from "@/lib/dias";
+import { formatDiasTrabajados, formatGastoDetalle, gastoLineas } from "@/lib/dias";
 
 const fechaTrabajada = (c: Cuadre) => c.diasTrabajados?.[0] ?? c.fecha;
 
@@ -67,7 +67,7 @@ export function generarPDF(c: Cuadre) {
         <td>${escape(catLabel(g.categoria))}</td>
         <td>${escape(g.tipo)}</td>
         <td>${escape(g.nombre || "—")}</td>
-        <td>${escape(formatGastoDetalle(g))}</td>
+        <td>${gastoLineas(g).map((l) => escape(l)).join("<br>")}</td>
         <td class="r b">${fmt(g.monto)}</td>
       </tr>`
     )

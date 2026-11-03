@@ -77,7 +77,7 @@ import {
 } from "@/store/cuadreStore";
 import { generarPDF } from "@/lib/pdf";
 import { productosSinCosto } from "@/lib/costosCuadre";
-import { formatGastoDetalle } from "@/lib/dias";
+import { formatGastoDetalle, gastoLineas } from "@/lib/dias";
 import {
   listClientes,
   upsertCliente,
@@ -1877,7 +1877,9 @@ function Step6() {
                 </td>
                 <td className="px-3 py-1 text-xs font-medium whitespace-nowrap">{g.nombre}</td>
                 <td className="px-3 py-1 text-xs whitespace-nowrap">
-                  <div>{formatGastoDetalle(g)}</div>
+                  {gastoLineas(g).map((l, i) => (
+                    <div key={i}>{l}</div>
+                  ))}
                 </td>
                 <td className="px-3 py-1 text-right font-mono font-semibold tabular-nums whitespace-nowrap">
                   {fmt(g.monto)}
