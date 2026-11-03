@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { usePinStore, PinRole, PinUser } from "@/store/pinStore";
 import { useAuth } from "@/hooks/useAuth";
-import { useCuadreStore } from "@/store/cuadreStore";
+import { useCuadreStore, puntoHabitual, PuntoVenta } from "@/store/cuadreStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,7 +22,7 @@ import {
 import { Plus, Trash2, Users as UsersIcon, Lock, Pencil, Shield, Crown, User as UserIcon, KeyRound, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { PinPad } from "@/components/PinPad";
-import { deleteDependiente, deletePinUserRemote, pushDependiente, pushPinUser } from "@/lib/sync";
+import { deleteDependiente, deletePinUserRemote, pushDependiente, pushPinUser, pushSettings } from "@/lib/sync";
 
 const ROLE_INFO: Record<PinRole, { label: string; Icon: any; cls: string }> = {
   admin: { label: "Admin", Icon: Shield, cls: "gradient-primary text-primary-foreground" },
@@ -36,7 +36,7 @@ export default function Usuarios() {
   const { users, createUser, removeUser, updateUser, updatePin } = usePinStore();
   const [open, setOpen] = useState(false);
   const [pinUser, setPinUser] = useState<PinUser | null>(null);
-  const { dependientes, addDependiente, updateDependiente, removeDependiente } =
+  const { dependientes, addDependiente, updateDependiente, removeDependiente, settings, history, updateSettings } =
     useCuadreStore();
   const [nuevoDep, setNuevoDep] = useState("");
 
@@ -181,6 +181,20 @@ export default function Usuarios() {
                 <UserIcon className="h-4 w-4" />
               </div>
               <div className="flex-1 font-medium">{d}</div>
+              <select
+                className="h-8 rounded-lg border border-border bg-card px-2 text-xs"
+                value={puntoHabitual(d, settings, history) ?? ""}
+                title="Punto de venta habitual"
+                onChange={(e) => {
+                  const next = { ...(settings.dependientePunto ?? {}), [d]: e.target.value as PuntoVenta };
+                  updateSettings({ dependientePunto: next });
+                  pushSettings().catch((er) => toast.error(er.message));
+                }}
+              >
+                <option value="" disabled>Punto</option>
+                <option value="Cafetería">Cafetería</option>
+                <option value="Mipyme">Mipyme</option>
+              </select>
               <Button
                 size="icon"
                 variant="ghost"

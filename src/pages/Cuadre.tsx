@@ -74,6 +74,7 @@ import {
   totalDivisas,
   totalRecogidas,
   useCuadreStore,
+  puntoHabitual,
 } from "@/store/cuadreStore";
 import { generarPDF } from "@/lib/pdf";
 import { productosSinCosto } from "@/lib/costosCuadre";
