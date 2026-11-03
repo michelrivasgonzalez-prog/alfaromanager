@@ -42,7 +42,7 @@ import {
 } from "@/components/ui/select";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { listClientes, listDeudas, crearDeuda, upsertCliente } from "@/lib/cobrar";
-import { formatDiasTrabajados, formatGastoDetalle } from "@/lib/dias";
+import { formatDiasTrabajados, formatGastoDetalle, gastoLineas } from "@/lib/dias";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -617,7 +617,10 @@ function CuadreDetalle({ c }: { c: Cuadre }) {
                   <span className="font-mono text-xs font-bold tabular-nums">{fmt(g.monto)}</span>
                 </div>
                 <div className="mt-0.5 text-[10px] text-muted-foreground">
-                  {[g.nombre, formatGastoDetalle(g)].filter(Boolean).join(" · ") || "—"}
+                  {g.nombre && <div className="font-medium">{g.nombre}</div>}
+                  {gastoLineas(g).map((l, i) => (
+                    <div key={i}>{l}</div>
+                  ))}
                 </div>
               </div>
             ))}

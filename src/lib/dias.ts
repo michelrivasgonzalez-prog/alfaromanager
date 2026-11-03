@@ -81,6 +81,19 @@ export function formatGastoDetalle(g: {
   return (g.descripcion ?? "").trim() || "—";
 }
 
+/** Detalle del gasto como líneas verticales: un producto por línea. */
+export function gastoLineas(g: Parameters<typeof formatGastoDetalle>[0]): string[] {
+  if (g.tipo === "Producto" && g.items && g.items.length > 1) {
+    const lineas = g.items.map(
+      (i) =>
+        `${i.productoNombre} ${i.cantidad} × ${Math.round(i.precio * 100) / 100} = ${Math.round(i.cantidad * i.precio * 100) / 100}`
+    );
+    if (g.descripcion?.trim()) lineas.push(`(${g.descripcion.trim()})`);
+    return lineas;
+  }
+  return [formatGastoDetalle(g)];
+}
+
 /** Iniciales para avatar tipo Google (2 letras máx.) */
 export function iniciales(nombre: string): string {
   const parts = (nombre || "").trim().split(/\s+/).filter(Boolean);
