@@ -1537,8 +1537,22 @@ function Step6() {
         <ul className="space-y-1">
           {items.map((it, i) => (
             <li key={i} className="flex items-center justify-between gap-2 rounded-lg bg-card px-2 py-1 text-xs">
-              <span className="truncate">
-                {it.productoNombre} · {it.cantidad} × {fmt(it.precio)}
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span className="truncate">{it.productoNombre}</span>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  step="any"
+                  aria-label={`Cantidad de ${it.productoNombre}`}
+                  className="h-6 w-14 rounded-md border border-border bg-background px-1 text-right font-mono tabular-nums"
+                  value={it.cantidad}
+                  onChange={(e) => {
+                    const v = Math.max(0, Number(e.target.value) || 0);
+                    setItems((xs) => xs.map((x, j) => (j === i ? { ...x, cantidad: v } : x)));
+                  }}
+                />
+                <span className="whitespace-nowrap text-muted-foreground">× {fmt(it.precio)}</span>
               </span>
               <span className="flex items-center gap-1">
                 <span className="font-mono tabular-nums">{fmt(it.cantidad * it.precio)}</span>
