@@ -204,7 +204,19 @@ function Step1() {
 
       <div className="rounded-2xl border border-border bg-card p-5 shadow-soft space-y-4">
         <div className="space-y-2">
-          <Label>Nombre del dependiente</Label>
+          <div className="flex items-center justify-between gap-2">
+            <Label>Nombre del dependiente</Label>
+            <button
+              type="button"
+              onClick={() => setVerTodos((v) => !v)}
+              className={cn(
+                "rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-smooth",
+                verTodos ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"
+              )}
+            >
+              {verTodos ? "Solo de " + activePunto : "Suplencia: ver todos"}
+            </button>
+          </div>
           <Select
             value={current.dependiente}
             onValueChange={(v) => updateCurrent({ dependiente: v })}
