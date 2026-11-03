@@ -2,7 +2,7 @@ import { Cuadre, calcCuadre, DENOMINACIONES, catLabel } from "@/store/cuadreStor
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import logoUrl from "@/assets/alfaro-logo.jpg";
-import { formatDiasTrabajados, formatGastoDetalle, gastoLineas } from "@/lib/dias";
+import { formatDiasTrabajados, formatGastoDetalle, gastoLineas, ordenarGastos } from "@/lib/dias";
 
 const fechaTrabajada = (c: Cuadre) => c.diasTrabajados?.[0] ?? c.fecha;
 
@@ -60,7 +60,7 @@ export function generarPDF(c: Cuadre) {
     .join("");
 
 
-  const gastosRows = c.gastos
+  const gastosRows = ordenarGastos(c.gastos)
     .map(
       (g) => `
       <tr>

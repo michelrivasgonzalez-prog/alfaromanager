@@ -164,7 +164,22 @@ export type Settings = {
   categorias?: string[];
   /** Reportes mensuales guardados (clave yyyy-MM). */
   reportesMensuales?: Record<string, any>;
+  /** Punto de venta habitual de cada dependiente (por nombre). */
+  dependientePunto?: Record<string, PuntoVenta>;
+};
 
+/** Punto habitual: el asignado o, si no hay, el más frecuente en su historial. */
+export const puntoHabitual = (
+  nombre: string,
+  settings: Settings,
+  history: { dependiente: string; puntoVenta: PuntoVenta }[]
+): PuntoVenta | undefined => {
+  const asignado = settings.dependientePunto?.[nombre];
+  if (asignado) return asignado;
+  const n: Record<string, number> = {};
+  for (const h of history) if (h.dependiente === nombre) n[h.puntoVenta] = (n[h.puntoVenta] ?? 0) + 1;
+  const best = Object.entries(n).sort((a, b) => b[1] - a[1])[0];
+  return best?.[0] as PuntoVenta | undefined;
 };
 
 const DEFAULT_SETTINGS: Settings = {

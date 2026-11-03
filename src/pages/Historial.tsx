@@ -42,7 +42,7 @@ import {
 } from "@/components/ui/select";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { listClientes, listDeudas, crearDeuda, upsertCliente } from "@/lib/cobrar";
-import { formatDiasTrabajados, formatGastoDetalle, gastoLineas } from "@/lib/dias";
+import { formatDiasTrabajados, formatGastoDetalle, gastoLineas, ordenarGastos } from "@/lib/dias";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -608,7 +608,7 @@ function CuadreDetalle({ c }: { c: Cuadre }) {
           <div className="text-xs text-muted-foreground">Sin gastos</div>
         ) : (
           <div className="space-y-1.5">
-            {c.gastos.map((g) => (
+            {ordenarGastos(c.gastos).map((g) => (
               <div key={g.id} className="rounded-lg border border-border bg-muted/30 px-2.5 py-1.5">
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="text-xs font-semibold leading-tight">

@@ -112,3 +112,16 @@ export function colorAvatar(nombre: string): string {
   for (let i = 0; i < nombre.length; i++) h = (h * 31 + nombre.charCodeAt(i)) >>> 0;
   return paleta[h % paleta.length];
 }
+
+const ORDEN_CATEGORIAS = ["Local", "Yanitza", "Salida de efectivo", "Compras", "Cuentas por Cobrar", "Transferencia"];
+
+/** Ordena los gastos por categoría y, dentro de cada una, por quién recibe. */
+export function ordenarGastos<T extends { categoria: string; nombre?: string }>(gastos: T[]): T[] {
+  const idx = (c: string) => {
+    const i = ORDEN_CATEGORIAS.indexOf(c);
+    return i < 0 ? ORDEN_CATEGORIAS.length : i;
+  };
+  return [...gastos].sort(
+    (a, b) => idx(a.categoria) - idx(b.categoria) || (a.nombre ?? "").localeCompare(b.nombre ?? "")
+  );
+}

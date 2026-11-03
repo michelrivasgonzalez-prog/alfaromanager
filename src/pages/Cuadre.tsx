@@ -74,10 +74,11 @@ import {
   totalDivisas,
   totalRecogidas,
   useCuadreStore,
+  puntoHabitual,
 } from "@/store/cuadreStore";
 import { generarPDF } from "@/lib/pdf";
 import { productosSinCosto } from "@/lib/costosCuadre";
-import { formatGastoDetalle, gastoLineas } from "@/lib/dias";
+import { formatGastoDetalle, gastoLineas, ordenarGastos } from "@/lib/dias";
 import {
   listClientes,
   upsertCliente,
@@ -139,12 +140,20 @@ function Step1() {
     updateCurrent,
     dependientes,
     history,
+    settings,
   } = useCuadreStore();
+  const [verTodos, setVerTodos] = useState(false);
   const registrados = history
     .filter((h) => h.puntoVenta === activePunto)
     .flatMap((h) => (h.diasTrabajados?.length ? h.diasTrabajados : [h.fecha]))
     .map((d) => new Date(d));
-  const dependientesList = [...dependientes].sort((a, b) => a.localeCompare(b));
+  const dependientesList = [...dependientes]
+    .filter((d) => {
+      if (verTodos) return true;
+      const p = puntoHabitual(d, settings, history);
+      return !p || p === activePunto || d === currents[activePunto]?.dependiente;
+    })
+    .sort((a, b) => a.localeCompare(b));
   const current = currents[activePunto];
   if (!current) return null;
   const days = current.diasTrabajados.map((d) => new Date(d));
@@ -196,7 +205,19 @@ function Step1() {
 
       <div className="rounded-2xl border border-border bg-card p-5 shadow-soft space-y-4">
         <div className="space-y-2">
-          <Label>Nombre del dependiente</Label>
+          <div className="flex items-center justify-between gap-2">
+            <Label>Nombre del dependiente</Label>
+            <button
+              type="button"
+              onClick={() => setVerTodos((v) => !v)}
+              className={cn(
+                "rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-smooth",
+                verTodos ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"
+              )}
+            >
+              {verTodos ? "Solo de " + activePunto : "Suplencia: ver todos"}
+            </button>
+          </div>
           <Select
             value={current.dependiente}
             onValueChange={(v) => updateCurrent({ dependiente: v })}
@@ -1334,7 +1355,7 @@ function Step6() {
     productoId && cantidad && precio
       ? { productoId, productoNombre: productoSel?.nombre ?? "Producto", cantidad, precio }
       : null;
-  const itemsFinal: GastoItem[] = lineaPendiente ? [...items, lineaPendiente] : items;
+  const itemsFinal: GastoItem[] = (lineaPendiente ? [...items, lineaPendiente] : items).filter((i) => i.cantidad > 0);
   const importeProducto = itemsFinal.reduce((s, it) => s + it.cantidad * it.precio, 0);
   const trImporteEfectivo = isTransfer && tipo === "Producto" ? importeProducto : trImporte;
   const trMontoRecibido = trImporteEfectivo + (trImporteEfectivo * trPorcentaje) / 100;
@@ -1516,8 +1537,22 @@ function Step6() {
         <ul className="space-y-1">
           {items.map((it, i) => (
             <li key={i} className="flex items-center justify-between gap-2 rounded-lg bg-card px-2 py-1 text-xs">
-              <span className="truncate">
-                {it.productoNombre} · {it.cantidad} × {fmt(it.precio)}
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span className="truncate">{it.productoNombre}</span>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  step="any"
+                  aria-label={`Cantidad de ${it.productoNombre}`}
+                  className="h-6 w-14 rounded-md border border-border bg-background px-1 text-right font-mono tabular-nums"
+                  value={it.cantidad}
+                  onChange={(e) => {
+                    const v = Math.max(0, Number(e.target.value) || 0);
+                    setItems((xs) => xs.map((x, j) => (j === i ? { ...x, cantidad: v } : x)));
+                  }}
+                />
+                <span className="whitespace-nowrap text-muted-foreground">× {fmt(it.precio)}</span>
               </span>
               <span className="flex items-center gap-1">
                 <span className="font-mono tabular-nums">{fmt(it.cantidad * it.precio)}</span>
@@ -1862,12 +1897,7 @@ function Step6() {
                 </td>
               </tr>
             )}
-            {[...current.gastos]
-              .sort(
-                (a, b) =>
-                  CATEGORIAS.indexOf(a.categoria) - CATEGORIAS.indexOf(b.categoria)
-              )
-              .map((g) => (
+            {ordenarGastos(current.gastos).map((g) => (
               <tr key={g.id} className="border-t border-border align-top">
                 <td className="px-3 py-1 text-xs whitespace-nowrap">
                   <span className="rounded-full bg-muted px-2 py-0.5 font-medium">
