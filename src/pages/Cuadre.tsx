@@ -1355,7 +1355,7 @@ function Step6() {
     productoId && cantidad && precio
       ? { productoId, productoNombre: productoSel?.nombre ?? "Producto", cantidad, precio }
       : null;
-  const itemsFinal: GastoItem[] = lineaPendiente ? [...items, lineaPendiente] : items;
+  const itemsFinal: GastoItem[] = (lineaPendiente ? [...items, lineaPendiente] : items).filter((i) => i.cantidad > 0);
   const importeProducto = itemsFinal.reduce((s, it) => s + it.cantidad * it.precio, 0);
   const trImporteEfectivo = isTransfer && tipo === "Producto" ? importeProducto : trImporte;
   const trMontoRecibido = trImporteEfectivo + (trImporteEfectivo * trPorcentaje) / 100;
