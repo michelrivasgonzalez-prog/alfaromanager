@@ -1883,12 +1883,7 @@ function Step6() {
                 </td>
               </tr>
             )}
-            {[...current.gastos]
-              .sort(
-                (a, b) =>
-                  CATEGORIAS.indexOf(a.categoria) - CATEGORIAS.indexOf(b.categoria)
-              )
-              .map((g) => (
+            {ordenarGastos(current.gastos).map((g) => (
               <tr key={g.id} className="border-t border-border align-top">
                 <td className="px-3 py-1 text-xs whitespace-nowrap">
                   <span className="rounded-full bg-muted px-2 py-0.5 font-medium">

@@ -60,7 +60,7 @@ export function generarPDF(c: Cuadre) {
     .join("");
 
 
-  const gastosRows = c.gastos
+  const gastosRows = ordenarGastos(c.gastos)
     .map(
       (g) => `
       <tr>
