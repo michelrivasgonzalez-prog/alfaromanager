@@ -139,12 +139,20 @@ function Step1() {
     updateCurrent,
     dependientes,
     history,
+    settings,
   } = useCuadreStore();
+  const [verTodos, setVerTodos] = useState(false);
   const registrados = history
     .filter((h) => h.puntoVenta === activePunto)
     .flatMap((h) => (h.diasTrabajados?.length ? h.diasTrabajados : [h.fecha]))
     .map((d) => new Date(d));
-  const dependientesList = [...dependientes].sort((a, b) => a.localeCompare(b));
+  const dependientesList = [...dependientes]
+    .filter((d) => {
+      if (verTodos) return true;
+      const p = puntoHabitual(d, settings, history);
+      return !p || p === activePunto || d === currents[activePunto]?.dependiente;
+    })
+    .sort((a, b) => a.localeCompare(b));
   const current = currents[activePunto];
   if (!current) return null;
   const days = current.diasTrabajados.map((d) => new Date(d));
