@@ -41,7 +41,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { listClientes, listDeudas, crearDeuda, upsertCliente } from "@/lib/cobrar";
+import { listClientes, listDeudas, crearDeuda, upsertCliente, actualizarDeuda, eliminarDeuda, type Deuda } from "@/lib/cobrar";
+import { ajustarDeuda } from "@/lib/corregirDeudas";
 import { formatDiasTrabajados, formatGastoDetalle, gastoLineas, ordenarGastos } from "@/lib/dias";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -110,6 +111,7 @@ export default function Historial() {
   const canEdit = role === "admin" || role === "duena";
   const [detalle, setDetalle] = useState<Cuadre | null>(null);
   const [deudaFor, setDeudaFor] = useState<{ cuadre: Cuadre; pagada: boolean } | null>(null);
+  const [corregirFor, setCorregirFor] = useState<Cuadre | null>(null);
   const [punto, setPunto] = useState<"Cafetería" | "Mipyme">("Cafetería");
 
   const clientes = useQuery({ queryKey: ["clientes"], queryFn: listClientes, enabled: canDeuda });
@@ -294,6 +296,16 @@ export default function Historial() {
                       </span>
                     )}
                   </div>
+                  {canDeuda && yaLinked && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-2 h-7 w-full rounded-lg"
+                      onClick={() => setCorregirFor(c)}
+                    >
+                      <RefreshCw className="mr-1 h-3 w-3" /> Corregir deudas tras editar
+                    </Button>
+                  )}
                   {canDeuda && !yaLinked && (
                     <div className="mt-2 flex gap-2">
                       <Button
