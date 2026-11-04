@@ -134,20 +134,24 @@ export function generarPDF(c: Cuadre) {
   th { background: #f5efe6; color: #4B3621; text-transform: uppercase; font-size: 9px; letter-spacing: 0.4px; text-align: left; white-space: normal; }
   td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; }
   td.l { text-align: left; }
-  td.name, th.name { width: 26%; white-space: normal; word-break: break-word; }
+  td.name, th.name { white-space: normal; word-break: break-word; }
+  table.gastos td { white-space: normal; word-break: break-word; }
+  table.gastos td.r { white-space: nowrap; overflow: visible; }
   td.b { font-weight: 700; }
   tr.sub td { color: #666; font-size: 9.5px; background: #fafafa; }
 
   tfoot td { font-weight: 700; background: #faf6f0; border-top: 2px solid #4B3621; }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .card { border: 1px solid #e5e5e5; border-radius: 8px; padding: 10px 12px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; align-items: start; }
+  .card { border: 1px solid #e5e5e5; border-radius: 8px; padding: 10px 12px; break-inside: avoid; }
   .card h3 { margin: 0 0 6px; font-size: 11px; color: #4B3621; text-transform: uppercase; letter-spacing: 0.5px; }
-  .row { display: flex; justify-content: space-between; padding: 2px 0; }
+  .card table.mini th, .card table.mini td { padding: 1px 3px; }
+  .row { display: flex; justify-content: space-between; gap: 6px; padding: 2px 0; }
   .row .v { font-weight: 700; font-variant-numeric: tabular-nums; }
   .ok { color: #065F46; }
   .bad { color: #b91c1c; }
-  .total { font-size: 14px; font-weight: 800; }
-  .footer { margin-top: 16px; padding-top: 8px; border-top: 1px solid #ddd; font-size: 10px; color: #666; display: flex; justify-content: space-between; }
+  .total { font-size: 13px; font-weight: 800; }
+  .footer { margin-top: 64px; padding-top: 8px; border-top: 1px solid #ddd; font-size: 10px; color: #666; display: flex; justify-content: space-between; align-items: flex-end; }
   .page-break { page-break-before: always; break-before: page; }
 
   @media print {
