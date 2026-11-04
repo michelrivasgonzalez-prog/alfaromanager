@@ -282,7 +282,14 @@ export default function Historial() {
             {(() => {
               const credito = totalCredito(c);
               const yaLinked = deudaByCuadre.get(c.id);
-              if (credito <= 0) return null;
+              if (credito <= 0) {
+                const tieneDeudaVinc = canDeuda && (deudasAll.data ?? []).some((d) => d.cuadre_id === c.id);
+                return tieneDeudaVinc ? (
+                  <Button size="sm" variant="outline" className="mt-2 h-7 w-full rounded-lg text-xs" onClick={() => setCorregirFor(c)}>
+                    <RefreshCw className="mr-1 h-3 w-3" /> Corregir deudas tras editar
+                  </Button>
+                ) : null;
+              }
               return (
                 <div className="mt-2 rounded-xl border border-dashed border-primary/30 bg-primary/5 p-2 text-xs">
                   <div className="flex items-center justify-between">
@@ -383,6 +390,18 @@ export default function Historial() {
       </section>
         );
       })}
+      {corregirFor && (
+        <CorregirDeudasDialog
+          cuadre={corregirFor}
+          deudas={(deudasAll.data ?? []).filter((d) => d.cuadre_id === corregirFor.id)}
+          clientes={clientes.data ?? []}
+          onClose={() => setCorregirFor(null)}
+          onSaved={() => {
+            clientes.refetch();
+            deudasAll.refetch();
+          }}
+        />
+      )}
       <RegistrarDeudaDialog
         cuadre={deudaFor?.cuadre ?? null}
         pagada={!!deudaFor?.pagada}
