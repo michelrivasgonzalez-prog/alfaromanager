@@ -156,6 +156,22 @@ export async function crearDeuda(input: {
   return data as any as Deuda;
 }
 
+export async function actualizarDeuda(
+  id: string,
+  patch: Partial<Pick<Deuda, "total" | "saldo" | "estado" | "productos" | "cuadre_label" | "fecha">>
+) {
+  const { error } = await supabase.from("deudas").update(patch as any).eq("id", id);
+  if (error) throw error;
+}
+
+export async function eliminarDeuda(id: string) {
+  const { error } = await supabase
+    .from("deudas")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw error;
+}
+
 export async function listAbonos(clienteId: string): Promise<Abono[]> {
   const { data, error } = await supabase
     .from("abonos")
