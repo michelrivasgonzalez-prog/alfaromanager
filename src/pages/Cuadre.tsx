@@ -1964,6 +1964,8 @@ function Step7() {
   const [recFecha, setRecFecha] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [recQuien, setRecQuien] = useState("Yanitza");
   const [recDen, setRecDen] = useState<Record<string, number>>({});
+  const [recConBilletes, setRecConBilletes] = useState(false);
+  const [recMonto, setRecMonto] = useState(0);
   const [divisa, setDivisa] = useState({
     moneda: "USD",
     denominacion: 0,
@@ -1982,16 +1984,19 @@ function Step7() {
   const totalRec = totalRecogidas(recogidas);
   const total = totalCup + totalMonedas;
   const restante = r.efectivoADepositar - total - totalRec;
-  const recTotal = Object.entries(recDen).reduce((s, [b, n]) => s + Number(b) * (n || 0), 0);
+  const recTotal = recConBilletes
+    ? Object.entries(recDen).reduce((s, [b, n]) => s + Number(b) * (n || 0), 0)
+    : Number(recMonto) || 0;
   const guardarRecogida = () => {
-    if (recTotal <= 0) return toast.error("Introduce las denominaciones recogidas");
+    if (recTotal <= 0) return toast.error("Introduce el importe recogido");
     addRecogida({
       fecha: recFecha,
       quien: recQuien.trim() || undefined,
-      denominaciones: recDen,
+      denominaciones: recConBilletes ? recDen : {},
       monto: recTotal,
     });
     setRecDen({});
+    setRecMonto(0);
     setRecOpen(false);
     toast.success("Recogida agregada");
   };
@@ -2192,6 +2197,30 @@ function Step7() {
                 <Input id="recogida-quien" value={recQuien} onChange={(e) => setRecQuien(e.target.value)} className="h-11 rounded-lg" />
               </div>
             </div>
+            <label className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-sm">
+              <span>{recConBilletes ? "Con desglose de billetes" : "Solo importe"}</span>
+              <input
+                type="checkbox"
+                role="switch"
+                aria-label="Registrar con billetes"
+                checked={recConBilletes}
+                onChange={(e) => setRecConBilletes(e.target.checked)}
+                className="h-5 w-5 accent-primary"
+              />
+            </label>
+            {!recConBilletes ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="recogida-monto">Importe recogido</Label>
+                <NumberInput
+                  id="recogida-monto"
+                  min={0}
+                  value={recMonto}
+                  onChange={(v) => setRecMonto(v)}
+                  className="h-11 w-full rounded-lg"
+                  placeholder="0"
+                />
+              </div>
+            ) : (
             <div>
               <div className="grid grid-cols-[4rem_minmax(0,1fr)_5.5rem] gap-3 border-b border-border pb-2 text-xs text-muted-foreground">
                 <span>Billete</span><span>Cantidad</span><span className="text-right">Subtotal</span>
@@ -2215,6 +2244,7 @@ function Step7() {
                 </div>
               ))}
             </div>
+            )}
           </div>
           <DialogFooter className="flex-col gap-3 border-t border-border bg-background p-5 sm:flex-col sm:space-x-0">
             <div className="flex w-full flex-wrap items-center justify-between gap-2 text-sm">
