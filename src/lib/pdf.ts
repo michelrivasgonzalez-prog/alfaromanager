@@ -134,20 +134,24 @@ export function generarPDF(c: Cuadre) {
   th { background: #f5efe6; color: #4B3621; text-transform: uppercase; font-size: 9px; letter-spacing: 0.4px; text-align: left; white-space: normal; }
   td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; }
   td.l { text-align: left; }
-  td.name, th.name { width: 26%; white-space: normal; word-break: break-word; }
+  td.name, th.name { white-space: normal; word-break: break-word; }
+  table.gastos td { white-space: normal; word-break: break-word; }
+  table.gastos td.r { white-space: nowrap; overflow: visible; }
   td.b { font-weight: 700; }
   tr.sub td { color: #666; font-size: 9.5px; background: #fafafa; }
 
   tfoot td { font-weight: 700; background: #faf6f0; border-top: 2px solid #4B3621; }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .card { border: 1px solid #e5e5e5; border-radius: 8px; padding: 10px 12px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; align-items: start; }
+  .card { border: 1px solid #e5e5e5; border-radius: 8px; padding: 10px 12px; break-inside: avoid; }
   .card h3 { margin: 0 0 6px; font-size: 11px; color: #4B3621; text-transform: uppercase; letter-spacing: 0.5px; }
-  .row { display: flex; justify-content: space-between; padding: 2px 0; }
+  .card table.mini th, .card table.mini td { padding: 1px 3px; }
+  .row { display: flex; justify-content: space-between; gap: 6px; padding: 2px 0; }
   .row .v { font-weight: 700; font-variant-numeric: tabular-nums; }
   .ok { color: #065F46; }
   .bad { color: #b91c1c; }
-  .total { font-size: 14px; font-weight: 800; }
-  .footer { margin-top: 16px; padding-top: 8px; border-top: 1px solid #ddd; font-size: 10px; color: #666; display: flex; justify-content: space-between; }
+  .total { font-size: 13px; font-weight: 800; }
+  .footer { margin-top: 64px; padding-top: 8px; border-top: 1px solid #ddd; font-size: 10px; color: #666; display: flex; justify-content: space-between; align-items: flex-end; }
   .page-break { page-break-before: always; break-before: page; }
 
   @media print {
@@ -184,6 +188,7 @@ export function generarPDF(c: Cuadre) {
 
   <h2>1. IPV — Inventario y Productos Vendidos</h2>
   <table>
+    <colgroup><col style="width:17%"><col style="width:6%"><col style="width:5.5%"><col style="width:5.5%"><col style="width:6%"><col style="width:6%"><col style="width:6.5%"><col style="width:7%"><col style="width:10.5%"><col style="width:7%"><col style="width:11%"><col style="width:12%"></colgroup>
     <thead>
       <tr>
         <th class="name">Producto</th>
@@ -216,7 +221,8 @@ export function generarPDF(c: Cuadre) {
   <div class="page-break"></div>
   <h2>2. Gastos del turno</h2>
 
-  <table>
+  <table class="gastos">
+    <colgroup><col style="width:9%"><col style="width:7%"><col style="width:9%"><col style="width:68%"><col style="width:7%"></colgroup>
     <thead>
       <tr>
         <th>Categoría</th>
@@ -238,10 +244,10 @@ export function generarPDF(c: Cuadre) {
   </table>
 
   <h2>3. Cuadre de caja</h2>
-  <div class="grid">
+  <div class="grid3">
     <div class="card">
       <h3>Denominación recibida (en caja)</h3>
-      <table>
+      <table class="mini">
         <thead><tr><th>Billete</th><th class="r">Cantidad</th><th class="r">Importe</th></tr></thead>
         <tbody>${
           denominacionCajaRows ||
@@ -256,7 +262,7 @@ export function generarPDF(c: Cuadre) {
       (c.recogidas ?? []).length
         ? `<div class="card">
       <h3>Efectivo recogido</h3>
-      <table>
+      <table class="mini">
         <thead><tr><th>Fecha</th><th>Recoge</th><th>Billetes</th><th class="r">Importe</th></tr></thead>
         <tbody>${(c.recogidas ?? [])
           .map(
@@ -309,8 +315,8 @@ export function generarPDF(c: Cuadre) {
     </div>
   </div>
 
-  <h2>4. Salario</h2>
-  <div class="grid">
+  <h2>4. Salario y resumen final</h2>
+  <div class="grid3">
     <div class="card">
       <h3>Cálculo</h3>
       <div class="row"><span>Días trabajados</span><span class="v">${r.diasCount}</span></div>
@@ -368,7 +374,7 @@ export function generarPDF(c: Cuadre) {
     </div>
     <div class="card">
       <h3>Pago — billetes entregados</h3>
-      <table>
+      <table class="mini">
         <thead><tr><th>Billete</th><th class="r">Cantidad</th><th class="r">Importe</th></tr></thead>
         <tbody>${
           denominacionPagoRows ||
@@ -379,10 +385,8 @@ export function generarPDF(c: Cuadre) {
         totalPagado
       )}</span></div>
     </div>
-  </div>
-
-  <h2>5. Resumen final</h2>
-  <div class="card">
+    <div class="card">
+      <h3>Resumen final</h3>
     <div class="row"><span>Venta total</span><span class="v">${fmt(r.totalVenta)}</span></div>
     <div class="row"><span>Costo total</span><span class="v">${fmt(r.totalCosto)}</span></div>
     <div class="row"><span>Ganancia total</span><span class="v">${fmt(
@@ -391,6 +395,7 @@ export function generarPDF(c: Cuadre) {
     <div class="row total ok"><span>Ganancia neta</span><span class="v">${fmt(
       r.gananciaNeta
     )}</span></div>
+  </div>
   </div>
 
   ${
