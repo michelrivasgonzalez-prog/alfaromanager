@@ -867,3 +867,167 @@ function Mini({
     </div>
   );
 }
+
+type Cambio = {
+  key: string;
+  nombre: string;
+  antes: number;
+  despues: number;
+  accion: "actualizar" | "crear" | "eliminar" | "igual";
+  deuda?: Deuda;
+  clienteId?: string;
+  productos: { nombre: string; cantidad: number; precio: number }[];
+  faltante?: boolean;
+};
+
+function productosDeGrupo(gastos: Cuadre["gastos"]) {
+  return gastos.flatMap((g) =>
+    g.items && g.items.length
+      ? g.items.map((i) => ({ nombre: i.productoNombre, cantidad: i.cantidad, precio: i.precio }))
+      : [{
+          nombre: g.tipo === "Producto" ? (g.productoNombre ?? g.descripcion) : g.descripcion || g.nombre || "Venta",
+          cantidad: g.tipo === "Producto" ? (g.cantidad ?? 1) : 1,
+          precio: g.tipo === "Producto" ? (g.precio ?? g.monto) : g.monto,
+        }]
+  );
+}
+
+function CorregirDeudasDialog({
+  cuadre,
+  deudas,
+  clientes,
+  onClose,
+  onSaved,
+}: {
+  cuadre: Cuadre;
+  deudas: Deuda[];
+  clientes: { id: string; nombre: string }[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const r = calcCuadre(cuadre);
+  const nombreCli = (id: string) => clientes.find((c) => c.id === id)?.nombre ?? "Cliente";
+  const esFaltante = (d: Deuda) =>
+    d.id === cuadre.deudaDependienteId || (d.cuadre_label ?? "").startsWith("Faltante");
+
+  const cambios: Cambio[] = [];
+  const credito = deudas.filter((d) => !esFaltante(d));
+  const usadas = new Set<string>();
+  for (const g of creditoPorCliente(cuadre)) {
+    const cliId =
+      g.clienteId ??
+      clientes.find((c) => c.nombre.trim().toLowerCase() === g.nombre.trim().toLowerCase())?.id;
+    const d = credito.find((x) => x.cliente_id === cliId && !usadas.has(x.id));
+    if (d) usadas.add(d.id);
+    const despues = Math.round(g.total * 100) / 100;
+    cambios.push({
+      key: d?.id ?? `n-${g.nombre}`,
+      nombre: g.nombre,
+      antes: d ? Number(d.total) : 0,
+      despues,
+      accion: !d ? (cliId ? "crear" : "igual") : Math.abs(Number(d.total) - despues) < 0.01 ? "igual" : "actualizar",
+      deuda: d,
+      clienteId: cliId,
+      productos: productosDeGrupo(g.gastos),
+    });
+  }
+  for (const d of credito) {
+    if (usadas.has(d.id)) continue;
+    cambios.push({ key: d.id, nombre: nombreCli(d.cliente_id), antes: Number(d.total), despues: 0, accion: "eliminar", deuda: d, productos: d.productos });
+  }
+  const df = deudas.find(esFaltante);
+  if (df) {
+    const despues = Math.round(r.deudaDependiente);
+    cambios.push({
+      key: df.id,
+      nombre: `${nombreCli(df.cliente_id)} (faltante)`,
+      antes: Number(df.total),
+      despues,
+      accion: Math.abs(Number(df.total) - despues) < 0.01 ? "igual" : despues > 0 ? "actualizar" : "eliminar",
+      deuda: df,
+      productos: [],
+      faltante: true,
+    });
+  }
+  const pendientes = cambios.filter((c) => c.accion !== "igual");
+
+  const aplicar = async () => {
+    setBusy(true);
+    try {
+      let excedente = 0;
+      for (const c of pendientes) {
+        if (c.accion === "crear" && c.clienteId) {
+          await crearDeuda({
+            cliente_id: c.clienteId,
+            cuadre_id: cuadre.id,
+            cuadre_label: `${cuadre.puntoVenta} · ${format(new Date(fechaTrabajada(cuadre)), "dd MMM yyyy", { locale: es })}${cuadre.dependiente ? ` · ${cuadre.dependiente}` : ""}`,
+            productos: c.productos,
+            total: c.despues,
+            fecha: fechaTrabajada(cuadre),
+          });
+          continue;
+        }
+        if (!c.deuda) continue;
+        const a = ajustarDeuda(c.deuda, c.despues);
+        excedente += a.excedente;
+        if (a.eliminar) await eliminarDeuda(c.deuda.id);
+        else
+          await actualizarDeuda(c.deuda.id, {
+            total: a.total,
+            saldo: a.saldo,
+            estado: a.estado,
+            ...(c.faltante ? {} : { productos: c.productos }),
+          });
+      }
+      toast.success(`Deudas corregidas (${pendientes.length})`);
+      if (excedente > 0) toast.warning(`Hay ${fmt(excedente)} abonado de más; revísalo en Cobrar.`);
+      qc.invalidateQueries({ queryKey: ["deudas-all"] });
+      qc.invalidateQueries({ queryKey: ["deudas"] });
+      qc.invalidateQueries({ queryKey: ["clientes"] });
+      onSaved();
+      onClose();
+    } catch (e: any) {
+      toast.error(e?.message ?? "No se pudieron corregir las deudas");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const etiqueta = { actualizar: "Se actualiza", crear: "Se crea", eliminar: "Se quita", igual: "Sin cambios" };
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Corregir deudas del cuadre</DialogTitle>
+        </DialogHeader>
+        <p className="text-xs text-muted-foreground">
+          Compara las deudas guardadas con el cuadre actual. Lo ya abonado se respeta.
+        </p>
+        <div className="space-y-2">
+          {cambios.map((c) => (
+            <div key={c.key} className="flex items-center justify-between gap-2 rounded-lg border border-border p-2 text-sm">
+              <div className="min-w-0">
+                <div className="truncate font-semibold">{c.nombre}</div>
+                <div className="text-xs text-muted-foreground">
+                  {c.accion === "igual" && !c.clienteId && !c.deuda ? "Sin cliente asignado" : etiqueta[c.accion]}
+                </div>
+              </div>
+              <div className="text-right font-mono text-xs tabular-nums">
+                {fmt(c.antes)} → <strong>{fmt(c.despues)}</strong>
+              </div>
+            </div>
+          ))}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button onClick={aplicar} disabled={busy || pendientes.length === 0}>
+            {pendientes.length === 0 ? "Todo coincide" : busy ? "Guardando…" : "Aplicar correcciones"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
