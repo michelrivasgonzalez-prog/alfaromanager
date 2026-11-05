@@ -14,14 +14,14 @@ import { useAutoLogout } from "@/hooks/useAutoLogout";
 
 const ALL_TABS: { to: string; icon: any; label: string; allow: AppRole[] }[] = [
   { to: "/", icon: Home, label: "Inicio", allow: ["admin", "duena", "dependiente"] },
-  { to: "/calendario", icon: CalendarDays, label: "Calendario", allow: ["admin", "duena", "dependiente"] },
-  { to: "/historial", icon: History, label: "Historial", allow: ["admin", "duena", "dependiente"] },
+  { to: "/calendario", icon: CalendarDays, label: "Calendario", allow: ["admin", "duena"] },
+  { to: "/historial", icon: History, label: "Historial", allow: ["admin", "duena"] },
   { to: "/almacen", icon: Warehouse, label: "Almacén", allow: ["admin", "duena"] },
-    { to: "/cobrar", icon: Wallet, label: "Mis Deudas", allow: ["admin", "duena", "dependiente"] },
+  { to: "/cobrar", icon: Wallet, label: "Mis Deudas", allow: ["admin", "duena", "dependiente"] },
   { to: "/reportes", icon: BarChart3, label: "Reportes", allow: ["admin", "duena"] },
   { to: "/productos", icon: Package, label: "Productos", allow: ["admin", "duena"] },
   { to: "/usuarios", icon: Users, label: "Usuarios", allow: ["admin", "duena"] },
-  { to: "/ajustes", icon: Settings, label: "Ajustes", allow: ["admin", "duena", "dependiente"] },
+  { to: "/ajustes", icon: Settings, label: "Ajustes", allow: ["admin", "duena"] },
 ];
 
 export default function AppLayout() {
