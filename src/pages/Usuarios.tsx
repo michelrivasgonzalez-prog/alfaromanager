@@ -304,7 +304,7 @@ export default function Usuarios() {
         </div>
       </div>
 
-                <Dialog open={!!pinUser} onOpenChange={(v) => !v && setPinUser(null)}>
+      <Dialog open={!!pinUser} onOpenChange={(v) => !v && setPinUser(null)}>
         <DialogContent className="rounded-2xl">
           <DialogHeader>
             <DialogTitle>Asignar / Cambiar PIN a {pinUser?.nombre}</DialogTitle>
