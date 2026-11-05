@@ -168,6 +168,7 @@ export type Settings = {
   dependientePunto?: Record<string, PuntoVenta>;
   /** Existencia mínima por producto (clave "punto|nombre en minúsculas"). */
   stockMinimo?: Record<string, number>;
+  ocultarAlmacen?: boolean;
 };
 
 /** Punto habitual: el asignado o, si no hay, el más frecuente en su historial. */
@@ -192,6 +193,7 @@ const DEFAULT_SETTINGS: Settings = {
   diasNoTrabajados: [],
   diasNoTrabajadosPunto: { "Cafetería": [], "Mipyme": [] },
   categorias: [],
+  ocultarAlmacen: false,
 };
 
 const DEFAULT_CATALOG: CatalogoItem[] = [];
