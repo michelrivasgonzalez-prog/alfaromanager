@@ -166,6 +166,8 @@ export type Settings = {
   reportesMensuales?: Record<string, any>;
   /** Punto de venta habitual de cada dependiente (por nombre). */
   dependientePunto?: Record<string, PuntoVenta>;
+  /** Dependientes desactivados sin eliminar su historial. */
+  dependientesInactivos?: string[];
   /** Existencia mínima por producto (clave "punto|nombre en minúsculas"). */
   stockMinimo?: Record<string, number>;
   ocultarAlmacen?: boolean;
@@ -193,6 +195,7 @@ const DEFAULT_SETTINGS: Settings = {
   diasNoTrabajados: [],
   diasNoTrabajadosPunto: { "Cafetería": [], "Mipyme": [] },
   categorias: [],
+  dependientesInactivos: [],
   ocultarAlmacen: false,
 };
 
@@ -541,10 +544,32 @@ export const useCuadreStore = create<State>()(
             ? s
             : { dependientes: [...s.dependientes, nombre] }
         ),
-      updateDependiente: (oldName, newName) =>
-        set((s) => ({
-          dependientes: s.dependientes.map((d) => (d === oldName ? newName : d)),
-        })),
+            updateDependiente: (oldName, newName) =>
+        set((s) => {
+          const inactivos = s.settings.dependientesInactivos ?? [];
+          const dependientesInactivos = inactivos.map((d) =>
+            d === oldName ? newName : d
+          );
+
+          const dependientePunto = { ...(s.settings.dependientePunto ?? {}) };
+
+          if (dependientePunto[oldName]) {
+            dependientePunto[newName] = dependientePunto[oldName];
+            delete dependientePunto[oldName];
+          }
+
+          return {
+            dependientes: s.dependientes.map((d) =>
+              d === oldName ? newName : d
+            ),
+            settings: {
+              ...s.settings,
+              dependientesInactivos,
+              dependientePunto,
+            },
+            settingsUpdatedAt: new Date().toISOString(),
+          };
+        }),
       removeDependiente: (nombre) =>
         set((s) => ({
           dependientes: s.dependientes.filter((d) => d !== nombre),
