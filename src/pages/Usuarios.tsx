@@ -172,103 +172,169 @@ export default function Usuarios() {
               No hay dependientes. Añade uno arriba.
             </div>
           )}
-          {dependientes.map((d) => (
-            <div
-              key={d}
-              className="flex items-center gap-2 rounded-2xl border border-border bg-card p-3 shadow-soft"
-            >
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-foreground">
-                <UserIcon className="h-4 w-4" />
-              </div>
-              <div className="flex-1 font-medium">{d}</div>
-              <select
-                className="h-8 rounded-lg border border-border bg-card px-2 text-xs"
-                value={puntoHabitual(d, settings, history) ?? ""}
-                title="Punto de venta habitual"
-                onChange={(e) => {
-                  const next = { ...(settings.dependientePunto ?? {}), [d]: e.target.value as PuntoVenta };
-                  updateSettings({ dependientePunto: next });
-                  pushSettings().catch((er) => toast.error(er.message));
-                }}
+                    {dependientes.map((d) => {
+            // Busca si este dependiente ya tiene una cuenta con PIN creada
+            const cuentaAsociada = users.find(
+              (u) => u.nombre.trim().toLowerCase() === d.trim().toLowerCase()
+            );
+
+            return (
+              <div
+                key={d}
+                className="flex items-center gap-2 rounded-2xl border border-border bg-card p-3 shadow-soft"
               >
-                <option value="" disabled>Punto</option>
-                <option value="Cafetería">Cafetería</option>
-                <option value="Mipyme">Mipyme</option>
-              </select>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8"
-                title="Renombrar"
-                onClick={() => {
-                  const v = prompt("Nuevo nombre", d);
-                  if (v && v.trim() && v.trim() !== d) {
-                                        updateDependiente(d, v.trim());
-                    Promise.all([
-                      deleteDependiente(d),
-                      pushDependiente(v.trim()),
-                      pushSettings(),
-                    ]).catch((e) => toast.error(e.message));
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-foreground">
+                  <UserIcon className="h-4 w-4" />
+                </div>
+                <div className="flex-1">
+                  <div className="font-medium">{d}</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {cuentaAsociada ? (
+                      <span className="text-emerald-600 font-semibold flex items-center gap-1">
+                        <KeyRound className="h-3 w-3 inline" /> PIN asignado
+                      </span>
+                    ) : (
+                      "Sin acceso PIN"
+                    )}
+                  </div>
+                </div>
+
+                {/* Botón para Asignar o Cambiar PIN al dependiente */}
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8"
+                  title={cuentaAsociada ? "Cambiar PIN" : "Asignar PIN de acceso"}
+                  onClick={() => {
+                    if (cuentaAsociada) {
+                      setPinUser(cuentaAsociada);
+                    } else {
+                      // Si no tiene cuenta, abrimos modal pre-configurando su nombre
+                      const nuevoUsuario: PinUser = {
+                        id: crypto.randomUUID(),
+                        nombre: d,
+                        role: "dependiente",
+                        pinHash: "",
+                      };
+                      setPinUser(nuevoUsuario);
+                    }
+                  }}
+                >
+                  <KeyRound className={`h-4 w-4 ${cuentaAsociada ? "text-emerald-500" : "text-muted-foreground"}`} />
+                </Button>
+
+                <select
+                  className="h-8 rounded-lg border border-border bg-card px-2 text-xs"
+                  value={puntoHabitual(d, settings, history) ?? ""}
+                  title="Punto de venta habitual"
+                  onChange={(e) => {
+                    const next = { ...(settings.dependientePunto ?? {}), [d]: e.target.value as PuntoVenta };
+                    updateSettings({ dependientePunto: next });
+                    pushSettings().catch((er) => toast.error(er.message));
+                  }}
+                >
+                  <option value="" disabled>Punto</option>
+                  <option value="Cafetería">Cafetería</option>
+                  <option value="Mipyme">Mipyme</option>
+                </select>
+
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8"
+                  title="Renombrar"
+                  onClick={() => {
+                    const v = prompt("Nuevo nombre", d);
+                    if (v && v.trim() && v.trim() !== d) {
+                      updateDependiente(d, v.trim());
+                      // Si tenía cuenta PIN asociada, actualizamos el nombre del usuario también
+                      if (cuentaAsociada) {
+                        updateUser(cuentaAsociada.id, { nombre: v.trim() });
+                        pushPinUser({ ...cuentaAsociada, nombre: v.trim() }).catch(console.warn);
+                      }
+                      Promise.all([
+                        deleteDependiente(d),
+                        pushDependiente(v.trim()),
+                        pushSettings(),
+                      ]).catch((e) => toast.error(e.message));
+                    }
+                  }}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className={
+                    (settings.dependientesInactivos ?? []).includes(d)
+                      ? "h-8 rounded-full border-border bg-muted text-muted-foreground"
+                      : "h-8 rounded-full border-emerald-500/30 bg-emerald-500/10 text-emerald-600"
                   }
-                }}
-              >
-                <Pencil className="h-4 w-4" />
-              </Button>
-                            <Button
-                size="sm"
-                variant="outline"
-                className={
-                  (settings.dependientesInactivos ?? []).includes(d)
-                    ? "h-8 rounded-full border-border bg-muted text-muted-foreground"
-                    : "h-8 rounded-full border-emerald-500/30 bg-emerald-500/10 text-emerald-600"
-                }
-                title={
-                  (settings.dependientesInactivos ?? []).includes(d)
-                    ? "Activar dependiente"
-                    : "Desactivar dependiente"
-                }
-                onClick={() => {
-                  const inactivos = settings.dependientesInactivos ?? [];
-                  const estaInactivo = inactivos.includes(d);
+                  title={
+                    (settings.dependientesInactivos ?? []).includes(d)
+                      ? "Activar dependiente"
+                      : "Desactivar dependiente"
+                  }
+                  onClick={() => {
+                    const inactivos = settings.dependientesInactivos ?? [];
+                    const estaInactivo = inactivos.includes(d);
 
-                  const next = estaInactivo
-                    ? inactivos.filter((nombre) => nombre !== d)
-                    : [...inactivos, d];
+                    const next = estaInactivo
+                      ? inactivos.filter((nombre) => nombre !== d)
+                      : [...inactivos, d];
 
-                  updateSettings({ dependientesInactivos: next });
+                    updateSettings({ dependientesInactivos: next });
+                    pushSettings().catch((e) => toast.error(e.message));
 
-                  pushSettings().catch((e) => toast.error(e.message));
-
-                  toast.success(
-                    estaInactivo
-                      ? `${d} ahora está activo`
-                      : `${d} ahora está inactivo`
-                  );
-                }}
-              >
-                {(settings.dependientesInactivos ?? []).includes(d)
-                  ? "Inactivo"
-                  : "Activo"}
-              </Button>
-            </div>
-          ))}
+                    toast.success(
+                      estaInactivo
+                        ? `${d} ahora está activo`
+                        : `${d} ahora está inactivo`
+                    );
+                  }}
+                >
+                  {(settings.dependientesInactivos ?? []).includes(d)
+                    ? "Inactivo"
+                    : "Activo"}
+                </Button>
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      <Dialog open={!!pinUser} onOpenChange={(v) => !v && setPinUser(null)}>
+                <Dialog open={!!pinUser} onOpenChange={(v) => !v && setPinUser(null)}>
         <DialogContent className="rounded-2xl">
           <DialogHeader>
-            <DialogTitle>Nuevo PIN para {pinUser?.nombre}</DialogTitle>
+            <DialogTitle>Asignar / Cambiar PIN a {pinUser?.nombre}</DialogTitle>
           </DialogHeader>
           {pinUser && (
             <ChangePinForm
               user={pinUser}
               onDone={async (pin) => {
-                await updatePin(pinUser.id, pin);
-                toast.success("PIN actualizado");
+                const existe = users.some((u) => u.id === pinUser.id);
+                if (existe) {
+                  await updatePin(pinUser.id, pin);
+                  toast.success(`PIN actualizado para ${pinUser.nombre}`);
+                } else {
+                  const nuevo = await createUser({
+                    nombre: pinUser.nombre,
+                    role: pinUser.role || "dependiente",
+                    pin: pin,
+                  });
+                  pushPinUser(nuevo).catch((e) => toast.error(e.message));
+                  toast.success(`PIN de acceso creado para ${pinUser.nombre}`);
+                }
                 setPinUser(null);
               }}
             />
+          )}
+        </DialogContent>
+      </Dialog>
+          )}
+        </DialogContent>
+      </Dialog>
           )}
         </DialogContent>
       </Dialog>
@@ -303,12 +369,13 @@ function NewUserForm({ onDone }: { onDone: () => void }) {
         </div>
         <div className="space-y-1">
           <Label>Rol</Label>
-          <Select value={role} onValueChange={(v) => setRole(v as PinRole)}>
-            <SelectTrigger>
+                    <Select value={role} onValueChange={(v) => setRole(v as PinRole)}>
+            <SelectTrigger className="rounded-xl">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-popover">
               <SelectItem value="duena">Dueña</SelectItem>
+              <SelectItem value="dependiente">Dependiente</SelectItem>
             </SelectContent>
           </Select>
         </div>
