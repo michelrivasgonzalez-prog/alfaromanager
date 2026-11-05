@@ -172,132 +172,94 @@ export default function Usuarios() {
               No hay dependientes. Añade uno arriba.
             </div>
           )}
-                    {dependientes.map((d) => {
-            // Busca si este dependiente ya tiene una cuenta con PIN creada
+                              {dependientes.map((d) => {
             const cuentaAsociada = users.find(
               (u) => u.nombre.trim().toLowerCase() === d.trim().toLowerCase()
             );
+            const inactivos = settings.dependientesInactivos ?? [];
+            const estaInactivo = inactivos.includes(d);
+            const puntoActual = puntoHabitual(d, settings, history);
 
             return (
               <div
                 key={d}
-                className="flex items-center gap-2 rounded-2xl border border-border bg-card p-3 shadow-soft"
+                className="rounded-2xl border border-border bg-card p-3.5 shadow-soft space-y-2.5"
               >
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-foreground">
-                  <UserIcon className="h-4 w-4" />
+                {/* Cabecera: Avatar, Nombre completo y Estado */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted text-foreground">
+                      <UserIcon className="h-4 w-4" />
+                    </div>
+                    <span className="font-semibold text-sm truncate">{d}</span>
+                  </div>
+
+                  <span
+                    className={
+                      estaInactivo
+                        ? "px-2.5 py-0.5 rounded-full bg-muted text-[11px] font-medium text-muted-foreground"
+                        : "px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-[11px] font-medium text-emerald-600"
+                    }
+                  >
+                    {estaInactivo ? "Inactivo" : "Activo"}
+                  </span>
                 </div>
-                <div className="flex-1">
-                  <div className="font-medium">{d}</div>
-                  <div className="text-[11px] text-muted-foreground">
-                    {cuentaAsociada ? (
-                      <span className="text-emerald-600 font-semibold flex items-center gap-1">
-                        <KeyRound className="h-3 w-3 inline" /> PIN asignado
-                      </span>
-                    ) : (
-                      "Sin acceso PIN"
-                    )}
+
+                {/* Pie: Etiquetas informativas y Acciones */}
+                <div className="flex items-center justify-between pt-2 border-t border-border/40 text-xs">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {/* Badge de Punto habitual */}
+                    <span className="text-[11px] px-2.5 py-1 rounded-lg bg-muted/60 text-foreground font-medium border border-border/40">
+                      📍 {puntoActual ?? "Sin punto"}
+                    </span>
+
+                    {/* Badge de PIN */}
+                    <span
+                      className={`text-[11px] px-2.5 py-1 rounded-lg font-medium flex items-center gap-1 ${
+                        cuentaAsociada
+                          ? "bg-emerald-500/10 text-emerald-600"
+                          : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      <KeyRound className="h-3 w-3 inline" />
+                      {cuentaAsociada ? "PIN activo" : "Sin PIN"}
+                    </span>
+                  </div>
+
+                  {/* Acciones de PIN y Edición */}
+                  <div className="flex items-center gap-1">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8 rounded-xl"
+                      title={cuentaAsociada ? "Cambiar PIN" : "Asignar PIN de acceso"}
+                      onClick={() => {
+                        if (cuentaAsociada) {
+                          setPinUser(cuentaAsociada);
+                        } else {
+                          const nuevoUsuario: PinUser = {
+                            id: crypto.randomUUID(),
+                            nombre: d,
+                            role: "dependiente",
+                            pinHash: "",
+                          };
+                          setPinUser(nuevoUsuario);
+                        }
+                      }}
+                    >
+                      <KeyRound
+                        className={`h-4 w-4 ${
+                          cuentaAsociada ? "text-emerald-500" : "text-muted-foreground"
+                        }`}
+                      />
+                    </Button>
+
+                    <EditDependienteDialog
+                      dependiente={d}
+                      cuentaAsociada={cuentaAsociada}
+                    />
                   </div>
                 </div>
-
-                {/* Botón para Asignar o Cambiar PIN al dependiente */}
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8"
-                  title={cuentaAsociada ? "Cambiar PIN" : "Asignar PIN de acceso"}
-                  onClick={() => {
-                    if (cuentaAsociada) {
-                      setPinUser(cuentaAsociada);
-                    } else {
-                      // Si no tiene cuenta, abrimos modal pre-configurando su nombre
-                      const nuevoUsuario: PinUser = {
-                        id: crypto.randomUUID(),
-                        nombre: d,
-                        role: "dependiente",
-                        pinHash: "",
-                      };
-                      setPinUser(nuevoUsuario);
-                    }
-                  }}
-                >
-                  <KeyRound className={`h-4 w-4 ${cuentaAsociada ? "text-emerald-500" : "text-muted-foreground"}`} />
-                </Button>
-
-                <select
-                  className="h-8 rounded-lg border border-border bg-card px-2 text-xs"
-                  value={puntoHabitual(d, settings, history) ?? ""}
-                  title="Punto de venta habitual"
-                  onChange={(e) => {
-                    const next = { ...(settings.dependientePunto ?? {}), [d]: e.target.value as PuntoVenta };
-                    updateSettings({ dependientePunto: next });
-                    pushSettings().catch((er) => toast.error(er.message));
-                  }}
-                >
-                  <option value="" disabled>Punto</option>
-                  <option value="Cafetería">Cafetería</option>
-                  <option value="Mipyme">Mipyme</option>
-                </select>
-
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8"
-                  title="Renombrar"
-                  onClick={() => {
-                    const v = prompt("Nuevo nombre", d);
-                    if (v && v.trim() && v.trim() !== d) {
-                      updateDependiente(d, v.trim());
-                      // Si tenía cuenta PIN asociada, actualizamos el nombre del usuario también
-                      if (cuentaAsociada) {
-                        updateUser(cuentaAsociada.id, { nombre: v.trim() });
-                        pushPinUser({ ...cuentaAsociada, nombre: v.trim() }).catch(console.warn);
-                      }
-                      Promise.all([
-                        deleteDependiente(d),
-                        pushDependiente(v.trim()),
-                        pushSettings(),
-                      ]).catch((e) => toast.error(e.message));
-                    }
-                  }}
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
-
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className={
-                    (settings.dependientesInactivos ?? []).includes(d)
-                      ? "h-8 rounded-full border-border bg-muted text-muted-foreground"
-                      : "h-8 rounded-full border-emerald-500/30 bg-emerald-500/10 text-emerald-600"
-                  }
-                  title={
-                    (settings.dependientesInactivos ?? []).includes(d)
-                      ? "Activar dependiente"
-                      : "Desactivar dependiente"
-                  }
-                  onClick={() => {
-                    const inactivos = settings.dependientesInactivos ?? [];
-                    const estaInactivo = inactivos.includes(d);
-
-                    const next = estaInactivo
-                      ? inactivos.filter((nombre) => nombre !== d)
-                      : [...inactivos, d];
-
-                    updateSettings({ dependientesInactivos: next });
-                    pushSettings().catch((e) => toast.error(e.message));
-
-                    toast.success(
-                      estaInactivo
-                        ? `${d} ahora está activo`
-                        : `${d} ahora está inactivo`
-                    );
-                  }}
-                >
-                  {(settings.dependientesInactivos ?? []).includes(d)
-                    ? "Inactivo"
-                    : "Activo"}
-                </Button>
               </div>
             );
           })}
@@ -454,5 +416,116 @@ function ChangePinForm({ user, onDone }: { user: PinUser; onDone: (pin: string) 
           .catch((e) => toast.error(e.message));
       }}
     />
+  );
+}
+function EditDependienteDialog({
+  dependiente,
+  cuentaAsociada,
+}: {
+  dependiente: string;
+  cuentaAsociada?: PinUser;
+}) {
+  const [open, setOpen] = useState(false);
+  const { settings, history, updateDependiente, updateSettings } = useCuadreStore();
+  const { updateUser } = usePinStore();
+
+  const [nombre, setNombre] = useState(dependiente);
+  const [punto, setPunto] = useState<PuntoVenta>(
+    puntoHabitual(dependiente, settings, history) ?? "Cafetería"
+  );
+  const inactivos = settings.dependientesInactivos ?? [];
+  const [activo, setActivo] = useState(!inactivos.includes(dependiente));
+
+  const handleSave = async () => {
+    const nuevoNombre = nombre.trim();
+    if (!nuevoNombre) return;
+
+    // 1. Renombrar si cambió
+    if (nuevoNombre !== dependiente) {
+      updateDependiente(dependiente, nuevoNombre);
+      if (cuentaAsociada) {
+        updateUser(cuentaAsociada.id, { nombre: nuevoNombre });
+        pushPinUser({ ...cuentaAsociada, nombre: nuevoNombre }).catch(console.warn);
+      }
+      await Promise.all([
+        deleteDependiente(dependiente),
+        pushDependiente(nuevoNombre),
+      ]).catch((e) => toast.error(e.message));
+    }
+
+    // 2. Guardar Punto habitual y Estado Activo/Inactivo
+    const targetNombre = nuevoNombre !== dependiente ? nuevoNombre : dependiente;
+    const nextPuntos = { ...(settings.dependientePunto ?? {}), [targetNombre]: punto };
+    const nextInactivos = !activo
+      ? Array.from(new Set([...inactivos, targetNombre]))
+      : inactivos.filter((n) => n !== targetNombre);
+
+    updateSettings({
+      dependientePunto: nextPuntos,
+      dependientesInactivos: nextInactivos,
+    });
+
+    pushSettings()
+      .then(() => {
+        toast.success("Dependiente actualizado");
+        setOpen(false);
+      })
+      .catch((e) => toast.error(e.message));
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-xl" title="Editar">
+          <Pencil className="h-4 w-4" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="rounded-2xl space-y-4">
+        <DialogHeader>
+          <DialogTitle>Editar dependiente</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label className="text-xs">Nombre completo</Label>
+            <Input
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              className="rounded-xl h-10"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs">Punto de venta habitual</Label>
+            <Select value={punto} onValueChange={(v) => setPunto(v as PuntoVenta)}>
+              <SelectTrigger className="rounded-xl h-10">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-popover">
+                <SelectItem value="Cafetería">Cafetería</SelectItem>
+                <SelectItem value="Mipyme">Mipyme</option>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center justify-between pt-2">
+            <Label className="text-xs">Estado de la cuenta</Label>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                {activo ? "Activo" : "Inactivo"}
+              </span>
+              <Switch checked={activo} onCheckedChange={setActivo} />
+            </div>
+          </div>
+
+          <Button
+            onClick={handleSave}
+            className="w-full h-11 rounded-xl gradient-primary mt-2"
+          >
+            Guardar cambios
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
