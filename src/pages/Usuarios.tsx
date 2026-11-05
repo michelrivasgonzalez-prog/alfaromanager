@@ -172,8 +172,7 @@ export default function Usuarios() {
               No hay dependientes. Añade uno arriba.
             </div>
           )}
-                              {dependientes
-  .slice()
+                              {dependientes.slice()
   .sort((a, b) => {
     const inactivos = settings.dependientesInactivos ?? [];
     const aInactivo = inactivos.includes(a);
