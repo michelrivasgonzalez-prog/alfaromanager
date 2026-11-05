@@ -36,8 +36,8 @@ export default function Usuarios() {
   const { users, createUser, removeUser, updateUser, updatePin } = usePinStore();
   const [open, setOpen] = useState(false);
   const [pinUser, setPinUser] = useState<PinUser | null>(null);
-  const { dependientes, addDependiente, updateDependiente, removeDependiente, settings, history, updateSettings } =
-    useCuadreStore();
+  const { dependientes, addDependiente, updateDependiente, settings, history, updateSettings } =
+  useCuadreStore();
   const [nuevoDep, setNuevoDep] = useState("");
 
   if (!isAdmin) {
@@ -203,26 +203,52 @@ export default function Usuarios() {
                 onClick={() => {
                   const v = prompt("Nuevo nombre", d);
                   if (v && v.trim() && v.trim() !== d) {
-                    updateDependiente(d, v.trim());
-                    Promise.all([deleteDependiente(d), pushDependiente(v.trim())]).catch((e) =>
-                      toast.error(e.message)
-                    );
+                                        updateDependiente(d, v.trim());
+                    Promise.all([
+                      deleteDependiente(d),
+                      pushDependiente(v.trim()),
+                      pushSettings(),
+                    ]).catch((e) => toast.error(e.message));
                   }
                 }}
               >
                 <Pencil className="h-4 w-4" />
               </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8 text-destructive"
+                            <Button
+                size="sm"
+                variant="outline"
+                className={
+                  (settings.dependientesInactivos ?? []).includes(d)
+                    ? "h-8 rounded-full border-border bg-muted text-muted-foreground"
+                    : "h-8 rounded-full border-emerald-500/30 bg-emerald-500/10 text-emerald-600"
+                }
+                title={
+                  (settings.dependientesInactivos ?? []).includes(d)
+                    ? "Activar dependiente"
+                    : "Desactivar dependiente"
+                }
                 onClick={() => {
-                  if (!confirm(`¿Eliminar a ${d}?`)) return;
-                  removeDependiente(d);
-                  deleteDependiente(d).catch((e) => toast.error(e.message));
+                  const inactivos = settings.dependientesInactivos ?? [];
+                  const estaInactivo = inactivos.includes(d);
+
+                  const next = estaInactivo
+                    ? inactivos.filter((nombre) => nombre !== d)
+                    : [...inactivos, d];
+
+                  updateSettings({ dependientesInactivos: next });
+
+                  pushSettings().catch((e) => toast.error(e.message));
+
+                  toast.success(
+                    estaInactivo
+                      ? `${d} ahora está activo`
+                      : `${d} ahora está inactivo`
+                  );
                 }}
               >
-                <Trash2 className="h-4 w-4" />
+                {(settings.dependientesInactivos ?? []).includes(d)
+                  ? "Inactivo"
+                  : "Activo"}
               </Button>
             </div>
           ))}
