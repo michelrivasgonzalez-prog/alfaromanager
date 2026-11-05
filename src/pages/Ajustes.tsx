@@ -599,7 +599,6 @@ function CategoriasPanel() {
     </div>
   );
 }
-
 function AuditoriaPanel() {
   const [logs, setLogs] = useState<AuditoriaRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -615,9 +614,9 @@ function AuditoriaPanel() {
         usuario: usuario || undefined,
         limit: 100,
       });
-      setLogs(data);
+      setLogs(data ?? []);
     } catch (e: any) {
-      toast.error("Error al cargar auditoría: " + e.message);
+      toast.error("Error al cargar auditoría: " + (e?.message || ""));
     } finally {
       setLoading(false);
     }
@@ -628,8 +627,11 @@ function AuditoriaPanel() {
   }, []);
 
   const logsFiltrados = useMemo(() => {
+    if (!logs) return [];
     if (accionFiltro === "todas") return logs;
-    return logs.filter((l) => l.accion.toLowerCase().includes(accionFiltro.toLowerCase()));
+    return logs.filter((l) =>
+      (l.accion || "").toLowerCase().includes(accionFiltro.toLowerCase())
+    );
   }, [logs, accionFiltro]);
 
   return (
@@ -681,22 +683,40 @@ function AuditoriaPanel() {
           </div>
         )}
         {logsFiltrados.map((l) => {
-          const esReversion = l.accion.toLowerCase().includes("revert") || l.accion.toLowerCase().includes("eliminar");
-          const esCreacion = l.accion.toLowerCase().includes("crear") || l.accion.toLowerCase().includes("registrar");
+          const accionText = l.accion || "";
+          const esReversion =
+            accionText.toLowerCase().includes("revert") ||
+            accionText.toLowerCase().includes("eliminar");
+          const esCreacion =
+            accionText.toLowerCase().includes("crear") ||
+            accionText.toLowerCase().includes("registrar");
+
+          // Compatibilidad segura de fecha (fecha o creado_en)
+          const rawFecha = (l as any).fecha || (l as any).creado_en || (l as any).created_at;
+          let fechaStr = "—";
+          if (rawFecha) {
+            try {
+              fechaStr = format(new Date(rawFecha), "dd MMM · HH:mm", { locale: es });
+            } catch {
+              fechaStr = "—";
+            }
+          }
 
           return (
             <div key={l.id} className="rounded-xl border border-border bg-muted/20 p-3 text-xs space-y-2">
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className={`font-semibold px-2 py-0.5 rounded-md text-[11px] ${
-                      esReversion 
-                        ? "bg-destructive/10 text-destructive" 
-                        : esCreacion 
-                        ? "bg-secondary/10 text-secondary" 
-                        : "bg-primary/10 text-primary"
-                    }`}>
-                      {l.accion}
+                    <span
+                      className={`font-semibold px-2 py-0.5 rounded-md text-[11px] ${
+                        esReversion
+                          ? "bg-destructive/10 text-destructive"
+                          : esCreacion
+                          ? "bg-secondary/10 text-secondary"
+                          : "bg-primary/10 text-primary"
+                      }`}
+                    >
+                      {accionText}
                     </span>
                     <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">
                       {l.entidad}
@@ -707,23 +727,26 @@ function AuditoriaPanel() {
                   </div>
                 </div>
                 <div className="text-[10px] text-muted-foreground whitespace-nowrap">
-                  {format(new Date(l.fecha), "dd MMM · HH:mm", { locale: es })}
+                  {fechaStr}
                 </div>
               </div>
 
-                            {/* Renderizado legible en tarjetas de clave/valor en vez de JSON crudo */}
-              {l.detalle && Object.keys(l.detalle).length > 0 && (
+              {/* Renderizado en tarjetas clave/valor */}
+              {l.detalle && typeof l.detalle === "object" && Object.keys(l.detalle).length > 0 && (
                 <div className="rounded-lg border border-border/60 bg-card p-2 text-[11px] space-y-1">
                   {Object.entries(l.detalle).map(([key, val]) => {
                     let valStr = "";
                     if (typeof val === "object" && val !== null) {
                       valStr = JSON.stringify(val);
                     } else {
-                      valStr = String(val);
+                      valStr = String(val ?? "");
                     }
 
                     return (
-                      <div key={key} className="flex justify-between items-start gap-2 border-b border-border/30 pb-0.5 last:border-0 last:pb-0">
+                      <div
+                        key={key}
+                        className="flex justify-between items-start gap-2 border-b border-border/30 pb-0.5 last:border-0 last:pb-0"
+                      >
                         <span className="text-muted-foreground font-medium capitalize">
                           {key.replace(/_/g, " ")}:
                         </span>
@@ -742,3 +765,4 @@ function AuditoriaPanel() {
     </div>
   );
 }
+
