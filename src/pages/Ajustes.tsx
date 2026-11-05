@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useCuadreStore, PUNTOS, SALARIO_MODOS, SalarioModo } from "@/store/cuadreStore";
 import { usePinStore } from "@/store/pinStore";
 import { useAuth } from "@/hooks/useAuth";
@@ -711,7 +711,7 @@ function AuditoriaPanel() {
                 </div>
               </div>
 
-              {/* Renderizado legible en tarjetas de clave/valor en vez de JSON crudo */}
+                            {/* Renderizado legible en tarjetas de clave/valor en vez de JSON crudo */}
               {l.detalle && Object.keys(l.detalle).length > 0 && (
                 <div className="rounded-lg border border-border/60 bg-card p-2 text-[11px] space-y-1">
                   {Object.entries(l.detalle).map(([key, val]) => {
