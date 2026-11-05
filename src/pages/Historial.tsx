@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   useCuadreStore,
   calcCuadre,
@@ -104,6 +104,7 @@ export default function Historial() {
     }
   };
   const nav = useNavigate();
+  const location = useLocation();
   const { role } = useAuth();
   const canDelete = role === "admin" || role === "duena";
   const canPDF = role === "admin" || role === "duena";
@@ -113,6 +114,27 @@ export default function Historial() {
   const [deudaFor, setDeudaFor] = useState<{ cuadre: Cuadre; pagada: boolean } | null>(null);
   const [corregirFor, setCorregirFor] = useState<Cuadre | null>(null);
   const [punto, setPunto] = useState<"Cafetería" | "Mipyme">("Cafetería");
+
+  // Efecto para abrir automáticamente el modal si se navega desde deudas con un cuadre asociado
+  useEffect(() => {
+    const state = location.state as { highlightCuadreId?: string } | null;
+    if (state?.highlightCuadreId && history.length > 0) {
+      const targetCuadre = history.find(
+        (c) => String(c.id) === String(state.highlightCuadreId)
+      );
+
+      if (targetCuadre) {
+        // Ajustamos la pestaña activa de acuerdo al punto de venta del cuadre
+        if (targetCuadre.puntoVenta) {
+          setPunto(targetCuadre.puntoVenta as "Cafetería" | "Mipyme");
+        }
+        setDetalle(targetCuadre);
+
+        // Limpiamos el estado de navegación para evitar reaperturas si recargas la página
+        window.history.replaceState({}, document.title);
+      }
+    }
+  }, [location.state, history]);
 
   const clientes = useQuery({ queryKey: ["clientes"], queryFn: listClientes, enabled: canDeuda });
   const deudasAll = useQuery({ queryKey: ["deudas-all"], queryFn: () => listDeudas(), enabled: canDeuda });
