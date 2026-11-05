@@ -5,8 +5,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Coffee, Store as StoreIcon, Percent, Cloud, RefreshCw, Trash2, Wifi, Upload, ShieldCheck, FileDown, ClipboardList } from "lucide-react";
+import { Coffee, Store as StoreIcon, Percent, Cloud, RefreshCw, Trash2, Wifi, Upload, ShieldCheck, FileDown, ClipboardList, Warehouse } from "lucide-react";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { NumberInput } from "@/components/NumberInput";
 import {
   Select,
@@ -122,6 +123,40 @@ export default function Ajustes() {
           <span className="ml-auto text-xs text-muted-foreground">Offline siempre activo</span>
         </div>
       </div>
+   {/* Preferencias de navegación */}
+<div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3">
+  <div className="flex items-center gap-2">
+    <Warehouse className="h-4 w-4 text-primary" />
+    <div>
+      <div className="text-sm font-semibold">Navegación</div>
+      <div className="text-xs text-muted-foreground">
+        Personaliza las secciones visibles del menú.
+      </div>
+    </div>
+  </div>
+
+  <div className="flex items-center justify-between gap-3">
+    <div className="space-y-1">
+      <Label htmlFor="ocultar-almacen" className="text-sm">
+        Ocultar Almacén del menú
+      </Label>
+      <p className="text-xs text-muted-foreground">
+        Oculta la pestaña Almacén de la barra inferior.
+      </p>
+    </div>
+
+    <Switch
+      id="ocultar-almacen"
+      checked={settings.ocultarAlmacen ?? false}
+      onCheckedChange={(val) => {
+        updateSettings({ ocultarAlmacen: val });
+        pushSettings().catch((err) =>
+          toast.error("No se guardó en la nube: " + err.message)
+        );
+      }}
+    />
+  </div>
+</div>
 
       {/* Nube (auto, sin correo) */}
       {isAdmin && (
