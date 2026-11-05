@@ -742,5 +742,3 @@ function AuditoriaPanel() {
     </div>
   );
 }
-
-}
