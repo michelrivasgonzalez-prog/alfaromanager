@@ -332,12 +332,6 @@ export default function Usuarios() {
           )}
         </DialogContent>
       </Dialog>
-          )}
-        </DialogContent>
-      </Dialog>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
