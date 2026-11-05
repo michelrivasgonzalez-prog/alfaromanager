@@ -601,11 +601,11 @@ function CategoriasPanel() {
 }
 
 function AuditoriaPanel() {
-
   const [logs, setLogs] = useState<AuditoriaRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [entidad, setEntidad] = useState("");
   const [usuario, setUsuario] = useState("");
+  const [accionFiltro, setAccionFiltro] = useState<string>("todas");
 
   const load = async () => {
     setLoading(true);
@@ -627,15 +627,26 @@ function AuditoriaPanel() {
     load();
   }, []);
 
+  const logsFiltrados = useMemo(() => {
+    if (accionFiltro === "todas") return logs;
+    return logs.filter((l) => l.accion.toLowerCase().includes(accionFiltro.toLowerCase()));
+  }, [logs, accionFiltro]);
+
   return (
     <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3">
-      <div className="flex items-center gap-2">
-        <ShieldCheck className="h-4 w-4 text-primary" />
-        <div className="text-sm font-semibold">Auditoría</div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4 text-primary" />
+          <div className="text-sm font-semibold">Visor de Auditoría</div>
+        </div>
+        <span className="text-[11px] font-semibold text-muted-foreground">
+          {logsFiltrados.length} registro(s)
+        </span>
       </div>
-      <div className="grid grid-cols-2 gap-2">
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
         <Input
-          placeholder="Entidad (ej. abonos)"
+          placeholder="Entidad (ej. abonos, deudas)"
           value={entidad}
           onChange={(e) => setEntidad(e.target.value)}
           className="h-9 rounded-xl text-xs"
@@ -646,33 +657,90 @@ function AuditoriaPanel() {
           onChange={(e) => setUsuario(e.target.value)}
           className="h-9 rounded-xl text-xs"
         />
+        <Select value={accionFiltro} onValueChange={setAccionFiltro}>
+          <SelectTrigger className="h-9 rounded-xl text-xs col-span-2 sm:col-span-1">
+            <SelectValue placeholder="Acción" />
+          </SelectTrigger>
+          <SelectContent className="bg-popover">
+            <SelectItem value="todas">Todas las acciones</SelectItem>
+            <SelectItem value="crear">Creaciones / Registros</SelectItem>
+            <SelectItem value="revertir">Reversiones / Correcciones</SelectItem>
+            <SelectItem value="eliminar">Eliminaciones</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
+
       <Button onClick={load} disabled={loading} className="w-full rounded-xl gradient-primary">
-        <RefreshCw className={`mr-1 h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Cargar registros
+        <RefreshCw className={`mr-1 h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Actualizar registros
       </Button>
-      <div className="max-h-80 space-y-2 overflow-y-auto">
-        {logs.length === 0 && (
-          <div className="text-center text-xs text-muted-foreground">Sin registros</div>
-        )}
-        {logs.map((l) => (
-          <div key={l.id} className="rounded-xl border border-border bg-muted/30 p-2 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="font-semibold">{l.accion}</span>
-              <span className="text-[10px] text-muted-foreground">
-                {format(new Date(l.fecha), "dd MMM yyyy HH:mm", { locale: es })}
-              </span>
-            </div>
-            <div className="text-[11px] text-muted-foreground">
-              {l.usuario_nombre ?? "Sistema"} · {l.entidad} {l.entidad_id ? `· ${l.entidad_id.slice(0, 8)}` : ""}
-            </div>
-            {l.detalle && Object.keys(l.detalle).length > 0 && (
-              <pre className="mt-1 max-h-24 overflow-auto rounded-lg bg-muted/60 p-1.5 text-[10px]">
-                {JSON.stringify(l.detalle, null, 2)}
-              </pre>
-            )}
+
+      <div className="max-h-96 space-y-2 overflow-y-auto pr-1">
+        {logsFiltrados.length === 0 && (
+          <div className="rounded-xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+            Sin registros de auditoría encontrados.
           </div>
-        ))}
+        )}
+        {logsFiltrados.map((l) => {
+          const esReversion = l.accion.toLowerCase().includes("revert") || l.accion.toLowerCase().includes("eliminar");
+          const esCreacion = l.accion.toLowerCase().includes("crear") || l.accion.toLowerCase().includes("registrar");
+
+          return (
+            <div key={l.id} className="rounded-xl border border-border bg-muted/20 p-3 text-xs space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className={`font-semibold px-2 py-0.5 rounded-md text-[11px] ${
+                      esReversion 
+                        ? "bg-destructive/10 text-destructive" 
+                        : esCreacion 
+                        ? "bg-secondary/10 text-secondary" 
+                        : "bg-primary/10 text-primary"
+                    }`}>
+                      {l.accion}
+                    </span>
+                    <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">
+                      {l.entidad}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground mt-1">
+                    Realizado por <strong>{l.usuario_nombre ?? "Sistema"}</strong>
+                  </div>
+                </div>
+                <div className="text-[10px] text-muted-foreground whitespace-nowrap">
+                  {format(new Date(l.fecha), "dd MMM · HH:mm", { locale: es })}
+                </div>
+              </div>
+
+              {/* Renderizado legible en tarjetas de clave/valor en vez de JSON crudo */}
+              {l.detalle && Object.keys(l.detalle).length > 0 && (
+                <div className="rounded-lg border border-border/60 bg-card p-2 text-[11px] space-y-1">
+                  {Object.entries(l.detalle).map(([key, val]) => {
+                    let valStr = "";
+                    if (typeof val === "object" && val !== null) {
+                      valStr = JSON.stringify(val);
+                    } else {
+                      valStr = String(val);
+                    }
+
+                    return (
+                      <div key={key} className="flex justify-between items-start gap-2 border-b border-border/30 pb-0.5 last:border-0 last:pb-0">
+                        <span className="text-muted-foreground font-medium capitalize">
+                          {key.replace(/_/g, " ")}:
+                        </span>
+                        <span className="font-mono font-semibold text-foreground text-right break-all">
+                          {valStr}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
+}
+
 }
