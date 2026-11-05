@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Home, History, BarChart3, Package, Users, Settings, LogOut, Warehouse, Wallet, Cloud, CloudOff, RefreshCw, CalendarDays } from "lucide-react";
+import { useCuadreStore } from "@/store/cuadreStore";
 import { motion } from "framer-motion";
 import { useAuth, AppRole } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,15 @@ export default function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { role, signOut, nombre } = useAuth();
-  const tabs = ALL_TABS.filter((t) => !role || t.allow.includes(role));
+  const ocultarAlmacen = useCuadreStore(
+  (s) => s.settings.ocultarAlmacen ?? false
+);
+
+const tabs = ALL_TABS.filter(
+  (t) =>
+    (!role || t.allow.includes(role)) &&
+    !(t.to === "/almacen" && ocultarAlmacen)
+);
   const qc = useQueryClient();
   const [syncState, setSyncState] = useState<"idle" | "syncing" | "ok" | "error">("idle");
   const [lastSync, setLastSync] = useState<number | null>(null);
