@@ -166,6 +166,8 @@ export type Settings = {
   reportesMensuales?: Record<string, any>;
   /** Punto de venta habitual de cada dependiente (por nombre). */
   dependientePunto?: Record<string, PuntoVenta>;
+  /** Existencia mínima por producto (clave "punto|nombre en minúsculas"). */
+  stockMinimo?: Record<string, number>;
 };
 
 /** Punto habitual: el asignado o, si no hay, el más frecuente en su historial. */

@@ -2,6 +2,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { CatalogoItem, Cuadre, Settings, normalizeCatalogoOrden, useCuadreStore } from "@/store/cuadreStore";
 import { ensureCloudSession } from "@/lib/cloudBootstrap";
 import type { PinUser } from "@/store/pinStore";
+import { unificarCatalogo, unificarCuadre } from "@/lib/unificar";
+import { pullBorradores } from "@/lib/borradores";
 
 /**
  * Sincronización cloud-first con borrado real.
@@ -22,6 +24,30 @@ export async function fullSync(role: "admin" | "duena" | "dependiente" | null) {
   await syncCatalogo(isAdmin);
   await syncDependientes(isAdmin);
   await syncCuadres(isAdmin);
+  if (isAdmin) await aplicarUnificacion();
+  await pullBorradores();
+}
+
+/** Unifica productos repetidos/renombrados en catálogo e historial y sube los cambios. */
+async function aplicarUnificacion() {
+  const st = useCuadreStore.getState();
+  const cats = st.settings.categorias ?? [];
+  const { catalogo, cambiado } = unificarCatalogo(st.catalogo);
+  if (cambiado) {
+    useCuadreStore.setState({ catalogo: normalizeCatalogoOrden(catalogo) });
+    await pushAllCatalogo();
+  }
+  const cat = useCuadreStore.getState().catalogo;
+  const cambiados: Cuadre[] = [];
+  const history = useCuadreStore.getState().history.map((c) => {
+    const n = unificarCuadre(c, cat, cats);
+    if (n) cambiados.push(n);
+    return n ?? c;
+  });
+  if (cambiados.length) {
+    useCuadreStore.setState({ history });
+    await upsertCuadres(cambiados);
+  }
 }
 
 /**

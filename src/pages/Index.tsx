@@ -1,4 +1,6 @@
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { alertasStock } from "@/lib/kardex";
 import { Coffee, Play, ArrowRight, Store, X, Search } from "lucide-react";
 import coffeeHero from "@/assets/coffee-hero.jpg";
 import { Button } from "@/components/ui/button";
@@ -16,6 +18,12 @@ export default function Index() {
   const { role } = useAuth();
   const canStart = role === "admin" || role === "duena" || role === "dependiente";
   const current = currents[activePunto];
+  const catalogo = useCuadreStore((s) => s.catalogo);
+  const settings = useCuadreStore((s) => s.settings);
+  const alertas = useMemo(() => alertasStock(history, catalogo, settings), [history, catalogo, settings]);
+  // La alerta descartada vuelve a salir si cambia la lista.
+  const alertaClave = alertas.map((a) => `${a.punto}|${a.nombre}|${a.existencia}`).join(";");
+  const [oculta, setOculta] = useState(() => localStorage.getItem("alfaro-alerta-stock-oculta") ?? "");
 
   const onStart = (punto: PuntoVenta) => {
     setActivePunto(punto);
@@ -59,6 +67,34 @@ export default function Index() {
         <Search className="h-4 w-4 text-muted-foreground" />
         <span className="text-sm text-muted-foreground">Buscar clientes, productos, cuadres…</span>
       </button>
+
+      {(role === "admin" || role === "duena") && alertas.length > 0 && alertaClave !== oculta && (
+        <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <div className="text-sm font-semibold text-destructive">
+              Stock bajo: {alertas.length} producto(s)
+            </div>
+            <button
+              onClick={() => {
+                localStorage.setItem("alfaro-alerta-stock-oculta", alertaClave);
+                setOculta(alertaClave);
+              }}
+              className="rounded-full p-1 text-muted-foreground hover:bg-muted"
+              aria-label="Descartar alerta"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <ul className="space-y-1 text-sm">
+            {alertas.map((a) => (
+              <li key={a.punto + a.nombre} className="flex justify-between gap-2">
+                <span>{a.nombre} <span className="text-xs text-muted-foreground">· {a.punto}</span></span>
+                <span className="font-semibold">{a.existencia} / mín. {a.minimo}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-3">
         {canStart && PUNTOS.map((p) => {
