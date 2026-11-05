@@ -143,15 +143,31 @@ function Step1() {
     settings,
   } = useCuadreStore();
   const [verTodos, setVerTodos] = useState(false);
+  const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const registrados = history
     .filter((h) => h.puntoVenta === activePunto)
     .flatMap((h) => (h.diasTrabajados?.length ? h.diasTrabajados : [h.fecha]))
     .map((d) => new Date(d));
+    const inactivos = settings.dependientesInactivos ?? [];
+  const dependienteActual = currents[activePunto]?.dependiente;
+
   const dependientesList = [...dependientes]
     .filter((d) => {
-      if (verTodos) return true;
+      // Los inactivos solo aparecen cuando se solicita,
+      // excepto si ya están seleccionados en un cuadre.
+      if (
+        inactivos.includes(d) &&
+        !mostrarInactivos &&
+        d !== dependienteActual
+      ) {
+        return false;
+      }
+
+      // Mantener el filtro de suplencias por punto de venta.
+      if (verTodos || d === dependienteActual) return true;
+
       const p = puntoHabitual(d, settings, history);
-      return !p || p === activePunto || d === currents[activePunto]?.dependiente;
+      return !p || p === activePunto;
     })
     .sort((a, b) => a.localeCompare(b));
   const current = currents[activePunto];
