@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { useAuth, AppRole } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { fullSync } from "@/lib/sync";
+import { iniciarBorradoresNube } from "@/lib/borradores";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAutoLogout } from "@/hooks/useAutoLogout";
@@ -55,6 +56,7 @@ export default function AppLayout() {
 
   useEffect(() => {
     if (!role) return;
+    iniciarBorradoresNube();
     doSync();
     const iv = setInterval(() => doSync(), 30_000);
     const onVis = () => { if (document.visibilityState === "visible") doSync(); };
