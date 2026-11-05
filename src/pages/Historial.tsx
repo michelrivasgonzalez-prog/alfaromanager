@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   useCuadreStore,
   calcCuadre,
@@ -117,7 +117,7 @@ export default function Historial() {
   const [corregirFor, setCorregirFor] = useState<Cuadre | null>(null);
   const [punto, setPunto] = useState<"Cafetería" | "Mipyme">("Cafetería");
 
-  // Efecto para abrir el modal automáticamente cuando existe ?cuadreId en la URL
+    // Efecto para abrir el modal automáticamente cuando existe ?cuadreId en la URL
   useEffect(() => {
     if (!cuadreIdUrl || history.length === 0) return;
 
@@ -132,8 +132,11 @@ export default function Historial() {
       setDetalle(targetCuadre);
     } else {
       toast.error("El cuadre asociado no se encuentra en el historial local.");
+      // Limpia el parámetro para que no se repita el aviso en cada render
+      setSearchParams({}, { replace: true });
     }
-  }, [cuadreIdUrl, history]);
+  }, [cuadreIdUrl, history, setSearchParams]);
+
 
   // Manejador para cerrar el modal y limpiar el parámetro de la URL
   const handleCloseDetalle = (open: boolean) => {
