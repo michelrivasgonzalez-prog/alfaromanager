@@ -172,7 +172,15 @@ export default function Usuarios() {
               No hay dependientes. Añade uno arriba.
             </div>
           )}
-                              {dependientes.map((d) => {
+                              {dependientes
+  .slice()
+  .sort((a, b) => {
+    const inactivos = settings.dependientesInactivos ?? [];
+    const aInactivo = inactivos.includes(a);
+    const bInactivo = inactivos.includes(b);
+    return Number(aInactivo) - Number(bInactivo);
+  })
+  .map((d) => {
             const cuentaAsociada = users.find(
               (u) => u.nombre.trim().toLowerCase() === d.trim().toLowerCase()
             );
