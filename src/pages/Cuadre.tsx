@@ -221,18 +221,38 @@ function Step1() {
 
       <div className="rounded-2xl border border-border bg-card p-5 shadow-soft space-y-4">
         <div className="space-y-2">
-          <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
             <Label>Nombre del dependiente</Label>
-            <button
-              type="button"
-              onClick={() => setVerTodos((v) => !v)}
-              className={cn(
-                "rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-smooth",
-                verTodos ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"
-              )}
-            >
-              {verTodos ? "Solo de " + activePunto : "Suplencia: ver todos"}
-            </button>
+
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setVerTodos((v) => !v)}
+                className={cn(
+                  "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-smooth",
+                  verTodos
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border text-muted-foreground"
+                )}
+              >
+                {verTodos ? "Solo de " + activePunto : "Suplencia: ver todos"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMostrarInactivos((v) => !v)}
+                className={cn(
+                  "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-smooth",
+                  mostrarInactivos
+                    ? "border-amber-500/30 bg-amber-500/10 text-amber-600"
+                    : "border-border text-muted-foreground"
+                )}
+              >
+                {mostrarInactivos
+                  ? "Ocultar inactivos"
+                  : "Mostrar inactivos"}
+              </button>
+            </div>
           </div>
           <Select
             value={current.dependiente}
