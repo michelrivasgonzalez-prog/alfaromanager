@@ -444,7 +444,7 @@ export default function Historial() {
           deudasAll.refetch();
         }}
       />
-      <Dialog open={!!detalle} onOpenChange={(o) => !o && setDetalle(null)}>
+            <Dialog open={!!detalle} onOpenChange={handleCloseDetalle}>
         <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
