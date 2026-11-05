@@ -17,7 +17,7 @@ const ALL_TABS: { to: string; icon: any; label: string; allow: AppRole[] }[] = [
   { to: "/calendario", icon: CalendarDays, label: "Calendario", allow: ["admin", "duena", "dependiente"] },
   { to: "/historial", icon: History, label: "Historial", allow: ["admin", "duena", "dependiente"] },
   { to: "/almacen", icon: Warehouse, label: "Almacén", allow: ["admin", "duena"] },
-  { to: "/cobrar", icon: Wallet, label: "Cobrar", allow: ["admin", "duena"] },
+    { to: "/cobrar", icon: Wallet, label: "Mis Deudas", allow: ["admin", "duena", "dependiente"] },
   { to: "/reportes", icon: BarChart3, label: "Reportes", allow: ["admin", "duena"] },
   { to: "/productos", icon: Package, label: "Productos", allow: ["admin", "duena"] },
   { to: "/usuarios", icon: Users, label: "Usuarios", allow: ["admin", "duena"] },
@@ -32,11 +32,13 @@ export default function AppLayout() {
   (s) => s.settings.ocultarAlmacen ?? false
 );
 
-const tabs = ALL_TABS.filter(
-  (t) =>
-    (!role || t.allow.includes(role)) &&
-    !(t.to === "/almacen" && ocultarAlmacen)
-);
+  const tabs = ALL_TABS.filter((t) => {
+    if (!role) return false;
+    if (role === "dependiente") {
+      return t.to === "/" || t.to === "/cobrar";
+    }
+    return t.allow.includes(role) && !(t.to === "/almacen" && ocultarAlmacen);
+  });
   const qc = useQueryClient();
   const [syncState, setSyncState] = useState<"idle" | "syncing" | "ok" | "error">("idle");
   const [lastSync, setLastSync] = useState<number | null>(null);
