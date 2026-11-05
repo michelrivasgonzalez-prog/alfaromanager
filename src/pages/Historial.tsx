@@ -104,7 +104,9 @@ export default function Historial() {
     }
   };
   const nav = useNavigate();
-  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const cuadreIdUrl = searchParams.get("cuadreId");
+
   const { role } = useAuth();
   const canDelete = role === "admin" || role === "duena";
   const canPDF = role === "admin" || role === "duena";
@@ -115,26 +117,34 @@ export default function Historial() {
   const [corregirFor, setCorregirFor] = useState<Cuadre | null>(null);
   const [punto, setPunto] = useState<"Cafetería" | "Mipyme">("Cafetería");
 
-  // Efecto para abrir automáticamente el modal si se navega desde deudas con un cuadre asociado
+  // Efecto para abrir el modal automáticamente cuando existe ?cuadreId en la URL
   useEffect(() => {
-    const state = location.state as { highlightCuadreId?: string } | null;
-    if (state?.highlightCuadreId && history.length > 0) {
-      const targetCuadre = history.find(
-        (c) => String(c.id) === String(state.highlightCuadreId)
-      );
+    if (!cuadreIdUrl || history.length === 0) return;
 
-      if (targetCuadre) {
-        // Ajustamos la pestaña activa de acuerdo al punto de venta del cuadre
-        if (targetCuadre.puntoVenta) {
-          setPunto(targetCuadre.puntoVenta as "Cafetería" | "Mipyme");
-        }
-        setDetalle(targetCuadre);
+    const targetCuadre = history.find(
+      (c) => String(c.id) === String(cuadreIdUrl)
+    );
 
-        // Limpiamos el estado de navegación para evitar reaperturas si recargas la página
-        window.history.replaceState({}, document.title);
+    if (targetCuadre) {
+      if (targetCuadre.puntoVenta) {
+        setPunto(targetCuadre.puntoVenta as "Cafetería" | "Mipyme");
+      }
+      setDetalle(targetCuadre);
+    } else {
+      toast.error("El cuadre asociado no se encuentra en el historial local.");
+    }
+  }, [cuadreIdUrl, history]);
+
+  // Manejador para cerrar el modal y limpiar el parámetro de la URL
+  const handleCloseDetalle = (open: boolean) => {
+    if (!open) {
+      setDetalle(null);
+      if (searchParams.has("cuadreId")) {
+        setSearchParams({}, { replace: true });
       }
     }
-  }, [location.state, history]);
+  };
+
 
   const clientes = useQuery({ queryKey: ["clientes"], queryFn: listClientes, enabled: canDeuda });
   const deudasAll = useQuery({ queryKey: ["deudas-all"], queryFn: () => listDeudas(), enabled: canDeuda });
