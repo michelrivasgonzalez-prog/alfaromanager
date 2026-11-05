@@ -23,7 +23,7 @@ import { Plus, Trash2, Users as UsersIcon, Lock, Pencil, Shield, Crown, User as 
 import { toast } from "sonner";
 import { PinPad } from "@/components/PinPad";
 import { deleteDependiente, deletePinUserRemote, pushDependiente, pushPinUser, pushSettings } from "@/lib/sync";
-
+import { Switch } from "@/components/ui/switch";
 const ROLE_INFO: Record<PinRole, { label: string; Icon: any; cls: string }> = {
   admin: { label: "Admin", Icon: Shield, cls: "gradient-primary text-primary-foreground" },
   duena: { label: "Dueña", Icon: Crown, cls: "gradient-emerald text-secondary-foreground" },
@@ -501,9 +501,9 @@ function EditDependienteDialog({
               <SelectTrigger className="rounded-xl h-10">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-popover">
+                            <SelectContent className="bg-popover">
                 <SelectItem value="Cafetería">Cafetería</SelectItem>
-                <SelectItem value="Mipyme">Mipyme</option>
+                <SelectItem value="Mipyme">Mipyme</SelectItem>
               </SelectContent>
             </Select>
           </div>
