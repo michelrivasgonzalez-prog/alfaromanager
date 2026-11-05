@@ -25,7 +25,6 @@ import { Plus, Trash2, Users as UsersIcon, Lock, Pencil, Shield, Crown, User as 
 import { toast } from "sonner";
 import { PinPad } from "@/components/PinPad";
 import { deleteDependiente, deletePinUserRemote, pushDependiente, pushPinUser, pushSettings } from "@/lib/sync";
-import { Switch } from "@/components/ui/switch";
 const ROLE_INFO: Record<PinRole, { label: string; Icon: any; cls: string }> = {
   admin: { label: "Admin", Icon: Shield, cls: "gradient-primary text-primary-foreground" },
   duena: { label: "Dueña", Icon: Crown, cls: "gradient-emerald text-secondary-foreground" },
@@ -38,8 +37,7 @@ export default function Usuarios() {
   const { users, createUser, removeUser, updateUser, updatePin } = usePinStore();
   const [open, setOpen] = useState(false);
   const [pinUser, setPinUser] = useState<PinUser | null>(null);
-  const { dependientes, addDependiente, updateDependiente, settings, history, updateSettings } =
-  useCuadreStore();
+  const { dependientes, addDependiente, settings, history } = useCuadreStore();
   const [nuevoDep, setNuevoDep] = useState("");
 
   if (!isAdmin) {
