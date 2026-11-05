@@ -479,16 +479,16 @@ function DeudaCard({
         </CollapsibleContent>
       </Collapsible>
 
-            {d.cuadre_id && (
+                  {d.cuadre_id && (
         <Link
-          to="/historial"
-          state={{ highlightCuadreId: d.cuadre_id }}
+          to={`/historial?cuadreId=${d.cuadre_id}`}
           className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-medium text-primary underline-offset-2 hover:underline focus:outline-none focus:ring-1 focus:ring-primary/50 rounded"
         >
           <span>Ver cuadre asociado</span>
           <ExternalLink className="h-3 w-3" />
         </Link>
       )}
+
 
 
       <AbonoDeudaDialog
