@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 import { pushCatalogItem, deleteCatalogItem } from "@/lib/sync";
+import { KardexDialog } from "@/components/KardexDialog";
 import {
   Dialog,
   DialogContent,
@@ -45,6 +46,7 @@ export default function Productos() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [nuevoOpen, setNuevoOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [kardex, setKardex] = useState<string | null>(null);
   const [nuevo, setNuevo] = useState({ nombre: "", precio: 0, costo: 0, categoria: "" });
 
 
@@ -430,10 +432,13 @@ export default function Productos() {
                 />
               )}
             </label>
-
+            <Button variant="outline" size="sm" className="mt-2 h-8 w-full rounded-lg" onClick={() => setKardex(p.nombre)}>
+              Historial de movimientos
+            </Button>
           </div>
         ))}
       </div>
+      <KardexDialog nombre={kardex} punto={punto} onClose={() => setKardex(null)} />
       <Button
         className="h-11 w-full rounded-xl gradient-primary text-primary-foreground"
         onClick={() => setNuevoOpen(true)}
