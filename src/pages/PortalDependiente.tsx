@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useCuadreStore } from "@/store/cuadreStore";
+import { useCuadreStore, calcCuadre } from "@/store/cuadreStore";
 import { useAuth } from "@/hooks/useAuth";
 import { User, Calendar, DollarSign, Wallet, Scale } from "lucide-react";
 import { formatDiasTrabajados } from "@/lib/dias";
@@ -8,7 +8,7 @@ export default function PortalDependiente() {
   const { nombre } = useAuth();
   const { history } = useCuadreStore();
 
-  // Filtrar cuadres trabajados únicamente por este dependiente
+  // 1. Filtrar cuadres trabajados únicamente por este dependiente
   const misCuadres = useMemo(() => {
     if (!nombre) return [];
     return history.filter(
@@ -16,31 +16,17 @@ export default function PortalDependiente() {
     );
   }, [history, nombre]);
 
-  // Cálculos agregados para las 4 métricas superiores
+  // 2. Calcular métricas agregadas usando calcCuadre oficial
   const metricas = useMemo(() => {
     let salarioTotal = 0;
     let salarioRealTotal = 0;
     let diferenciasSumadas = 0;
 
     misCuadres.forEach((c) => {
-      // Cálculo de ventas del turno
-      const totalVentas = c.productos.reduce(
-        (sum, p) => sum + (p.inicio + p.entradas - p.traslados - p.final) * p.precio,
-        0
-      );
-      // Gastos del turno
-      const totalGastos = (c.gastos ?? []).reduce((sum, g) => sum + g.monto, 0);
-
-      // Diferencia (sobrante positivo / faltante negativo)
-      const diff = (c as any).diferencia ?? (c as any).faltante ? -((c as any).faltante) : 0;
-      diferenciasSumadas += diff;
-
-      // Salarios (calculados o tomados del resumen del cuadre)
-      const salarioBase = (c as any).salarioBase ?? (c as any).salario ?? 0;
-      const salarioReal = (c as any).salarioReal ?? (salarioBase + diff);
-
-      salarioTotal += salarioBase;
-      salarioRealTotal += salarioReal;
+      const res = calcCuadre(c);
+      salarioTotal += res.salarioBruto;
+      salarioRealTotal += res.salarioReal;
+      diferenciasSumadas += res.diferencia;
     });
 
     return {
@@ -122,7 +108,9 @@ export default function PortalDependiente() {
                 : "text-foreground"
             }`}
           >
-            {metricas.diferenciasSumadas > 0 ? `+$${metricas.diferenciasSumadas}` : `$${metricas.diferenciasSumadas}`}
+            {metricas.diferenciasSumadas > 0
+              ? `+$${Math.round(metricas.diferenciasSumadas)}`
+              : `$${Math.round(metricas.diferenciasSumadas)}`}
           </div>
           <div className="text-[11px] text-muted-foreground mt-0.5">
             balance faltantes / sobrantes
@@ -143,14 +131,8 @@ export default function PortalDependiente() {
         ) : (
           <div className="space-y-3">
             {misCuadres.map((c) => {
-              const totalVentas = c.productos.reduce(
-                (sum, p) => sum + (p.inicio + p.entradas - p.traslados - p.final) * p.precio,
-                0
-              );
-              const totalGastos = (c.gastos ?? []).reduce((sum, g) => sum + g.monto, 0);
-              const diff = (c as any).diferencia ?? ((c as any).faltante ? -((c as any).faltante) : 0);
-              const salarioBase = (c as any).salarioBase ?? (c as any).salario ?? 0;
-              const salarioReal = (c as any).salarioReal ?? (salarioBase + diff);
+              const res = calcCuadre(c);
+              const diff = res.diferencia;
 
               return (
                 <div
@@ -161,7 +143,7 @@ export default function PortalDependiente() {
                   <div className="flex items-center justify-between pb-2 border-b border-border/40">
                     <div>
                       <div className="text-sm font-semibold text-foreground">
-                        📍 {c.punto}
+                        📍 {c.puntoVenta}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {formatDiasTrabajados(c.diasTrabajados) || "Fecha no especificada"}
@@ -176,7 +158,11 @@ export default function PortalDependiente() {
                           : "bg-muted text-muted-foreground"
                       }`}
                     >
-                      {diff < 0 ? `Faltante: -$${Math.abs(diff)}` : diff > 0 ? `Sobrante: +$${diff}` : "Sin diferencias"}
+                      {diff < 0
+                        ? `Faltante: -$${Math.abs(Math.round(diff))}`
+                        : diff > 0
+                        ? `Sobrante: +$${Math.round(diff)}`
+                        : "Sin diferencias"}
                     </span>
                   </div>
 
@@ -184,22 +170,30 @@ export default function PortalDependiente() {
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div className="bg-muted/40 p-2.5 rounded-xl space-y-0.5">
                       <span className="text-muted-foreground text-[11px]">Ventas Totales</span>
-                      <div className="font-semibold text-sm text-foreground">${Math.round(totalVentas)}</div>
+                      <div className="font-semibold text-sm text-foreground">
+                        ${Math.round(res.totalVenta)}
+                      </div>
                     </div>
 
                     <div className="bg-muted/40 p-2.5 rounded-xl space-y-0.5">
                       <span className="text-muted-foreground text-[11px]">Gastos</span>
-                      <div className="font-semibold text-sm text-foreground">${Math.round(totalGastos)}</div>
+                      <div className="font-semibold text-sm text-foreground">
+                        ${Math.round(res.totalGastos)}
+                      </div>
                     </div>
 
                     <div className="bg-muted/40 p-2.5 rounded-xl space-y-0.5">
                       <span className="text-muted-foreground text-[11px]">Salario Base</span>
-                      <div className="font-semibold text-sm text-foreground">${Math.round(salarioBase)}</div>
+                      <div className="font-semibold text-sm text-foreground">
+                        ${Math.round(res.salarioBruto)}
+                      </div>
                     </div>
 
                     <div className="bg-muted/40 p-2.5 rounded-xl space-y-0.5">
                       <span className="text-muted-foreground text-[11px]">Salario Real</span>
-                      <div className="font-semibold text-sm text-primary">${Math.round(salarioReal)}</div>
+                      <div className="font-semibold text-sm text-primary">
+                        ${Math.round(res.salarioReal)}
+                      </div>
                     </div>
                   </div>
                 </div>
