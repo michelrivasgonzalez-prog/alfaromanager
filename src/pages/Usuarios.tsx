@@ -53,11 +53,12 @@ export default function Usuarios() {
   const { users, removeUser, updateUser, updatePin } = usePinStore();
   const [open, setOpen] = useState(false);
   const [pinUser, setPinUser] = useState<PinUser | null>(null);
+  const [nuevoPinNombre, setNuevoPinNombre] = useState<string | null>(null);
+
   const { dependientes, addDependiente, updateDependiente, removeDependiente, settings, history, updateSettings } =
     useCuadreStore();
   const [nuevoDep, setNuevoDep] = useState("");
 
-  // Estado para la edición completa del dependiente (Modal del lapicito)
   const [depEditing, setDepEditing] = useState<{
     nombreOriginal: string;
     nombre: string;
@@ -82,7 +83,7 @@ export default function Usuarios() {
     <div className="space-y-4 pb-16">
       <h1 className="text-2xl font-bold">Usuarios</h1>
 
-      {/* Cuentas de acceso con PIN (Dueña / Admin) */}
+      {/* Cuentas de acceso administrativas */}
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
           Cuentas administrativas
@@ -211,7 +212,6 @@ export default function Usuarios() {
                 key={d}
                 className="flex items-center justify-between rounded-2xl border border-border bg-card p-3 shadow-soft"
               >
-                {/* Lado izquierdo: Foto + Nombre en 1 sola línea */}
                 <div className="flex items-center gap-3 min-w-0 flex-1 mr-2">
                   <Avatar nombre={d} size="md" />
                   <div className="min-w-0 flex-1">
@@ -240,7 +240,6 @@ export default function Usuarios() {
                   </div>
                 </div>
 
-                {/* Botón del Lapicito: Abre la modal de edición completa */}
                 <Button
                   size="icon"
                   variant="ghost"
@@ -264,7 +263,7 @@ export default function Usuarios() {
         </div>
       </div>
 
-      {/* Modal para Cambiar PIN Administrativo */}
+      {/* Modal Cambiar PIN Existente */}
       <Dialog open={!!pinUser} onOpenChange={(v) => !v && setPinUser(null)}>
         <DialogContent className="rounded-2xl">
           <DialogHeader>
@@ -283,7 +282,19 @@ export default function Usuarios() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal Editar Dependiente (Lapicito con Gestión de PIN) */}
+      {/* Modal Crear PIN Nuevo para Dependiente */}
+      <Dialog open={!!nuevoPinNombre} onOpenChange={(v) => !v && setNuevoPinNombre(null)}>
+        <DialogContent className="rounded-2xl">
+          {nuevoPinNombre && (
+            <CrearPinDependienteForm
+              nombre={nuevoPinNombre}
+              onDone={() => setNuevoPinNombre(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Editar Dependiente */}
       {depEditing && (
         <EditarDependienteModal
           dep={depEditing}
@@ -298,7 +309,6 @@ export default function Usuarios() {
               return;
             }
 
-            // 1. Actualizar Nombre en la lista de dependientes
             if (oldName !== newName) {
               updateDependiente(oldName, newName);
               const cuentaUser = users.find((u) => u.nombre.trim().toLowerCase() === oldName.trim().toLowerCase());
@@ -311,7 +321,6 @@ export default function Usuarios() {
               );
             }
 
-            // 2. Actualizar Foto, Punto y Estado en Settings
             const nextPuntos = { ...(settings.dependientePunto ?? {}) };
             const nextFotos = { ...(settings.dependienteFotos ?? {}) };
             let nextInactivos = [...((settings as any).dependientesInactivos ?? [])];
@@ -364,6 +373,7 @@ export default function Usuarios() {
             }
           }}
           onOpenPinModal={(u) => setPinUser(u)}
+          onCrearPin={(nombre) => setNuevoPinNombre(nombre)}
         />
       )}
     </div>
@@ -377,6 +387,7 @@ function EditarDependienteModal({
   onSave,
   onDelete,
   onOpenPinModal,
+  onCrearPin,
 }: {
   dep: {
     nombreOriginal: string;
@@ -390,6 +401,7 @@ function EditarDependienteModal({
   onSave: (data: typeof dep) => void;
   onDelete: (nombre: string) => void;
   onOpenPinModal: (u: PinUser) => void;
+  onCrearPin: (nombre: string) => void;
 }) {
   const [form, setForm] = useState({ ...dep });
   const cuentaPin = users.find(
@@ -441,7 +453,7 @@ function EditarDependienteModal({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* 1. Selector de Foto */}
+          {/* Foto */}
           <div className="flex flex-col items-center justify-center gap-2">
             <Avatar nombre={form.nombre} src={form.foto} size="xl" className="border-2 border-primary/20 shadow-md" />
             <div className="flex items-center gap-3 mt-1">
@@ -472,7 +484,7 @@ function EditarDependienteModal({
             </div>
           </div>
 
-          {/* 2. Editar Nombre */}
+          {/* Nombre */}
           <div className="space-y-1">
             <Label className="text-xs font-semibold">Nombre Completo</Label>
             <Input
@@ -483,7 +495,7 @@ function EditarDependienteModal({
             />
           </div>
 
-          {/* 3. Gestión de PIN */}
+          {/* Gestión de PIN */}
           <div className="space-y-1 bg-muted/30 p-2.5 rounded-xl border border-border/50">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold flex items-center gap-1">
@@ -499,12 +511,18 @@ function EditarDependienteModal({
                   Cambiar PIN
                 </Button>
               ) : (
-                <span className="text-[11px] text-muted-foreground italic">Sin PIN activo</span>
+                <Button
+                  size="sm"
+                  className="h-7 text-xs rounded-lg gradient-primary"
+                  onClick={() => onCrearPin(form.nombre)}
+                >
+                  <Plus className="h-3 w-3 mr-1" /> Crear PIN
+                </Button>
               )}
             </div>
           </div>
 
-          {/* 4. Selector de Punto de Venta */}
+          {/* Punto de Venta */}
           <div className="space-y-1">
             <Label className="text-xs font-semibold">Punto de Venta Habitual</Label>
             <Select
@@ -527,7 +545,7 @@ function EditarDependienteModal({
             </Select>
           </div>
 
-          {/* 5. Selector de Estado (Activo / Inactivo) */}
+          {/* Estado */}
           <div className="space-y-1">
             <Label className="text-xs font-semibold">Estado del Dependiente</Label>
             <Select
@@ -568,6 +586,54 @@ function EditarDependienteModal({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function CrearPinDependienteForm({ nombre, onDone }: { nombre: string; onDone: () => void }) {
+  const { createUser } = usePinStore();
+  const [stage, setStage] = useState<"pin" | "confirm">("pin");
+  const [first, setFirst] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  if (stage === "pin") {
+    return (
+      <div className="space-y-3">
+        <DialogHeader>
+          <DialogTitle>PIN de 6 dígitos para {nombre}</DialogTitle>
+        </DialogHeader>
+        <PinPad
+          error={error}
+          onComplete={(p) => {
+            setFirst(p);
+            setError(null);
+            setStage("confirm");
+          }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <DialogHeader>
+        <DialogTitle>Confirma el PIN</DialogTitle>
+      </DialogHeader>
+      <PinPad
+        error={error}
+        onComplete={async (p) => {
+          if (p !== first) {
+            setError("No coincide");
+            setFirst("");
+            setStage("pin");
+            return;
+          }
+          const created = await createUser({ nombre, role: "dependiente", pin: p });
+          pushPinUser(created).catch((e) => toast.error(e.message));
+          toast.success(`PIN creado para ${nombre}`);
+          onDone();
+        }}
+      />
+    </div>
   );
 }
 
