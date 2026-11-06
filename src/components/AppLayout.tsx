@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Home, History, BarChart3, Package, Users, Settings, LogOut, Warehouse, Wallet, Cloud, CloudOff, RefreshCw, CalendarDays } from "lucide-react";
 import { useCuadreStore } from "@/store/cuadreStore";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { useAuth, AppRole } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { fullSync } from "@/lib/sync";
@@ -10,7 +10,6 @@ import { iniciarBorradoresNube } from "@/lib/borradores";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAutoLogout } from "@/hooks/useAutoLogout";
-import SincronizandoOverlay from "@/components/SincronizandoOverlay";
 
 const ALL_TABS: { to: string; icon: any; label: string; allow: AppRole[] }[] = [
   { to: "/", icon: Home, label: "Inicio", allow: ["admin", "duena", "dependiente"] },
@@ -43,14 +42,11 @@ export default function AppLayout() {
   const qc = useQueryClient();
   const [syncState, setSyncState] = useState<"idle" | "syncing" | "ok" | "error">("idle");
   const [lastSync, setLastSync] = useState<number | null>(null);
-  
-  // Estado que controla la pantalla bloqueante del inicio
-  const [isInitialSyncing, setIsInitialSyncing] = useState(true);
 
   const running = useRef(false);
   useAutoLogout(20);
 
-  const doSync = async (manual = false, isFirstTime = false) => {
+  const doSync = async (manual = false) => {
     if (running.current || !role) return;
     running.current = true;
     setSyncState("syncing");
@@ -66,10 +62,6 @@ export default function AppLayout() {
       if (manual) toast.error("No se pudo sincronizar");
     } finally {
       running.current = false;
-      // Desactiva la pantalla de carga SÓLO tras la primera sincronización tras login
-      if (isFirstTime) {
-        setIsInitialSyncing(false);
-      }
     }
   };
 
@@ -77,13 +69,12 @@ export default function AppLayout() {
     if (!role) return;
     iniciarBorradoresNube();
     
-    // Primera sincronización con bloqueo visual
-    doSync(false, true);
+    // Sincronización transparente en segundo plano al entrar y cada 30s
+    doSync(false);
 
-    // Sincronizaciones posteriores en segundo plano (cada 30s) sin bloquear la pantalla
-    const iv = setInterval(() => doSync(false, false), 30_000);
-    const onVis = () => { if (document.visibilityState === "visible") doSync(false, false); };
-    const onOnline = () => doSync(false, false);
+    const iv = setInterval(() => doSync(false), 30_000);
+    const onVis = () => { if (document.visibilityState === "visible") doSync(false); };
+    const onOnline = () => doSync(false);
     
     window.addEventListener("visibilitychange", onVis);
     window.addEventListener("focus", onVis);
@@ -100,11 +91,6 @@ export default function AppLayout() {
 
   return (
     <div className="min-h-screen gradient-warm">
-      {/* Pantalla bloqueante que solo sale la primera vez */}
-      <AnimatePresence>
-        {isInitialSyncing && <SincronizandoOverlay nombreUser={nombre} />}
-      </AnimatePresence>
-
       <div className="mx-auto flex max-w-2xl items-center justify-between px-4 pt-3 text-xs text-muted-foreground">
         <span className="truncate">
           {nombre}
@@ -116,7 +102,7 @@ export default function AppLayout() {
         </span>
         <div className="flex items-center gap-1">
           <button
-            onClick={() => doSync(true, false)}
+            onClick={() => doSync(true)}
             title={
               syncState === "syncing"
                 ? "Sincronizando..."
