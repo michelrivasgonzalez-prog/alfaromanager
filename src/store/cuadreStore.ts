@@ -171,6 +171,13 @@ export type Settings = {
   /** Existencia mínima por producto (clave "punto|nombre en minúsculas"). */
   stockMinimo?: Record<string, number>;
   ocultarAlmacen?: boolean;
+  /** Dependientes desactivados sin eliminar su historial. */
+  dependientesInactivos?: string[];
+  /** Fotos de perfil de dependientes (por nombre en Base64). */
+  dependienteFotos?: Record<string, string>;
+  /** Existencia mínima por producto (clave "punto|nombre en minúsculas"). */
+  stockMinimo?: Record<string, number>;
+
 };
 
 /** Punto habitual: el asignado o, si no hay, el más frecuente en su historial. */
@@ -194,8 +201,9 @@ const DEFAULT_SETTINGS: Settings = {
   porcentajeVenta: { "Cafetería": 3, "Mipyme": 3 },
   diasNoTrabajados: [],
   diasNoTrabajadosPunto: { "Cafetería": [], "Mipyme": [] },
-  categorias: [],
+    categorias: [],
   dependientesInactivos: [],
+  dependienteFotos: {},
   ocultarAlmacen: false,
 };
 
