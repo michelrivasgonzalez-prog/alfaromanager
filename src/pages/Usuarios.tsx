@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -32,6 +33,9 @@ import {
   Camera,
   Upload,
   X,
+  Building2,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PinPad } from "@/components/PinPad";
@@ -54,8 +58,14 @@ export default function Usuarios() {
     useCuadreStore();
   const [nuevoDep, setNuevoDep] = useState("");
 
-  // Estado para la edición de foto/datos de dependientes
-  const [depFotoModal, setDepFotoModal] = useState<{ nombre: string; foto?: string } | null>(null);
+  // Estado para la edición completa del dependiente (Modal del lapicito)
+  const [depEditing, setDepEditing] = useState<{
+    nombreOriginal: string;
+    nombre: string;
+    punto?: PuntoVenta;
+    foto?: string;
+    inactivo: boolean;
+  } | null>(null);
 
   if (!isAdmin) {
     return (
@@ -70,7 +80,7 @@ export default function Usuarios() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-16">
       <h1 className="text-2xl font-bold">Usuarios</h1>
 
       {/* Cuentas de acceso (PIN) */}
@@ -103,7 +113,7 @@ export default function Usuarios() {
                 <Icon className="h-4 w-4" />
               </div>
               <div className="flex-1">
-                <div className="font-medium">{u.nombre}</div>
+                <div className="font-medium text-sm">{u.nombre}</div>
                 <div className="text-xs text-muted-foreground">{info.label}</div>
               </div>
               <Button
@@ -150,7 +160,7 @@ export default function Usuarios() {
         })}
       </div>
 
-      {/* Dependientes (solo nombres para los cuadres) */}
+      {/* Dependientes */}
       <div className="pt-2">
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
           Dependientes
@@ -172,93 +182,86 @@ export default function Usuarios() {
             setNuevoDep("");
             toast.success("Dependiente agregado");
           }}
-          className="flex gap-2 mb-2"
+          className="flex gap-2 mb-3"
         >
           <Input
             placeholder="Nombre del dependiente"
             value={nuevoDep}
             onChange={(e) => setNuevoDep(e.target.value)}
+            className="rounded-xl"
           />
           <Button type="submit" className="rounded-xl gradient-emerald">
             <UserPlus className="h-4 w-4 mr-1" /> Añadir
           </Button>
         </form>
+
         <div className="space-y-2">
           {dependientes.length === 0 && (
             <div className="rounded-2xl border border-dashed border-border bg-card p-4 text-center text-xs text-muted-foreground">
               No hay dependientes. Añade uno arriba.
             </div>
           )}
-          {dependientes.map((d) => (
-            <div
-              key={d}
-              className="flex items-center gap-2 rounded-2xl border border-border bg-card p-3 shadow-soft"
-            >
-              <Avatar nombre={d} size="md" />
-              <div className="flex-1 font-medium">{d}</div>
-              <select
-                className="h-8 rounded-lg border border-border bg-card px-2 text-xs"
-                value={puntoHabitual(d, settings, history) ?? ""}
-                title="Punto de venta habitual"
-                onChange={(e) => {
-                  const next = { ...(settings.dependientePunto ?? {}), [d]: e.target.value as PuntoVenta };
-                  updateSettings({ dependientePunto: next });
-                  pushSettings().catch((er) => toast.error(er.message));
-                }}
+
+          {dependientes.map((d) => {
+            const puntoHab = settings.dependientePunto?.[d] || puntoHabitual(d, settings, history);
+            const isInactivo = (settings as any).dependientesInactivos?.includes(d);
+
+            return (
+              <div
+                key={d}
+                className="flex items-center justify-between rounded-2xl border border-border bg-card p-3 shadow-soft"
               >
-                <option value="" disabled>Punto</option>
-                <option value="Cafetería">Cafetería</option>
-                <option value="Mipyme">Mipyme</option>
-              </select>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8"
-                title="Cambiar Foto"
-                onClick={() => {
-                  setDepFotoModal({
-                    nombre: d,
-                    foto: settings.dependienteFotos?.[d],
-                  });
-                }}
-              >
-                <Camera className="h-4 w-4" />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8"
-                title="Renombrar"
-                onClick={() => {
-                  const v = prompt("Nuevo nombre", d);
-                  if (v && v.trim() && v.trim() !== d) {
-                    updateDependiente(d, v.trim());
-                    Promise.all([deleteDependiente(d), pushDependiente(v.trim())]).catch((e) =>
-                      toast.error(e.message)
-                    );
-                  }
-                }}
-              >
-                <Pencil className="h-4 w-4" />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8 text-destructive"
-                onClick={() => {
-                  if (!confirm(`¿Eliminar a ${d}?`)) return;
-                  removeDependiente(d);
-                  deleteDependiente(d).catch((e) => toast.error(e.message));
-                }}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          ))}
+                {/* Lado izquierdo: Foto + Nombre en 1 sola línea, y debajo Punto/Estado */}
+                <div className="flex items-center gap-3 min-w-0 flex-1 mr-2">
+                  <Avatar nombre={d} size="md" />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-semibold text-sm truncate text-foreground">
+                      {d}
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
+                      <span className="flex items-center gap-1">
+                        <Building2 className="h-3 w-3 text-primary/70" />
+                        {puntoHab || "Sin punto"}
+                      </span>
+                      <span>•</span>
+                      {isInactivo ? (
+                        <span className="inline-flex items-center gap-0.5 font-medium text-destructive">
+                          <XCircle className="h-3 w-3" /> Inactivo
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-0.5 font-medium text-emerald-600 dark:text-emerald-400">
+                          <CheckCircle2 className="h-3 w-3" /> Activo
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Botón único: Lapicito para editar todo */}
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-9 w-9 rounded-xl text-muted-foreground hover:bg-muted"
+                  title="Editar dependiente"
+                  onClick={() => {
+                    setDepEditing({
+                      nombreOriginal: d,
+                      nombre: d,
+                      punto: settings.dependientePunto?.[d],
+                      foto: settings.dependienteFotos?.[d],
+                      inactivo: Boolean((settings as any).dependientesInactivos?.includes(d)),
+                    });
+                  }}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      {/* Dialog para Cambiar PIN */}
+      {/* Modal para Cambiar PIN de Usuario */}
       <Dialog open={!!pinUser} onOpenChange={(v) => !v && setPinUser(null)}>
         <DialogContent className="rounded-2xl">
           <DialogHeader>
@@ -277,22 +280,78 @@ export default function Usuarios() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog para Editar Foto de Perfil del Dependiente */}
-      {depFotoModal && (
-        <EditarFotoDialog
-          dep={depFotoModal}
-          onClose={() => setDepFotoModal(null)}
-          onSave={(fotoBase64) => {
-            const nextFotos = { ...(settings.dependienteFotos ?? {}) };
-            if (fotoBase64) {
-              nextFotos[depFotoModal.nombre] = fotoBase64;
-            } else {
-              delete nextFotos[depFotoModal.nombre];
+      {/* Modal Editar Dependiente (Lapicito) */}
+      {depEditing && (
+        <EditarDependienteModal
+          dep={depEditing}
+          onClose={() => setDepEditing(null)}
+          onSave={(data) => {
+            const oldName = data.nombreOriginal;
+            const newName = data.nombre.trim();
+
+            if (!newName) {
+              toast.error("El nombre no puede estar vacío");
+              return;
             }
-            updateSettings({ dependienteFotos: nextFotos });
+
+            // 1. Actualizar Nombre en la lista de dependientes
+            if (oldName !== newName) {
+              updateDependiente(oldName, newName);
+              Promise.all([deleteDependiente(oldName), pushDependiente(newName)]).catch((e) =>
+                toast.error(e.message)
+              );
+            }
+
+            // 2. Actualizar Foto, Punto de Venta y Estado Activo/Inactivo en Settings
+            const nextPuntos = { ...(settings.dependientePunto ?? {}) };
+            const nextFotos = { ...(settings.dependienteFotos ?? {}) };
+            let nextInactivos = [...((settings as any).dependientesInactivos ?? [])];
+
+            // Limpiar claves antiguas si cambió el nombre
+            if (oldName !== newName) {
+              delete nextPuntos[oldName];
+              delete nextFotos[oldName];
+              nextInactivos = nextInactivos.filter((x) => x !== oldName);
+            }
+
+            // Asignar nuevo punto
+            if (data.punto) {
+              nextPuntos[newName] = data.punto;
+            } else {
+              delete nextPuntos[newName];
+            }
+
+            // Asignar nueva foto
+            if (data.foto) {
+              nextFotos[newName] = data.foto;
+            } else {
+              delete nextFotos[newName];
+            }
+
+            // Asignar estado activo/inactivo
+            if (data.inactivo) {
+              if (!nextInactivos.includes(newName)) nextInactivos.push(newName);
+            } else {
+              nextInactivos = nextInactivos.filter((x) => x !== newName);
+            }
+
+            updateSettings({
+              dependientePunto: nextPuntos,
+              dependienteFotos: nextFotos,
+              dependientesInactivos: nextInactivos,
+            } as any);
+
             pushSettings().catch((er) => toast.error(er.message));
-            toast.success("Foto actualizada");
-            setDepFotoModal(null);
+            toast.success("Dependiente guardado");
+            setDepEditing(null);
+          }}
+          onDelete={(nombre) => {
+            if (confirm(`¿Seguro que deseas eliminar a ${nombre}?`)) {
+              removeDependiente(nombre);
+              deleteDependiente(nombre).catch((e) => toast.error(e.message));
+              toast.success("Dependiente eliminado");
+              setDepEditing(null);
+            }
           }}
         />
       )}
@@ -300,16 +359,24 @@ export default function Usuarios() {
   );
 }
 
-function EditarFotoDialog({
+function EditarDependienteModal({
   dep,
   onClose,
   onSave,
+  onDelete,
 }: {
-  dep: { nombre: string; foto?: string };
+  dep: {
+    nombreOriginal: string;
+    nombre: string;
+    punto?: PuntoVenta;
+    foto?: string;
+    inactivo: boolean;
+  };
   onClose: () => void;
-  onSave: (fotoBase64?: string) => void;
+  onSave: (data: typeof dep) => void;
+  onDelete: (nombre: string) => void;
 }) {
-  const [fotoTemp, setFotoTemp] = useState<string | undefined>(dep.foto);
+  const [form, setForm] = useState({ ...dep });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -339,8 +406,8 @@ function EditarFotoDialog({
         if (ctx) {
           ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, MAX_SIZE, MAX_SIZE);
           const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-          setFotoTemp(dataUrl);
-          toast.success("Foto procesada");
+          setForm((prev) => ({ ...prev, foto: dataUrl }));
+          toast.success("Foto procesada correctamente");
         }
       };
       img.src = event.target?.result as string;
@@ -352,48 +419,114 @@ function EditarFotoDialog({
     <Dialog open={true} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="rounded-2xl max-w-sm">
         <DialogHeader>
-          <DialogTitle>Foto de {dep.nombre}</DialogTitle>
+          <DialogTitle>Editar Dependiente</DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col items-center justify-center gap-3 py-3">
-          <Avatar nombre={dep.nombre} src={fotoTemp} size="xl" className="border-2 border-primary/20 shadow-md" />
-
-          <div className="flex items-center gap-3">
-            <label
-              htmlFor="foto-dep-input"
-              className="cursor-pointer text-xs font-semibold text-primary hover:underline inline-flex items-center gap-1"
-            >
-              <Upload className="h-3.5 w-3.5" />
-              {fotoTemp ? "Cambiar foto" : "Subir foto"}
-              <input
-                id="foto-dep-input"
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleFileChange}
-              />
-            </label>
-
-            {fotoTemp && (
-              <button
-                type="button"
-                onClick={() => setFotoTemp(undefined)}
-                className="text-xs font-semibold text-destructive hover:underline inline-flex items-center gap-1"
+        <div className="space-y-4 py-2">
+          {/* 1. Selector/Edición de Foto */}
+          <div className="flex flex-col items-center justify-center gap-2">
+            <Avatar nombre={form.nombre} src={form.foto} size="xl" className="border-2 border-primary/20 shadow-md" />
+            <div className="flex items-center gap-3 mt-1">
+              <label
+                htmlFor="modal-foto-upload"
+                className="cursor-pointer text-xs font-semibold text-primary hover:underline inline-flex items-center gap-1"
               >
-                <X className="h-3.5 w-3.5" /> Eliminar
-              </button>
-            )}
+                <Upload className="h-3.5 w-3.5" />
+                {form.foto ? "Cambiar foto" : "Subir foto"}
+                <input
+                  id="modal-foto-upload"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+              </label>
+
+              {form.foto && (
+                <button
+                  type="button"
+                  onClick={() => setForm((prev) => ({ ...prev, foto: undefined }))}
+                  className="text-xs font-semibold text-destructive hover:underline inline-flex items-center gap-1"
+                >
+                  <X className="h-3.5 w-3.5" /> Quitar foto
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* 2. Editar Nombre */}
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold">Nombre Completo</Label>
+            <Input
+              value={form.nombre}
+              onChange={(e) => setForm((prev) => ({ ...prev, nombre: e.target.value }))}
+              placeholder="Nombre del dependiente"
+              className="rounded-xl"
+            />
+          </div>
+
+          {/* 3. Selector de Punto de Venta */}
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold">Punto de Venta Habitual</Label>
+            <Select
+              value={form.punto || "ninguno"}
+              onValueChange={(v) =>
+                setForm((prev) => ({
+                  ...prev,
+                  punto: v === "ninguno" ? undefined : (v as PuntoVenta),
+                }))
+              }
+            >
+              <SelectTrigger className="rounded-xl">
+                <SelectValue placeholder="Sin punto asignado" />
+              </SelectTrigger>
+              <SelectContent className="rounded-2xl">
+                <SelectItem value="ninguno">Sin asignar (Por historial)</SelectItem>
+                <SelectItem value="Cafetería">Cafetería</SelectItem>
+                <SelectItem value="Mipyme">Mipyme</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* 4. Selector de Estado (Activo / Inactivo) */}
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold">Estado del Dependiente</Label>
+            <Select
+              value={form.inactivo ? "inactivo" : "activo"}
+              onValueChange={(v) =>
+                setForm((prev) => ({ ...prev, inactivo: v === "inactivo" }))
+              }
+            >
+              <SelectTrigger className="rounded-xl">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="rounded-2xl">
+                <SelectItem value="activo">🟢 Activo (Disponible en turnos)</SelectItem>
+                <SelectItem value="inactivo">🔴 Inactivo (Oculto en turnos)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 pt-2">
-          <Button variant="outline" onClick={onClose} className="rounded-xl">
-            Cancelar
+        <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between pt-2">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onDelete(form.nombreOriginal)}
+            className="rounded-xl text-destructive hover:bg-destructive/10 justify-start sm:justify-center"
+          >
+            <Trash2 className="h-4 w-4 mr-1.5" /> Eliminar
           </Button>
-          <Button onClick={() => onSave(fotoTemp)} className="rounded-xl">
-            Guardar
-          </Button>
-        </div>
+
+          <div className="flex items-center gap-2 justify-end">
+            <Button type="button" variant="outline" onClick={onClose} className="rounded-xl">
+              Cancelar
+            </Button>
+            <Button type="button" onClick={() => onSave(form)} className="rounded-xl gradient-primary">
+              Guardar
+            </Button>
+          </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
