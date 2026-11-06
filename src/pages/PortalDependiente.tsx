@@ -3,6 +3,7 @@ import { useCuadreStore, calcCuadre } from "@/store/cuadreStore";
 import { useAuth } from "@/hooks/useAuth";
 import { User, Calendar, DollarSign, Wallet, Scale } from "lucide-react";
 import { formatDiasTrabajados } from "@/lib/dias";
+import { Avatar } from "@/components/Avatar";
 
 export default function PortalDependiente() {
   const { nombre } = useAuth();
@@ -41,9 +42,7 @@ export default function PortalDependiente() {
       {/* Cabecera del Portal */}
       <div className="rounded-3xl border border-border bg-card p-5 shadow-soft">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl gradient-primary text-primary-foreground">
-            <User className="h-6 w-6" />
-          </div>
+          <Avatar nombre={nombre || "Dependiente"} size={48} className="rounded-2xl" />
           <div>
             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Portal del Dependiente
