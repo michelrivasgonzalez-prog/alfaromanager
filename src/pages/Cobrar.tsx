@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -41,12 +41,30 @@ import {
   fmt,
 } from "@/lib/cobrar";
 import NuevaDeudaDialog from "@/components/NuevaDeudaDialog";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Cobrar() {
   const qc = useQueryClient();
   const nav = useNavigate();
+  const { role, nombre } = useAuth();
+
   const clientes = useQuery({ queryKey: ["clientes"], queryFn: listClientes });
   const deudas = useQuery({ queryKey: ["deudas-all"], queryFn: () => listDeudas() });
+
+  // Redirección o filtrado para el dependiente
+  const esDependiente = role === "dependiente";
+  const miCliente = useMemo(() => {
+    if (!esDependiente || !nombre || !clientes.data) return null;
+    return clientes.data.find(
+      (c) => c.nombre.trim().toLowerCase() === nombre.trim().toLowerCase()
+    );
+  }, [esDependiente, nombre, clientes.data]);
+
+  useEffect(() => {
+    if (esDependiente && miCliente) {
+      nav(`/cobrar/clientes/${miCliente.id}`, { replace: true });
+    }
+  }, [esDependiente, miCliente, nav]);
 
   const pendienteTotal = (deudas.data ?? [])
     .filter((d) => d.estado !== "pagada")
@@ -97,6 +115,27 @@ export default function Cobrar() {
       return true;
     });
   }, [clientesOrdenados, busqueda, soloDeuda, deudas.data]);
+
+  // Si es dependiente pero aún no tiene ficha de cliente registrada
+  if (esDependiente && !miCliente && !clientes.isLoading) {
+    return (
+      <div className="space-y-4 pb-24">
+        <header className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl gradient-primary text-primary-foreground shadow-soft">
+            <Wallet className="h-5 w-5" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-primary">Mis Deudas</h1>
+            <p className="text-xs text-muted-foreground">{nombre}</p>
+          </div>
+        </header>
+        <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
+          <ShieldCheck className="mx-auto mb-2 h-8 w-8 text-emerald-500" />
+          No tienes deudas ni registro de faltantes pendientes.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 pb-24">
@@ -167,7 +206,6 @@ export default function Cobrar() {
           {clientesFiltrados.map((c) => {
             const cliDeudas = (deudas.data ?? []).filter((d) => d.cliente_id === c.id);
             const saldo = cliDeudas.filter((d) => d.estado !== "pagada").reduce((s, d) => s + Number(d.saldo), 0);
-            const sinTelefono = !c.telefono || !c.telefono.trim();
             return (
               <button
                 key={c.id}
