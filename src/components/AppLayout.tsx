@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Home, History, BarChart3, Package, Users, Settings, LogOut, Warehouse, Wallet, Cloud, CloudOff, RefreshCw, CalendarDays } from "lucide-react";
 import { useCuadreStore } from "@/store/cuadreStore";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAuth, AppRole } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { fullSync } from "@/lib/sync";
@@ -10,14 +10,14 @@ import { iniciarBorradoresNube } from "@/lib/borradores";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAutoLogout } from "@/hooks/useAutoLogout";
-
+import SincronizandoOverlay from "@/components/SincronizandoOverlay";
 
 const ALL_TABS: { to: string; icon: any; label: string; allow: AppRole[] }[] = [
   { to: "/", icon: Home, label: "Inicio", allow: ["admin", "duena", "dependiente"] },
   { to: "/calendario", icon: CalendarDays, label: "Calendario", allow: ["admin", "duena"] },
   { to: "/historial", icon: History, label: "Historial", allow: ["admin", "duena"] },
   { to: "/almacen", icon: Warehouse, label: "Almacén", allow: ["admin", "duena"] },
-    { to: "/cobrar", icon: Wallet, label: "Cobrar", allow: ["admin", "duena", "dependiente"] },
+  { to: "/cobrar", icon: Wallet, label: "Mis Deudas", allow: ["admin", "duena", "dependiente"] },
   { to: "/reportes", icon: BarChart3, label: "Reportes", allow: ["admin", "duena"] },
   { to: "/productos", icon: Package, label: "Productos", allow: ["admin", "duena"] },
   { to: "/usuarios", icon: Users, label: "Usuarios", allow: ["admin", "duena"] },
@@ -29,27 +29,28 @@ export default function AppLayout() {
   const navigate = useNavigate();
   const { role, signOut, nombre } = useAuth();
   const ocultarAlmacen = useCuadreStore(
-  (s) => s.settings.ocultarAlmacen ?? false
-);
+    (s) => s.settings.ocultarAlmacen ?? false
+  );
 
-    const tabs = ALL_TABS.filter((t) => {
+  const tabs = ALL_TABS.filter((t) => {
     if (!role) return false;
     if (role === "dependiente") {
       return t.to === "/" || t.to === "/cobrar";
     }
     return t.allow.includes(role) && !(t.to === "/almacen" && ocultarAlmacen);
-  }).map((t) => ({
-    ...t,
-    label: t.to === "/cobrar" && role === "dependiente" ? "Mis Deudas" : t.label,
-  }));
+  });
+
   const qc = useQueryClient();
   const [syncState, setSyncState] = useState<"idle" | "syncing" | "ok" | "error">("idle");
   const [lastSync, setLastSync] = useState<number | null>(null);
+  
+  // Estado que controla la pantalla bloqueante del inicio
+  const [isInitialSyncing, setIsInitialSyncing] = useState(true);
+
   const running = useRef(false);
   useAutoLogout(20);
 
-
-  const doSync = async (manual = false) => {
+  const doSync = async (manual = false, isFirstTime = false) => {
     if (running.current || !role) return;
     running.current = true;
     setSyncState("syncing");
@@ -65,22 +66,32 @@ export default function AppLayout() {
       if (manual) toast.error("No se pudo sincronizar");
     } finally {
       running.current = false;
+      // Desactiva la pantalla de carga SÓLO tras la primera sincronización tras login
+      if (isFirstTime) {
+        setIsInitialSyncing(false);
+      }
     }
   };
 
   useEffect(() => {
     if (!role) return;
     iniciarBorradoresNube();
-    doSync();
-    const iv = setInterval(() => doSync(), 30_000);
-    const onVis = () => { if (document.visibilityState === "visible") doSync(); };
-    const onOnline = () => doSync();
-    document.addEventListener("visibilitychange", onVis);
+    
+    // Primera sincronización con bloqueo visual
+    doSync(false, true);
+
+    // Sincronizaciones posteriores en segundo plano (cada 30s) sin bloquear la pantalla
+    const iv = setInterval(() => doSync(false, false), 30_000);
+    const onVis = () => { if (document.visibilityState === "visible") doSync(false, false); };
+    const onOnline = () => doSync(false, false);
+    
+    window.addEventListener("visibilitychange", onVis);
     window.addEventListener("focus", onVis);
     window.addEventListener("online", onOnline);
+
     return () => {
       clearInterval(iv);
-      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("focus", onVis);
       window.removeEventListener("online", onOnline);
     };
@@ -89,6 +100,11 @@ export default function AppLayout() {
 
   return (
     <div className="min-h-screen gradient-warm">
+      {/* Pantalla bloqueante que solo sale la primera vez */}
+      <AnimatePresence>
+        {isInitialSyncing && <SincronizandoOverlay nombreUser={nombre} />}
+      </AnimatePresence>
+
       <div className="mx-auto flex max-w-2xl items-center justify-between px-4 pt-3 text-xs text-muted-foreground">
         <span className="truncate">
           {nombre}
@@ -100,7 +116,7 @@ export default function AppLayout() {
         </span>
         <div className="flex items-center gap-1">
           <button
-            onClick={() => doSync(true)}
+            onClick={() => doSync(true, false)}
             title={
               syncState === "syncing"
                 ? "Sincronizando..."
@@ -140,6 +156,7 @@ export default function AppLayout() {
           </Button>
         </div>
       </div>
+
       <motion.main
         key={location.pathname}
         initial={{ opacity: 0, y: 8 }}
