@@ -30,7 +30,6 @@ import {
   User as UserIcon,
   KeyRound,
   UserPlus,
-  Camera,
   Upload,
   X,
   Building2,
@@ -83,10 +82,10 @@ export default function Usuarios() {
     <div className="space-y-4 pb-16">
       <h1 className="text-2xl font-bold">Usuarios</h1>
 
-      {/* Cuentas de acceso (PIN) */}
+      {/* Cuentas de acceso con PIN (Dueña / Admin) */}
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-          Cuentas de acceso
+          Cuentas administrativas
         </h2>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
@@ -166,7 +165,7 @@ export default function Usuarios() {
           Dependientes
         </h2>
         <p className="text-xs text-muted-foreground mb-2">
-          Personas que aparecen al asignar un turno. No tienen cuenta ni inician sesión.
+          Gestión de dependientes, foto, punto de venta y PIN de acceso.
         </p>
         <form
           onSubmit={(e) => {
@@ -205,18 +204,22 @@ export default function Usuarios() {
           {dependientes.map((d) => {
             const puntoHab = settings.dependientePunto?.[d] || puntoHabitual(d, settings, history);
             const isInactivo = (settings as any).dependientesInactivos?.includes(d);
+            const cuentaPin = users.find((u) => u.nombre.trim().toLowerCase() === d.trim().toLowerCase());
 
             return (
               <div
                 key={d}
                 className="flex items-center justify-between rounded-2xl border border-border bg-card p-3 shadow-soft"
               >
-                {/* Lado izquierdo: Foto + Nombre en 1 sola línea, y debajo Punto/Estado */}
+                {/* Lado izquierdo: Foto + Nombre en 1 sola línea */}
                 <div className="flex items-center gap-3 min-w-0 flex-1 mr-2">
                   <Avatar nombre={d} size="md" />
                   <div className="min-w-0 flex-1">
-                    <div className="font-semibold text-sm truncate text-foreground">
+                    <div className="font-semibold text-sm truncate text-foreground flex items-center gap-1.5">
                       {d}
+                      {cuentaPin && (
+                        <KeyRound className="h-3 w-3 text-emerald-500" title="PIN Configurado" />
+                      )}
                     </div>
                     <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
                       <span className="flex items-center gap-1">
@@ -237,12 +240,12 @@ export default function Usuarios() {
                   </div>
                 </div>
 
-                {/* Botón único: Lapicito para editar todo */}
+                {/* Botón del Lapicito: Abre la modal de edición completa */}
                 <Button
                   size="icon"
                   variant="ghost"
                   className="h-9 w-9 rounded-xl text-muted-foreground hover:bg-muted"
-                  title="Editar dependiente"
+                  title="Editar dependiente y PIN"
                   onClick={() => {
                     setDepEditing({
                       nombreOriginal: d,
@@ -261,7 +264,7 @@ export default function Usuarios() {
         </div>
       </div>
 
-      {/* Modal para Cambiar PIN de Usuario */}
+      {/* Modal para Cambiar PIN Administrativo */}
       <Dialog open={!!pinUser} onOpenChange={(v) => !v && setPinUser(null)}>
         <DialogContent className="rounded-2xl">
           <DialogHeader>
@@ -280,10 +283,11 @@ export default function Usuarios() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal Editar Dependiente (Lapicito) */}
+      {/* Modal Editar Dependiente (Lapicito con Gestión de PIN) */}
       {depEditing && (
         <EditarDependienteModal
           dep={depEditing}
+          users={users}
           onClose={() => setDepEditing(null)}
           onSave={(data) => {
             const oldName = data.nombreOriginal;
@@ -297,38 +301,39 @@ export default function Usuarios() {
             // 1. Actualizar Nombre en la lista de dependientes
             if (oldName !== newName) {
               updateDependiente(oldName, newName);
+              const cuentaUser = users.find((u) => u.nombre.trim().toLowerCase() === oldName.trim().toLowerCase());
+              if (cuentaUser) {
+                updateUser(cuentaUser.id, { nombre: newName });
+                pushPinUser({ ...cuentaUser, nombre: newName }).catch((e) => toast.error(e.message));
+              }
               Promise.all([deleteDependiente(oldName), pushDependiente(newName)]).catch((e) =>
                 toast.error(e.message)
               );
             }
 
-            // 2. Actualizar Foto, Punto de Venta y Estado Activo/Inactivo en Settings
+            // 2. Actualizar Foto, Punto y Estado en Settings
             const nextPuntos = { ...(settings.dependientePunto ?? {}) };
             const nextFotos = { ...(settings.dependienteFotos ?? {}) };
             let nextInactivos = [...((settings as any).dependientesInactivos ?? [])];
 
-            // Limpiar claves antiguas si cambió el nombre
             if (oldName !== newName) {
               delete nextPuntos[oldName];
               delete nextFotos[oldName];
               nextInactivos = nextInactivos.filter((x) => x !== oldName);
             }
 
-            // Asignar nuevo punto
             if (data.punto) {
               nextPuntos[newName] = data.punto;
             } else {
               delete nextPuntos[newName];
             }
 
-            // Asignar nueva foto
             if (data.foto) {
               nextFotos[newName] = data.foto;
             } else {
               delete nextFotos[newName];
             }
 
-            // Asignar estado activo/inactivo
             if (data.inactivo) {
               if (!nextInactivos.includes(newName)) nextInactivos.push(newName);
             } else {
@@ -348,11 +353,17 @@ export default function Usuarios() {
           onDelete={(nombre) => {
             if (confirm(`¿Seguro que deseas eliminar a ${nombre}?`)) {
               removeDependiente(nombre);
+              const cuentaUser = users.find((u) => u.nombre.trim().toLowerCase() === nombre.trim().toLowerCase());
+              if (cuentaUser) {
+                removeUser(cuentaUser.id);
+                deletePinUserRemote(cuentaUser.id).catch((e) => toast.error(e.message));
+              }
               deleteDependiente(nombre).catch((e) => toast.error(e.message));
               toast.success("Dependiente eliminado");
               setDepEditing(null);
             }
           }}
+          onOpenPinModal={(u) => setPinUser(u)}
         />
       )}
     </div>
@@ -361,9 +372,11 @@ export default function Usuarios() {
 
 function EditarDependienteModal({
   dep,
+  users,
   onClose,
   onSave,
   onDelete,
+  onOpenPinModal,
 }: {
   dep: {
     nombreOriginal: string;
@@ -372,11 +385,16 @@ function EditarDependienteModal({
     foto?: string;
     inactivo: boolean;
   };
+  users: PinUser[];
   onClose: () => void;
   onSave: (data: typeof dep) => void;
   onDelete: (nombre: string) => void;
+  onOpenPinModal: (u: PinUser) => void;
 }) {
   const [form, setForm] = useState({ ...dep });
+  const cuentaPin = users.find(
+    (u) => u.nombre.trim().toLowerCase() === form.nombreOriginal.trim().toLowerCase()
+  );
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -423,7 +441,7 @@ function EditarDependienteModal({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* 1. Selector/Edición de Foto */}
+          {/* 1. Selector de Foto */}
           <div className="flex flex-col items-center justify-center gap-2">
             <Avatar nombre={form.nombre} src={form.foto} size="xl" className="border-2 border-primary/20 shadow-md" />
             <div className="flex items-center gap-3 mt-1">
@@ -465,7 +483,28 @@ function EditarDependienteModal({
             />
           </div>
 
-          {/* 3. Selector de Punto de Venta */}
+          {/* 3. Gestión de PIN */}
+          <div className="space-y-1 bg-muted/30 p-2.5 rounded-xl border border-border/50">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold flex items-center gap-1">
+                <KeyRound className="h-3.5 w-3.5 text-primary" /> PIN de Acceso
+              </span>
+              {cuentaPin ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs rounded-lg"
+                  onClick={() => onOpenPinModal(cuentaPin)}
+                >
+                  Cambiar PIN
+                </Button>
+              ) : (
+                <span className="text-[11px] text-muted-foreground italic">Sin PIN activo</span>
+              )}
+            </div>
+          </div>
+
+          {/* 4. Selector de Punto de Venta */}
           <div className="space-y-1">
             <Label className="text-xs font-semibold">Punto de Venta Habitual</Label>
             <Select
@@ -488,7 +527,7 @@ function EditarDependienteModal({
             </Select>
           </div>
 
-          {/* 4. Selector de Estado (Activo / Inactivo) */}
+          {/* 5. Selector de Estado (Activo / Inactivo) */}
           <div className="space-y-1">
             <Label className="text-xs font-semibold">Estado del Dependiente</Label>
             <Select
