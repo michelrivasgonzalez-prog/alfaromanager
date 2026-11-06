@@ -16,7 +16,7 @@ const ALL_TABS: { to: string; icon: any; label: string; allow: AppRole[] }[] = [
   { to: "/calendario", icon: CalendarDays, label: "Calendario", allow: ["admin", "duena"] },
   { to: "/historial", icon: History, label: "Historial", allow: ["admin", "duena"] },
   { to: "/almacen", icon: Warehouse, label: "Almacén", allow: ["admin", "duena"] },
-  { to: "/cobrar", icon: Wallet, label: "Mis Deudas", allow: ["admin", "duena", "dependiente"] },
+  { to: "/cobrar", icon: Wallet, label: "Cobrar", allow: ["admin", "duena", "dependiente"] },
   { to: "/reportes", icon: BarChart3, label: "Reportes", allow: ["admin", "duena"] },
   { to: "/productos", icon: Package, label: "Productos", allow: ["admin", "duena"] },
   { to: "/usuarios", icon: Users, label: "Usuarios", allow: ["admin", "duena"] },
@@ -37,7 +37,10 @@ export default function AppLayout() {
       return t.to === "/" || t.to === "/cobrar";
     }
     return t.allow.includes(role) && !(t.to === "/almacen" && ocultarAlmacen);
-  });
+  }).map((t) => ({
+    ...t,
+    label: t.to === "/cobrar" && role === "dependiente" ? "Mis Deudas" : t.label,
+  }));
 
   const qc = useQueryClient();
   const [syncState, setSyncState] = useState<"idle" | "syncing" | "ok" | "error">("idle");
@@ -69,7 +72,6 @@ export default function AppLayout() {
     if (!role) return;
     iniciarBorradoresNube();
     
-    // Sincronización transparente en segundo plano al entrar y cada 30s
     doSync(false);
 
     const iv = setInterval(() => doSync(false), 30_000);
