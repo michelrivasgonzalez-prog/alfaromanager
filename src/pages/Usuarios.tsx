@@ -79,6 +79,17 @@ export default function Usuarios() {
     );
   }
 
+  // Ordenar dependientes: primero activos, luego inactivos (y alfabéticamente dentro de cada grupo)
+  const dependientesOrdenados = [...dependientes].sort((a, b) => {
+    const aInactivo = Boolean((settings as any).dependientesInactivos?.includes(a));
+    const bInactivo = Boolean((settings as any).dependientesInactivos?.includes(b));
+
+    if (aInactivo !== bInactivo) {
+      return aInactivo ? 1 : -1; // Activos (false) arriba, Inactivos (true) abajo
+    }
+    return a.localeCompare(b, "es");
+  });
+
   return (
     <div className="space-y-4 pb-16">
       <h1 className="text-2xl font-bold">Usuarios</h1>
@@ -196,13 +207,13 @@ export default function Usuarios() {
         </form>
 
         <div className="space-y-2">
-          {dependientes.length === 0 && (
+          {dependientesOrdenados.length === 0 && (
             <div className="rounded-2xl border border-dashed border-border bg-card p-4 text-center text-xs text-muted-foreground">
               No hay dependientes. Añade uno arriba.
             </div>
           )}
 
-          {dependientes.map((d) => {
+          {dependientesOrdenados.map((d) => {
             const puntoHab = settings.dependientePunto?.[d] || puntoHabitual(d, settings, history);
             const isInactivo = (settings as any).dependientesInactivos?.includes(d);
             const cuentaPin = users.find((u) => u.nombre.trim().toLowerCase() === d.trim().toLowerCase());
