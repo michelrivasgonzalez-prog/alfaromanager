@@ -73,8 +73,10 @@ export default function Cobrar() {
     (deudas.data ?? []).filter((d) => d.estado !== "pagada").map((d) => d.cliente_id)
   ).size;
   const deudasPendientes = (deudas.data ?? []).filter((d) => d.estado !== "pagada").length;
+  // Estado para el orden de la lista de clientes
+  const [ordenClientes, setOrdenClientes] = useState<"consumo" | "saldo" | "alfabetico">("consumo");
 
-  // Clientes ordenados: mayor consumo primero, luego alfabético; saldo 0 al final.
+  // Clientes ordenados según el criterio seleccionado
   const clientesOrdenados = useMemo(() => {
     const ds = deudas.data ?? [];
     const info = (id: string) => {
@@ -88,12 +90,26 @@ export default function Cobrar() {
     };
     return [...(clientes.data ?? [])].sort((a, b) => {
       const ia = info(a.id), ib = info(b.id);
+
+      if (ordenClientes === "alfabetico") {
+        return a.nombre.localeCompare(b.nombre, "es");
+      }
+
+      if (ordenClientes === "saldo") {
+        // Los que tienen deuda primero; mayor saldo arriba
+        const za = ia.saldo <= 0 ? 1 : 0, zb = ib.saldo <= 0 ? 1 : 0;
+        if (za !== zb) return za - zb;
+        if (ib.saldo !== ia.saldo) return ib.saldo - ia.saldo;
+        return a.nombre.localeCompare(b.nombre, "es");
+      }
+
+      // "consumo" (por defecto): mayor consumo histórico primero, saldos cero al final
       const za = ia.saldo <= 0 ? 1 : 0, zb = ib.saldo <= 0 ? 1 : 0;
       if (za !== zb) return za - zb;
       if (ib.consumo !== ia.consumo) return ib.consumo - ia.consumo;
       return a.nombre.localeCompare(b.nombre, "es");
     });
-  }, [clientes.data, deudas.data]);
+  }, [clientes.data, deudas.data, ordenClientes]);
 
   const [cliDialog, setCliDialog] = useState<Partial<Cliente> | null>(null);
   const [deudaLibre, setDeudaLibre] = useState(false);
@@ -197,7 +213,24 @@ export default function Cobrar() {
               Solo con saldo pendiente
             </Button>
           </div>
-          <div className="text-[11px] text-muted-foreground">{clientesFiltrados.length} cliente(s)</div>
+              <div className="flex items-center justify-between gap-2 pt-1">
+            <span className="text-[11px] text-muted-foreground">
+              {clientesFiltrados.length} cliente(s)
+            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-muted-foreground">Ordenar:</span>
+              <Select value={ordenClientes} onValueChange={(v) => setOrdenClientes(v as "consumo" | "saldo" | "alfabetico")}>
+                <SelectTrigger className="h-8 w-[145px] rounded-xl text-xs bg-card">
+                  <SelectValue placeholder="Ordenar" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="consumo">Mayor consumo</SelectItem>
+                  <SelectItem value="saldo">Mayor deuda</SelectItem>
+                  <SelectItem value="alfabetico">Nombre (A - Z)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           {clientesFiltrados.length === 0 && (
             <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
               No hay clientes que coincidan.
