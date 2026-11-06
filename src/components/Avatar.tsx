@@ -1,15 +1,35 @@
 import { colorAvatar, iniciales } from "@/lib/dias";
 import { cn } from "@/lib/utils";
+import { useCuadreStore } from "@/store/cuadreStore";
 
 export function Avatar({
   nombre,
   size = 40,
   className,
+  src,
 }: {
   nombre: string;
   size?: number;
   className?: string;
+  src?: string;
 }) {
+  const fotoGuardada = useCuadreStore((s) => s.settings.dependienteFotos?.[nombre]);
+  const imagen = src || fotoGuardada;
+
+  if (imagen) {
+    return (
+      <img
+        src={imagen}
+        alt={nombre}
+        className={cn(
+          "shrink-0 rounded-full object-cover shadow-soft border border-border/60",
+          className
+        )}
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+
   const bg = colorAvatar(nombre || "?");
   return (
     <div
