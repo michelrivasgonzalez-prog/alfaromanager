@@ -767,3 +767,41 @@ function ChangePinForm({ user, onDone }: { user: PinUser; onDone: (pin: string) 
     />
   );
 }
+function ChangePinForm({ user, onDone }: { user: PinUser; onDone: (pin: string) => void }) {
+  const [first, setFirst] = useState("");
+  const [stage, setStage] = useState<"new" | "confirm">("new");
+  const [error, setError] = useState<string | null>(null);
+  if (stage === "new") {
+    return (
+      <PinPad
+        error={error}
+        onComplete={(p) => {
+          setFirst(p);
+          setStage("confirm");
+        }}
+      />
+    );
+  }
+  return (
+    <PinPad
+      error={error}
+      onComplete={(p) => {
+        if (p !== first) {
+          setError("No coincide");
+          setFirst("");
+          setStage("new");
+          return;
+        }
+        onDone(p);
+        const nextHash = crypto.subtle
+          ? import("@/store/pinStore").then((m) => m.hashPin(p, user.id))
+          : Promise.resolve(user.pinHash);
+        nextHash
+          .then((pinHash) => pushPinUser({ ...user, pinHash }))
+          .catch((e) => toast.error(e.message));
+      }}
+    />
+  );
+}
+
+// reload
