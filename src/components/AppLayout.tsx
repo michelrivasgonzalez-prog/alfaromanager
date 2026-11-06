@@ -10,6 +10,7 @@ import { iniciarBorradoresNube } from "@/lib/borradores";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAutoLogout } from "@/hooks/useAutoLogout";
+import MisDeudasDependiente from "@/pages/MisDeudasDependiente"; // <-- Componente exclusivo y seguro para dependientes
 
 const ALL_TABS: { to: string; icon: any; label: string; allow: AppRole[] }[] = [
   { to: "/", icon: Home, label: "Inicio", allow: ["admin", "duena", "dependiente"] },
@@ -152,7 +153,12 @@ export default function AppLayout() {
         transition={{ duration: 0.25 }}
         className="mx-auto max-w-2xl px-4 pt-4 safe-bottom"
       >
-        <Outlet />
+        {/* Si el usuario es dependiente y está en la ruta de cobros, mostramos su pantalla segura de solo lectura */}
+        {role === "dependiente" && location.pathname === "/cobrar" ? (
+          <MisDeudasDependiente />
+        ) : (
+          <Outlet />
+        )}
       </motion.main>
 
       <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card/95 backdrop-blur-lg">
