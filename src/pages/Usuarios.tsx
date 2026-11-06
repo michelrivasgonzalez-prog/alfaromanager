@@ -21,10 +21,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Users as UsersIcon, Lock, Pencil, Shield, Crown, User as UserIcon, KeyRound, UserPlus } from "lucide-react";
+import { Plus, Trash2, Users as UsersIcon, Lock, Pencil, Shield, Crown, User as UserIcon, KeyRound, UserPlus, Camera } from "lucide-react";
 import { toast } from "sonner";
 import { PinPad } from "@/components/PinPad";
 import { deleteDependiente, deletePinUserRemote, pushDependiente, pushPinUser, pushSettings } from "@/lib/sync";
+import { Avatar } from "@/components/Avatar";
 const ROLE_INFO: Record<PinRole, { label: string; Icon: any; cls: string }> = {
   admin: { label: "Admin", Icon: Shield, cls: "gradient-primary text-primary-foreground" },
   duena: { label: "Dueña", Icon: Crown, cls: "gradient-emerald text-secondary-foreground" },
@@ -193,11 +194,7 @@ export default function Usuarios() {
                 className="rounded-2xl border border-border bg-card p-3.5 shadow-soft space-y-2.5"
               >
                 {/* Cabecera: Avatar, Nombre completo y Estado */}
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted text-foreground">
-                      <UserIcon className="h-4 w-4" />
-                    </div>
+                <Avatar nombre={d} size={36} />
                     <span className="font-semibold text-sm truncate">{d}</span>
                   </div>
 
@@ -259,49 +256,183 @@ export default function Usuarios() {
                           cuentaAsociada ? "text-emerald-500" : "text-muted-foreground"
                         }`}
                       />
-                    </Button>
+                    function EditDependienteDialog({
+  dependiente,
+  cuentaAsociada,
+}: {
+  dependiente: string;
+  cuentaAsociada?: PinUser;
+}) {
+  const [open, setOpen] = useState(false);
+  const { settings, history, updateDependiente, updateSettings } = useCuadreStore();
+  const { updateUser } = usePinStore();
 
-                    <EditDependienteDialog
-                      dependiente={d}
-                      cuentaAsociada={cuentaAsociada}
-                    />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+  const [nombre, setNombre] = useState(dependiente);
+  const [punto, setPunto] = useState<PuntoVenta>(
+    puntoHabitual(dependiente, settings, history) ?? "Cafetería"
+  );
+  const inactivos = settings.dependientesInactivos ?? [];
+  const [activo, setActivo] = useState(!inactivos.includes(dependiente));
+  const [foto, setFoto] = useState<string | null>(settings.dependienteFotos?.[dependiente] ?? null);
 
-      <Dialog open={!!pinUser} onOpenChange={(v) => !v && setPinUser(null)}>
-        <DialogContent className="rounded-2xl">
-          <DialogHeader>
-            <DialogTitle>Asignar / Cambiar PIN a {pinUser?.nombre}</DialogTitle>
-          </DialogHeader>
-          {pinUser && (
-            <ChangePinForm
-              user={pinUser}
-              onDone={async (pin) => {
-                const existe = users.some((u) => u.id === pinUser.id);
-                if (existe) {
-                  await updatePin(pinUser.id, pin);
-                  toast.success(`PIN actualizado para ${pinUser.nombre}`);
-                } else {
-                  const nuevo = await createUser({
-                    nombre: pinUser.nombre,
-                    role: pinUser.role || "dependiente",
-                    pin: pin,
-                  });
-                  pushPinUser(nuevo).catch((e) => toast.error(e.message));
-                  toast.success(`PIN de acceso creado para ${pinUser.nombre}`);
-                }
-                setPinUser(null);
-              }}
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        const size = 180;
+        canvas.width = size;
+        canvas.height = size;
+        const minDim = Math.min(img.width, img.height);
+        const sx = (img.width - minDim) / 2;
+        const sy = (img.height - minDim) / 2;
+        ctx?.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+        setFoto(dataUrl);
+      };
+      img.src = evt.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSave = async () => {
+    const nuevoNombre = nombre.trim();
+    if (!nuevoNombre) return;
+
+    // 1. Renombrar si cambió
+    if (nuevoNombre !== dependiente) {
+      updateDependiente(dependiente, nuevoNombre);
+      if (cuentaAsociada) {
+        updateUser(cuentaAsociada.id, { nombre: nuevoNombre });
+        pushPinUser({ ...cuentaAsociada, nombre: nuevoNombre }).catch(console.warn);
+      }
+      await Promise.all([
+        deleteDependiente(dependiente),
+        pushDependiente(nuevoNombre),
+      ]).catch((e) => toast.error(e.message));
+    }
+
+    // 2. Guardar Punto habitual, Estado y Foto
+    const targetNombre = nuevoNombre !== dependiente ? nuevoNombre : dependiente;
+    const nextPuntos = { ...(settings.dependientePunto ?? {}), [targetNombre]: punto };
+    const nextInactivos = !activo
+      ? Array.from(new Set([...inactivos, targetNombre]))
+      : inactivos.filter((n) => n !== targetNombre);
+
+    const nextFotos = { ...(settings.dependienteFotos ?? {}) };
+    if (nuevoNombre !== dependiente && nextFotos[dependiente]) {
+      delete nextFotos[dependiente];
+    }
+    if (foto) {
+      nextFotos[targetNombre] = foto;
+    } else {
+      delete nextFotos[targetNombre];
+    }
+
+    updateSettings({
+      dependientePunto: nextPuntos,
+      dependientesInactivos: nextInactivos,
+      dependienteFotos: nextFotos,
+    });
+
+    pushSettings()
+      .then(() => {
+        toast.success("Dependiente actualizado");
+        setOpen(false);
+      })
+      .catch((e) => toast.error(e.message));
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-xl" title="Editar">
+          <Pencil className="h-4 w-4" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="rounded-2xl space-y-4">
+        <DialogHeader>
+          <DialogTitle>Editar dependiente</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          {/* Vista previa y carga de foto */}
+          <div className="flex flex-col items-center justify-center gap-2.5 pb-2">
+            <Avatar nombre={nombre || dependiente} src={foto || undefined} size={76} />
+            <div className="flex items-center gap-2">
+              <label className="cursor-pointer">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageChange}
+                />
+                <Button size="sm" variant="outline" className="rounded-xl h-8 text-xs pointer-events-none" asChild>
+                  <span>
+                    <Camera className="mr-1.5 h-3.5 w-3.5" />
+                    {foto ? "Cambiar foto" : "Subir foto"}
+                  </span>
+                </Button>
+              </label>
+              {foto && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="rounded-xl h-8 text-xs text-destructive hover:text-destructive"
+                  onClick={() => setFoto(null)}
+                >
+                  <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                  Quitar
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs">Nombre completo</Label>
+            <Input
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              className="rounded-xl h-10"
             />
-          )}
-        </DialogContent>
-      </Dialog>
-    </div>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs">Punto de venta habitual</Label>
+            <Select value={punto} onValueChange={(v) => setPunto(v as PuntoVenta)}>
+              <SelectTrigger className="rounded-xl h-10">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-popover">
+                <SelectItem value="Cafetería">Cafetería</SelectItem>
+                <SelectItem value="Mipyme">Mipyme</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center justify-between pt-2">
+            <Label className="text-xs">Estado de la cuenta</Label>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                {activo ? "Activo" : "Inactivo"}
+              </span>
+              <Switch checked={activo} onCheckedChange={setActivo} />
+            </div>
+          </div>
+
+          <Button
+            onClick={handleSave}
+            className="w-full h-11 rounded-xl gradient-primary mt-2"
+          >
+            Guardar cambios
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
