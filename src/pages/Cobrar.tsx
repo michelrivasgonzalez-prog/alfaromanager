@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -41,12 +41,30 @@ import {
   fmt,
 } from "@/lib/cobrar";
 import NuevaDeudaDialog from "@/components/NuevaDeudaDialog";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Cobrar() {
   const qc = useQueryClient();
   const nav = useNavigate();
+  const { role, nombre } = useAuth();
+
   const clientes = useQuery({ queryKey: ["clientes"], queryFn: listClientes });
   const deudas = useQuery({ queryKey: ["deudas-all"], queryFn: () => listDeudas() });
+
+  // Redirección o filtrado para el dependiente
+  const esDependiente = role === "dependiente";
+  const miCliente = useMemo(() => {
+    if (!esDependiente || !nombre || !clientes.data) return null;
+    return clientes.data.find(
+      (c) => c.nombre.trim().toLowerCase() === nombre.trim().toLowerCase()
+    );
+  }, [esDependiente, nombre, clientes.data]);
+
+  useEffect(() => {
+    if (esDependiente && miCliente) {
+      nav(`/cobrar/clientes/${miCliente.id}`, { replace: true });
+    }
+  }, [esDependiente, miCliente, nav]);
 
   const pendienteTotal = (deudas.data ?? [])
     .filter((d) => d.estado !== "pagada")
@@ -55,8 +73,10 @@ export default function Cobrar() {
     (deudas.data ?? []).filter((d) => d.estado !== "pagada").map((d) => d.cliente_id)
   ).size;
   const deudasPendientes = (deudas.data ?? []).filter((d) => d.estado !== "pagada").length;
+  // Estado para el orden de la lista de clientes
+  const [ordenClientes, setOrdenClientes] = useState<"consumo" | "saldo" | "alfabetico">("consumo");
 
-  // Clientes ordenados: mayor consumo primero, luego alfabético; saldo 0 al final.
+  // Clientes ordenados según el criterio seleccionado
   const clientesOrdenados = useMemo(() => {
     const ds = deudas.data ?? [];
     const info = (id: string) => {
@@ -70,12 +90,26 @@ export default function Cobrar() {
     };
     return [...(clientes.data ?? [])].sort((a, b) => {
       const ia = info(a.id), ib = info(b.id);
+
+      if (ordenClientes === "alfabetico") {
+        return a.nombre.localeCompare(b.nombre, "es");
+      }
+
+      if (ordenClientes === "saldo") {
+        // Los que tienen deuda primero; mayor saldo arriba
+        const za = ia.saldo <= 0 ? 1 : 0, zb = ib.saldo <= 0 ? 1 : 0;
+        if (za !== zb) return za - zb;
+        if (ib.saldo !== ia.saldo) return ib.saldo - ia.saldo;
+        return a.nombre.localeCompare(b.nombre, "es");
+      }
+
+      // "consumo" (por defecto): mayor consumo histórico primero, saldos cero al final
       const za = ia.saldo <= 0 ? 1 : 0, zb = ib.saldo <= 0 ? 1 : 0;
       if (za !== zb) return za - zb;
       if (ib.consumo !== ia.consumo) return ib.consumo - ia.consumo;
       return a.nombre.localeCompare(b.nombre, "es");
     });
-  }, [clientes.data, deudas.data]);
+  }, [clientes.data, deudas.data, ordenClientes]);
 
   const [cliDialog, setCliDialog] = useState<Partial<Cliente> | null>(null);
   const [deudaLibre, setDeudaLibre] = useState(false);
@@ -97,6 +131,27 @@ export default function Cobrar() {
       return true;
     });
   }, [clientesOrdenados, busqueda, soloDeuda, deudas.data]);
+
+  // Si es dependiente pero aún no tiene ficha de cliente registrada
+  if (esDependiente && !miCliente && !clientes.isLoading) {
+    return (
+      <div className="space-y-4 pb-24">
+        <header className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl gradient-primary text-primary-foreground shadow-soft">
+            <Wallet className="h-5 w-5" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-primary">Mis Deudas</h1>
+            <p className="text-xs text-muted-foreground">{nombre}</p>
+          </div>
+        </header>
+        <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
+          <ShieldCheck className="mx-auto mb-2 h-8 w-8 text-emerald-500" />
+          No tienes deudas ni registro de faltantes pendientes.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 pb-24">
@@ -158,7 +213,24 @@ export default function Cobrar() {
               Solo con saldo pendiente
             </Button>
           </div>
-          <div className="text-[11px] text-muted-foreground">{clientesFiltrados.length} cliente(s)</div>
+              <div className="flex items-center justify-between gap-2 pt-1">
+            <span className="text-[11px] text-muted-foreground">
+              {clientesFiltrados.length} cliente(s)
+            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-muted-foreground">Ordenar:</span>
+              <Select value={ordenClientes} onValueChange={(v) => setOrdenClientes(v as "consumo" | "saldo" | "alfabetico")}>
+                <SelectTrigger className="h-8 w-[145px] rounded-xl text-xs bg-card">
+                  <SelectValue placeholder="Ordenar" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="consumo">Mayor consumo</SelectItem>
+                  <SelectItem value="saldo">Mayor deuda</SelectItem>
+                  <SelectItem value="alfabetico">Nombre (A - Z)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           {clientesFiltrados.length === 0 && (
             <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
               No hay clientes que coincidan.
@@ -167,7 +239,6 @@ export default function Cobrar() {
           {clientesFiltrados.map((c) => {
             const cliDeudas = (deudas.data ?? []).filter((d) => d.cliente_id === c.id);
             const saldo = cliDeudas.filter((d) => d.estado !== "pagada").reduce((s, d) => s + Number(d.saldo), 0);
-            const sinTelefono = !c.telefono || !c.telefono.trim();
             return (
               <button
                 key={c.id}

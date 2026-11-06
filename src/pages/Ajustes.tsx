@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useCuadreStore, PUNTOS, SALARIO_MODOS, SalarioModo } from "@/store/cuadreStore";
 import { usePinStore } from "@/store/pinStore";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Coffee, Store as StoreIcon, Percent, Cloud, RefreshCw, Trash2, Wifi, Upload, ShieldCheck, FileDown, ClipboardList } from "lucide-react";
+import { Coffee, Store as StoreIcon, Percent, Cloud, RefreshCw, Trash2, Wifi, Upload, ShieldCheck, FileDown, ClipboardList, Warehouse } from "lucide-react";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { NumberInput } from "@/components/NumberInput";
 import {
   Select,
@@ -122,6 +123,40 @@ export default function Ajustes() {
           <span className="ml-auto text-xs text-muted-foreground">Offline siempre activo</span>
         </div>
       </div>
+   {/* Preferencias de navegación */}
+<div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3">
+  <div className="flex items-center gap-2">
+    <Warehouse className="h-4 w-4 text-primary" />
+    <div>
+      <div className="text-sm font-semibold">Navegación</div>
+      <div className="text-xs text-muted-foreground">
+        Personaliza las secciones visibles del menú.
+      </div>
+    </div>
+  </div>
+
+  <div className="flex items-center justify-between gap-3">
+    <div className="space-y-1">
+      <Label htmlFor="ocultar-almacen" className="text-sm">
+        Ocultar Almacén del menú
+      </Label>
+      <p className="text-xs text-muted-foreground">
+        Oculta la pestaña Almacén de la barra inferior.
+      </p>
+    </div>
+
+    <Switch
+      id="ocultar-almacen"
+      checked={settings.ocultarAlmacen ?? false}
+      onCheckedChange={(val) => {
+        updateSettings({ ocultarAlmacen: val });
+        pushSettings().catch((err) =>
+          toast.error("No se guardó en la nube: " + err.message)
+        );
+      }}
+    />
+  </div>
+</div>
 
       {/* Nube (auto, sin correo) */}
       {isAdmin && (
@@ -243,7 +278,7 @@ export default function Ajustes() {
 
       {isAdmin && <CategoriasPanel />}
 
-      {isAdmin && <AuditoriaPanel />}
+            {(isAdmin || role === "duena") && <AuditoriaPanel />}
 
 
 
@@ -564,25 +599,32 @@ function CategoriasPanel() {
     </div>
   );
 }
-
 function AuditoriaPanel() {
-
   const [logs, setLogs] = useState<AuditoriaRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [entidad, setEntidad] = useState("");
   const [usuario, setUsuario] = useState("");
+  const [accionFiltro, setAccionFiltro] = useState<string>("todas");
+  const [clientesMap, setClientesMap] = useState<Record<string, string>>({});
 
   const load = async () => {
     setLoading(true);
     try {
+      // 1. Cargar nombres de clientes para traducir los IDs técnicos
+      const { data: clis } = await supabase.from("clientes").select("id, nombre");
+      const map: Record<string, string> = {};
+      (clis ?? []).forEach((c) => {
+        map[c.id] = c.nombre;
+      });
+      setClientesMap(map);
+
+      // 2. Cargar registros de auditoría
       const data = await listAuditoria({
-        entidad: entidad || undefined,
         usuario: usuario || undefined,
         limit: 100,
       });
-      setLogs(data);
+      setLogs(data ?? []);
     } catch (e: any) {
-      toast.error("Error al cargar auditoría: " + e.message);
+      toast.error("Error al cargar auditoría: " + (e?.message || ""));
     } finally {
       setLoading(false);
     }
@@ -592,52 +634,130 @@ function AuditoriaPanel() {
     load();
   }, []);
 
+  const logsFiltrados = useMemo(() => {
+    if (!logs) return [];
+    if (accionFiltro === "todas") return logs;
+    return logs.filter((l) =>
+      (l.accion || "").toLowerCase().includes(accionFiltro.toLowerCase())
+    );
+  }, [logs, accionFiltro]);
+
   return (
     <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3">
-      <div className="flex items-center gap-2">
-        <ShieldCheck className="h-4 w-4 text-primary" />
-        <div className="text-sm font-semibold">Auditoría</div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4 text-primary" />
+          <div className="text-sm font-semibold">Trazabilidad y Auditoría</div>
+        </div>
+        <span className="text-[11px] font-semibold text-muted-foreground">
+          {logsFiltrados.length} evento(s)
+        </span>
       </div>
-      <div className="grid grid-cols-2 gap-2">
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <Input
-          placeholder="Entidad (ej. abonos)"
-          value={entidad}
-          onChange={(e) => setEntidad(e.target.value)}
-          className="h-9 rounded-xl text-xs"
-        />
-        <Input
-          placeholder="Usuario"
+          placeholder="Buscar por usuario…"
           value={usuario}
           onChange={(e) => setUsuario(e.target.value)}
           className="h-9 rounded-xl text-xs"
         />
+        <Select value={accionFiltro} onValueChange={setAccionFiltro}>
+          <SelectTrigger className="h-9 rounded-xl text-xs">
+            <SelectValue placeholder="Tipo de acción" />
+          </SelectTrigger>
+          <SelectContent className="bg-popover">
+            <SelectItem value="todas">Todos los movimientos</SelectItem>
+            <SelectItem value="registrar_abono">Abonos recibidos</SelectItem>
+            <SelectItem value="revertir_abono">Abonos cancelados / revertidos</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
-      <Button onClick={load} disabled={loading} className="w-full rounded-xl gradient-primary">
-        <RefreshCw className={`mr-1 h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Cargar registros
+
+      <Button onClick={load} disabled={loading} className="w-full rounded-xl gradient-primary h-9 text-xs">
+        <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} /> 
+        {loading ? "Cargando…" : "Actualizar eventos"}
       </Button>
-      <div className="max-h-80 space-y-2 overflow-y-auto">
-        {logs.length === 0 && (
-          <div className="text-center text-xs text-muted-foreground">Sin registros</div>
-        )}
-        {logs.map((l) => (
-          <div key={l.id} className="rounded-xl border border-border bg-muted/30 p-2 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="font-semibold">{l.accion}</span>
-              <span className="text-[10px] text-muted-foreground">
-                {format(new Date(l.fecha), "dd MMM yyyy HH:mm", { locale: es })}
-              </span>
-            </div>
-            <div className="text-[11px] text-muted-foreground">
-              {l.usuario_nombre ?? "Sistema"} · {l.entidad} {l.entidad_id ? `· ${l.entidad_id.slice(0, 8)}` : ""}
-            </div>
-            {l.detalle && Object.keys(l.detalle).length > 0 && (
-              <pre className="mt-1 max-h-24 overflow-auto rounded-lg bg-muted/60 p-1.5 text-[10px]">
-                {JSON.stringify(l.detalle, null, 2)}
-              </pre>
-            )}
+
+      <div className="max-h-96 space-y-2.5 overflow-y-auto pr-1">
+        {logsFiltrados.length === 0 && (
+          <div className="rounded-xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+            Sin registros de auditoría encontrados.
           </div>
-        ))}
+        )}
+
+        {logsFiltrados.map((l) => {
+          const rawFecha = (l as any).fecha || (l as any).creado_en || (l as any).created_at;
+          let fechaStr = "—";
+          if (rawFecha) {
+            try {
+              fechaStr = format(new Date(rawFecha), "dd MMM · HH:mm", { locale: es });
+            } catch {
+              fechaStr = "—";
+            }
+          }
+
+          const d = l.detalle ?? {};
+          const esReversion = l.accion.includes("revertir");
+          const clienteNombre = d.cliente_id ? (clientesMap[d.cliente_id] || "Cliente registrado") : null;
+          const monto = Number(d.monto || 0);
+          const credito = Number(d.credito_generado || 0);
+          const aplicaciones = Array.isArray(d.aplicaciones) ? d.aplicaciones : [];
+
+          return (
+            <div key={l.id} className="rounded-xl border border-border bg-muted/20 p-3 text-xs space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span
+                      className={`font-semibold px-2 py-0.5 rounded-md text-[11px] ${
+                        esReversion
+                          ? "bg-destructive/10 text-destructive"
+                          : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      }`}
+                    >
+                      {esReversion ? "Abono Revertido" : "Abono Registrado"}
+                    </span>
+                    {clienteNombre && (
+                      <span className="font-semibold text-foreground text-[11px]">
+                        {clienteNombre}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground mt-1">
+                    Operador: <strong className="text-foreground">{l.usuario_nombre ?? "Sistema"}</strong>
+                  </div>
+                </div>
+                <div className="text-[10px] text-muted-foreground whitespace-nowrap font-mono">
+                  {fechaStr}
+                </div>
+              </div>
+
+              {/* Tarjeta de resumen económico legible */}
+              <div className="rounded-lg border border-border/60 bg-card p-2.5 text-[11px] space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Monto:</span>
+                  <span className={`font-mono font-bold ${esReversion ? "text-destructive" : "text-emerald-600 dark:text-emerald-400"}`}>
+                    {esReversion ? "-" : "+"}${monto.toLocaleString("es-ES")} CUP
+                  </span>
+                </div>
+                {credito > 0 && (
+                  <div className="flex justify-between items-center text-muted-foreground">
+                    <span>Crédito a favor generado:</span>
+                    <span className="font-mono font-semibold text-foreground">+${credito.toLocaleString("es-ES")} CUP</span>
+                  </div>
+                )}
+                {aplicaciones.length > 0 && (
+                  <div className="flex justify-between items-center text-muted-foreground border-t border-border/30 pt-1">
+                    <span>Impacto en cuentas:</span>
+                    <span className="text-foreground font-medium">{aplicaciones.length} deuda(s) cubierta(s)</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
+

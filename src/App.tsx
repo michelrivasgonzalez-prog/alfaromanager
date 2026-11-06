@@ -50,7 +50,6 @@ const App = () => (
       <Sonner />
       <InstallPrompt />
       <BrowserRouter>
-
         <Routes>
           <Route path="/auth" element={<Auth />} />
           <Route
@@ -69,10 +68,31 @@ const App = () => (
                 </RequireRole>
               }
             />
-            <Route path="/historial" element={<Historial />} />
-            <Route path="/calendario" element={<Calendario />} />
+            <Route
+              path="/historial"
+              element={
+                <RequireRole allow={["admin", "duena"]}>
+                  <Historial />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="/calendario"
+              element={
+                <RequireRole allow={["admin", "duena"]}>
+                  <Calendario />
+                </RequireRole>
+              }
+            />
             <Route path="/buscar" element={<Buscar />} />
-            <Route path="/reportes" element={<Reportes />} />
+            <Route
+              path="/reportes"
+              element={
+                <RequireRole allow={["admin", "duena"]}>
+                  <Reportes />
+                </RequireRole>
+              }
+            />
             <Route
               path="/productos"
               element={
@@ -89,7 +109,14 @@ const App = () => (
                 </RequireRole>
               }
             />
-            <Route path="/ajustes" element={<Ajustes />} />
+            <Route
+              path="/ajustes"
+              element={
+                <RequireRole allow={["admin", "duena"]}>
+                  <Ajustes />
+                </RequireRole>
+              }
+            />
             <Route
               path="/almacen"
               element={
@@ -101,7 +128,7 @@ const App = () => (
             <Route
               path="/cobrar"
               element={
-                <RequireRole allow={["admin", "duena"]}>
+                <RequireRole allow={["admin", "duena", "dependiente"]}>
                   <Cobrar />
                 </RequireRole>
               }
@@ -109,7 +136,7 @@ const App = () => (
             <Route
               path="/cobrar/clientes/:id"
               element={
-                <RequireRole allow={["admin", "duena"]}>
+                <RequireRole allow={["admin", "duena", "dependiente"]}>
                   <ClienteDetalle />
                 </RequireRole>
               }
@@ -117,7 +144,7 @@ const App = () => (
             <Route
               path="/cobrar/clientes/:id/abonar"
               element={
-                <RequireRole allow={["admin", "duena"]}>
+                <RequireRole allow={["admin", "duena", "dependiente"]}>
                   <Abonar />
                 </RequireRole>
               }

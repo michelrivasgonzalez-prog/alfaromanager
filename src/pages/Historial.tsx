@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   useCuadreStore,
   calcCuadre,
@@ -104,6 +104,9 @@ export default function Historial() {
     }
   };
   const nav = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const cuadreIdUrl = searchParams.get("cuadreId");
+
   const { role } = useAuth();
   const canDelete = role === "admin" || role === "duena";
   const canPDF = role === "admin" || role === "duena";
@@ -113,6 +116,38 @@ export default function Historial() {
   const [deudaFor, setDeudaFor] = useState<{ cuadre: Cuadre; pagada: boolean } | null>(null);
   const [corregirFor, setCorregirFor] = useState<Cuadre | null>(null);
   const [punto, setPunto] = useState<"Cafetería" | "Mipyme">("Cafetería");
+
+    // Efecto para abrir el modal automáticamente cuando existe ?cuadreId en la URL
+  useEffect(() => {
+    if (!cuadreIdUrl || history.length === 0) return;
+
+    const targetCuadre = history.find(
+      (c) => String(c.id) === String(cuadreIdUrl)
+    );
+
+    if (targetCuadre) {
+      if (targetCuadre.puntoVenta) {
+        setPunto(targetCuadre.puntoVenta as "Cafetería" | "Mipyme");
+      }
+      setDetalle(targetCuadre);
+    } else {
+      toast.error("El cuadre asociado no se encuentra en el historial local.");
+      // Limpia el parámetro para que no se repita el aviso en cada render
+      setSearchParams({}, { replace: true });
+    }
+  }, [cuadreIdUrl, history, setSearchParams]);
+
+
+  // Manejador para cerrar el modal y limpiar el parámetro de la URL
+  const handleCloseDetalle = (open: boolean) => {
+    if (!open) {
+      setDetalle(null);
+      if (searchParams.has("cuadreId")) {
+        setSearchParams({}, { replace: true });
+      }
+    }
+  };
+
 
   const clientes = useQuery({ queryKey: ["clientes"], queryFn: listClientes, enabled: canDeuda });
   const deudasAll = useQuery({ queryKey: ["deudas-all"], queryFn: () => listDeudas(), enabled: canDeuda });
@@ -412,7 +447,7 @@ export default function Historial() {
           deudasAll.refetch();
         }}
       />
-      <Dialog open={!!detalle} onOpenChange={(o) => !o && setDetalle(null)}>
+            <Dialog open={!!detalle} onOpenChange={handleCloseDetalle}>
         <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>

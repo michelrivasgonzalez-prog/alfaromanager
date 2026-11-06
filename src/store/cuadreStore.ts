@@ -166,8 +166,18 @@ export type Settings = {
   reportesMensuales?: Record<string, any>;
   /** Punto de venta habitual de cada dependiente (por nombre). */
   dependientePunto?: Record<string, PuntoVenta>;
+  /** Dependientes desactivados sin eliminar su historial. */
+  dependientesInactivos?: string[];
   /** Existencia mínima por producto (clave "punto|nombre en minúsculas"). */
   stockMinimo?: Record<string, number>;
+  ocultarAlmacen?: boolean;
+  /** Dependientes desactivados sin eliminar su historial. */
+  dependientesInactivos?: string[];
+  /** Fotos de perfil de dependientes (por nombre en Base64). */
+  dependienteFotos?: Record<string, string>;
+  /** Existencia mínima por producto (clave "punto|nombre en minúsculas"). */
+  stockMinimo?: Record<string, number>;
+
 };
 
 /** Punto habitual: el asignado o, si no hay, el más frecuente en su historial. */
@@ -191,7 +201,10 @@ const DEFAULT_SETTINGS: Settings = {
   porcentajeVenta: { "Cafetería": 3, "Mipyme": 3 },
   diasNoTrabajados: [],
   diasNoTrabajadosPunto: { "Cafetería": [], "Mipyme": [] },
-  categorias: [],
+    categorias: [],
+  dependientesInactivos: [],
+  dependienteFotos: {},
+  ocultarAlmacen: false,
 };
 
 const DEFAULT_CATALOG: CatalogoItem[] = [];
@@ -539,10 +552,32 @@ export const useCuadreStore = create<State>()(
             ? s
             : { dependientes: [...s.dependientes, nombre] }
         ),
-      updateDependiente: (oldName, newName) =>
-        set((s) => ({
-          dependientes: s.dependientes.map((d) => (d === oldName ? newName : d)),
-        })),
+            updateDependiente: (oldName, newName) =>
+        set((s) => {
+          const inactivos = s.settings.dependientesInactivos ?? [];
+          const dependientesInactivos = inactivos.map((d) =>
+            d === oldName ? newName : d
+          );
+
+          const dependientePunto = { ...(s.settings.dependientePunto ?? {}) };
+
+          if (dependientePunto[oldName]) {
+            dependientePunto[newName] = dependientePunto[oldName];
+            delete dependientePunto[oldName];
+          }
+
+          return {
+            dependientes: s.dependientes.map((d) =>
+              d === oldName ? newName : d
+            ),
+            settings: {
+              ...s.settings,
+              dependientesInactivos,
+              dependientePunto,
+            },
+            settingsUpdatedAt: new Date().toISOString(),
+          };
+        }),
       removeDependiente: (nombre) =>
         set((s) => ({
           dependientes: s.dependientes.filter((d) => d !== nombre),

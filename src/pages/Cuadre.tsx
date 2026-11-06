@@ -143,15 +143,31 @@ function Step1() {
     settings,
   } = useCuadreStore();
   const [verTodos, setVerTodos] = useState(false);
+  const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const registrados = history
     .filter((h) => h.puntoVenta === activePunto)
     .flatMap((h) => (h.diasTrabajados?.length ? h.diasTrabajados : [h.fecha]))
     .map((d) => new Date(d));
+    const inactivos = settings.dependientesInactivos ?? [];
+  const dependienteActual = currents[activePunto]?.dependiente;
+
   const dependientesList = [...dependientes]
     .filter((d) => {
-      if (verTodos) return true;
+      // Los inactivos solo aparecen cuando se solicita,
+      // excepto si ya están seleccionados en un cuadre.
+      if (
+        inactivos.includes(d) &&
+        !mostrarInactivos &&
+        d !== dependienteActual
+      ) {
+        return false;
+      }
+
+      // Mantener el filtro de suplencias por punto de venta.
+      if (verTodos || d === dependienteActual) return true;
+
       const p = puntoHabitual(d, settings, history);
-      return !p || p === activePunto || d === currents[activePunto]?.dependiente;
+      return !p || p === activePunto;
     })
     .sort((a, b) => a.localeCompare(b));
   const current = currents[activePunto];
@@ -205,18 +221,38 @@ function Step1() {
 
       <div className="rounded-2xl border border-border bg-card p-5 shadow-soft space-y-4">
         <div className="space-y-2">
-          <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
             <Label>Nombre del dependiente</Label>
-            <button
-              type="button"
-              onClick={() => setVerTodos((v) => !v)}
-              className={cn(
-                "rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-smooth",
-                verTodos ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"
-              )}
-            >
-              {verTodos ? "Solo de " + activePunto : "Suplencia: ver todos"}
-            </button>
+
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setVerTodos((v) => !v)}
+                className={cn(
+                  "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-smooth",
+                  verTodos
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border text-muted-foreground"
+                )}
+              >
+                {verTodos ? "Solo de " + activePunto : "Suplencia: ver todos"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMostrarInactivos((v) => !v)}
+                className={cn(
+                  "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-smooth",
+                  mostrarInactivos
+                    ? "border-amber-500/30 bg-amber-500/10 text-amber-600"
+                    : "border-border text-muted-foreground"
+                )}
+              >
+                {mostrarInactivos
+                  ? "Ocultar inactivos"
+                  : "Mostrar inactivos"}
+              </button>
+            </div>
           </div>
           <Select
             value={current.dependiente}

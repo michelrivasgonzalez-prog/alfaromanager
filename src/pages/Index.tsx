@@ -10,12 +10,16 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { formatDiasTrabajados } from "@/lib/dias";
+import PortalDependiente from "./PortalDependiente";
 
 export default function Index() {
   const nav = useNavigate();
   const { currents, activePunto, setActivePunto, startCuadre, history, lastStep, cancelar } =
     useCuadreStore();
   const { role } = useAuth();
+  if (role === "dependiente") {
+    return <PortalDependiente />;
+  }
   const canStart = role === "admin" || role === "duena" || role === "dependiente";
   const current = currents[activePunto];
   const catalogo = useCuadreStore((s) => s.catalogo);
