@@ -20,7 +20,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { listClientes, listDeudas, listAbonosDeuda, Deuda, Abono, fmt } from "@/lib/cobrar";
+import { listClientes, listDeudas, Deuda, Abono, fmt } from "@/lib/cobrar";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function MisDeudasDependiente() {
@@ -233,7 +234,22 @@ function ModalVerAbonos({
 }) {
   const abonosQuery = useQuery({
     queryKey: ["abonos", deuda?.id],
-    queryFn: () => (deuda ? listAbonosDeuda(deuda.id) : Promise.resolve([])),
+    queryFn: async () => {
+      if (!deuda) return [];
+      const { data: apps } = await (supabase as any)
+        .from("abono_aplicaciones")
+        .select("abono_id")
+        .eq("deuda_id", deuda.id);
+      const ids = (apps ?? []).map((a: any) => a.abono_id);
+      if (ids.length === 0) return [];
+      const { data: abonos } = await supabase
+        .from("abonos")
+        .select("*")
+        .is("deleted_at", null)
+        .in("id", ids)
+        .order("fecha", { ascending: false });
+      return (abonos ?? []) as Abono[];
+    },
     enabled: !!deuda,
   });
 
