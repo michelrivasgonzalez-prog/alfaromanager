@@ -130,22 +130,22 @@ export function generarPDF(c: Cuadre) {
   header .meta { text-align: right; font-size: 11px; color: #555; }
   h2 { font-size: 13px; color: #065F46; margin: 16px 0 6px; border-left: 4px solid #065F46; padding-left: 8px; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 8px; table-layout: fixed; }
-  th, td { padding: 1.5px 4px; border-bottom: 1px solid #e5e5e5; vertical-align: middle; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  th, td { padding: 1.5px 4px; border-bottom: 1px solid #e5e5e5; vertical-align: middle; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 10.5px; font-family: inherit; }
   th { background: #f5efe6; color: #4B3621; text-transform: uppercase; font-size: 9px; letter-spacing: 0.4px; text-align: left; white-space: normal; }
   td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; }
   td.l { text-align: left; }
   td.name, th.name { white-space: normal; word-break: break-word; }
-  table.gastos td { white-space: normal; word-break: break-word; }
+  table.gastos td { white-space: normal; word-break: break-word; font-size: 10.5px; font-family: inherit; }
   table.gastos td.r { white-space: nowrap; overflow: visible; }
   td.b { font-weight: 700; }
-  tr.sub td { color: #666; font-size: 9.5px; background: #fafafa; }
+  tr.sub td { color: #666; font-size: 9.5px; background: #fafafa; font-family: inherit; }
 
-  tfoot td { font-weight: 700; background: #faf6f0; border-top: 2px solid #4B3621; }
+  tfoot td { font-weight: 700; background: #faf6f0; border-top: 2px solid #4B3621; font-size: 10.5px; font-family: inherit; }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; align-items: start; }
   .card { border: 1px solid #e5e5e5; border-radius: 8px; padding: 10px 12px; break-inside: avoid; }
   .card h3 { margin: 0 0 6px; font-size: 11px; color: #4B3621; text-transform: uppercase; letter-spacing: 0.5px; }
-  .card table.mini th, .card table.mini td { padding: 1px 3px; }
+  .card table.mini th, .card table.mini td { padding: 1px 3px; font-size: 10.5px; font-family: inherit; }
   .row { display: flex; justify-content: space-between; gap: 6px; padding: 2px 0; }
   .row .v { font-weight: 700; font-variant-numeric: tabular-nums; }
   .ok { color: #065F46; }
