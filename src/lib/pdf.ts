@@ -60,14 +60,14 @@ export function generarPDF(c: Cuadre) {
     .join("");
 
 
-  const gastosRows = ordenarGastos(c.gastos)
+    const gastosRows = ordenarGastos(c.gastos)
     .map(
       (g) => `
       <tr>
-        <td>${escape(catLabel(g.categoria))}</td>
-        <td>${escape(g.tipo)}</td>
+        <td class="sec">${escape(catLabel(g.categoria))}</td>
+        <td class="sec">${escape(g.tipo)}</td>
         <td>${escape(g.nombre || "—")}</td>
-        <td>${gastoLineas(g).map((l) => escape(l)).join("<br>")}</td>
+        <td class="detalle">${gastoLineas(g).map((l) => escape(l)).join("<br>")}</td>
         <td class="r b">${fmt(g.monto)}</td>
       </tr>`
     )
