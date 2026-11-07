@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  
   eachDayOfInterval,
   endOfMonth,
   format,
@@ -108,7 +107,6 @@ export default function Calendario() {
     (settings.reportesMensuales ?? {})[mesKeyStr];
 
   // Días del mes que aún no tienen cuadre ni están marcados como no trabajados
-  // (solo se cuentan los días hasta hoy).
   const pendientes = useMemo(() => {
     const hoy = new Date();
     return eachDayOfInterval({ start: startOfMonth(mes), end: endOfMonth(mes) })
@@ -152,9 +150,6 @@ export default function Calendario() {
     setGenerando(false);
   };
 
-
-
-
   /** Marca / desmarca "día no trabajado" para un punto de venta concreto. */
   const toggleNoTrabajado = async (k: string, punto: "Cafetería" | "Mipyme") => {
     const otro = punto === "Cafetería" ? "Mipyme" : "Cafetería";
@@ -167,7 +162,6 @@ export default function Calendario() {
 
     if (marcado) {
       if (global.includes(k)) {
-        // Estaba marcado para ambos: se conserva solo en el otro punto.
         global = global.filter((x) => x !== k);
         if (!per[otro].includes(k)) per[otro].push(k);
       }
@@ -175,7 +169,6 @@ export default function Calendario() {
     } else {
       per[punto] = [...per[punto], k];
       if (per[otro].includes(k)) {
-        // Ambos puntos → se guarda como día global.
         per["Cafetería"] = per["Cafetería"].filter((x) => x !== k);
         per["Mipyme"] = per["Mipyme"].filter((x) => x !== k);
         if (!global.includes(k)) global.push(k);
@@ -349,8 +342,6 @@ export default function Calendario() {
         </Button>
       </div>
 
-
-
       <Dialog open={verReporte} onOpenChange={setVerReporte}>
         <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
           <DialogHeader>
@@ -399,7 +390,7 @@ export default function Calendario() {
                       size="sm"
                       variant="outline"
                       className="flex-1 rounded-lg"
-                      onClick={() => nav("/historial")}
+                      onClick={() => nav(`/historial?cuadreId=${c.id}`)}
                     >
                       <Eye className="mr-1 h-3.5 w-3.5" /> Ver en historial
                     </Button>
