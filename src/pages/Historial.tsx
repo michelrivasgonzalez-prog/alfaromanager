@@ -83,6 +83,56 @@ function creditoPorCliente(c: Cuadre) {
   return Array.from(map.values());
 }
 
+// Función auxiliar para calcular si un cuadre tiene cambios pendientes en sus deudas
+function tieneCambiosPendientesDeuda(cuadre: Cuadre, deudasCuadre: Deuda[], clientes: { id: string; nombre: string }[]) {
+  const r = calcCuadre(cuadre);
+  const nombreCli = (id: string) => clientes.find((c) => c.id === id)?.nombre ?? "Cliente";
+  const esFaltante = (d: Deuda) =>
+    d.id === cuadre.deudaDependienteId || (d.cuadre_label ?? "").startsWith("Faltante");
+
+  const cambios: Cambio[] = [];
+  const credito = deudasCuadre.filter((d) => !esFaltante(d));
+  const usadas = new Set<string>();
+
+  for (const g of creditoPorCliente(cuadre)) {
+    const cliId =
+      g.clienteId ??
+      clientes.find((c) => c.nombre.trim().toLowerCase() === g.nombre.trim().toLowerCase())?.id;
+    const d = credito.find((x) => x.cliente_id === cliId && !usadas.has(x.id));
+    if (d) usadas.add(d.id);
+    const despues = Math.round(g.total * 100) / 100;
+    cambios.push({
+      key: d?.id ?? `n-${g.nombre}`,
+      nombre: g.nombre,
+      antes: d ? Number(d.total) : 0,
+      despues,
+      accion: !d ? (cliId ? "crear" : "igual") : Math.abs(Number(d.total) - despues) < 0.01 ? "igual" : "actualizar",
+      deuda: d,
+      clienteId: cliId,
+      productos: [],
+    });
+  }
+  for (const d of credito) {
+    if (usadas.has(d.id)) continue;
+    cambios.push({ key: d.id, nombre: nombreCli(d.cliente_id), antes: Number(d.total), despues: 0, accion: "eliminar", deuda: d, productos: d.productos });
+  }
+  const df = deudasCuadre.find(esFaltante);
+  if (df) {
+    const despues = Math.round(r.deudaDependiente);
+    cambios.push({
+      key: df.id,
+      nombre: `${nombreCli(df.cliente_id)} (faltante)`,
+      antes: Number(df.total),
+      despues,
+      accion: Math.abs(Number(df.total) - despues) < 0.01 ? "igual" : despues > 0 ? "actualizar" : "eliminar",
+      deuda: df,
+      productos: [],
+      faltante: true,
+    });
+  }
+  return cambios.some((c) => c.accion !== "igual");
+}
+
 export default function Historial() {
   const { history, deleteHistory, editCuadre, pendingCuadres } = useCuadreStore();
   const [reintentando, setReintentando] = useState(false);
@@ -132,7 +182,6 @@ export default function Historial() {
       setDetalle(targetCuadre);
     } else {
       toast.error("El cuadre asociado no se encuentra en el historial local.");
-      // Limpia el parámetro para que no se repita el aviso en cada render
       setSearchParams({}, { replace: true });
     }
   }, [cuadreIdUrl, history, setSearchParams]);
@@ -153,9 +202,6 @@ export default function Historial() {
   const deudasAll = useQuery({ queryKey: ["deudas-all"], queryFn: () => listDeudas(), enabled: canDeuda });
   const deudaByCuadre = useMemo(() => {
     const m = new Map<string, string>();
-    // Solo cuentan las deudas de ventas a crédito; la deuda del faltante del
-    // dependiente (o la de pagos con salario) también lleva el cuadre_id y no
-    // debe marcar las ventas a crédito como ya registradas.
     const faltanteIds = new Set(
       history.map((c) => c.deudaDependienteId).filter(Boolean) as string[]
     );
@@ -317,9 +363,13 @@ export default function Historial() {
             {(() => {
               const credito = totalCredito(c);
               const yaLinked = deudaByCuadre.get(c.id);
+              const deudasEsteCuadre = (deudasAll.data ?? []).filter((d) => d.cuadre_id === c.id);
+              const hayDiferencias = canDeuda && tieneCambiosPendientesDeuda(c, deudasEsteCuadre, clientes.data ?? []);
+
               if (credito <= 0) {
-                const tieneDeudaVinc = canDeuda && (deudasAll.data ?? []).some((d) => d.cuadre_id === c.id);
-                return tieneDeudaVinc ? (
+                const tieneDeudaVinc = canDeuda && deudasEsteCuadre.length > 0;
+                // Mostramos el botón de corregir SÓLO si hay deuda vinculada Y existen diferencias reales
+                return tieneDeudaVinc && hayDiferencias ? (
                   <Button size="sm" variant="outline" className="mt-2 h-7 w-full rounded-lg text-xs" onClick={() => setCorregirFor(c)}>
                     <RefreshCw className="mr-1 h-3 w-3" /> Corregir deudas tras editar
                   </Button>
@@ -338,7 +388,7 @@ export default function Historial() {
                       </span>
                     )}
                   </div>
-                  {canDeuda && yaLinked && (
+                  {canDeuda && yaLinked && hayDiferencias && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -477,7 +527,6 @@ function RegistrarDeudaDialog({
 }) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
-  // Para grupos sin cliente asignado, mapa: nombreGrupo -> {clienteId?, nuevoNombre?}
   const [asign, setAsign] = useState<Record<string, { clienteId?: string; nuevo?: string }>>({});
 
   if (!cuadre) return null;
@@ -488,7 +537,6 @@ function RegistrarDeudaDialog({
     setBusy(true);
     try {
       for (const grupo of grupos) {
-        // Resolver cliente id
         let cliId = grupo.clienteId;
         let cliNombre = grupo.nombre;
         if (!cliId) {
@@ -629,7 +677,6 @@ function CuadreDetalle({ c }: { c: Cuadre }) {
         {formatDiasTrabajados(c.diasTrabajados)} · {c.puntoVenta}
       </div>
 
-      {/* IPV — vista en tarjetas (sin scroll horizontal) */}
       <Section title="IPV — Productos">
         <div className="space-y-1.5">
           {r.productos
@@ -668,7 +715,6 @@ function CuadreDetalle({ c }: { c: Cuadre }) {
       </Section>
 
 
-      {/* Gastos */}
       <Section title={`Gastos (${c.gastos.length})`}>
         {c.gastos.length === 0 ? (
           <div className="text-xs text-muted-foreground">Sin gastos</div>
@@ -699,7 +745,6 @@ function CuadreDetalle({ c }: { c: Cuadre }) {
       </Section>
 
 
-      {/* Caja + denominación */}
       <div className="grid gap-3 md:grid-cols-2">
         <Section title="Denominación recibida">
           <DenomList den={c.denominaciones} />
@@ -745,7 +790,6 @@ function CuadreDetalle({ c }: { c: Cuadre }) {
         </Section>
       </div>
 
-      {/* Salario */}
       <div className="grid gap-3 md:grid-cols-2">
         <Section title="Salario">
           <Row label="Días trabajados" value={String(r.diasCount)} />
@@ -797,7 +841,6 @@ function CuadreDetalle({ c }: { c: Cuadre }) {
         </Section>
       </div>
 
-      {/* Resumen final */}
       <Section title="Resumen final">
         <Row label="Venta total" value={fmt(r.totalVenta)} />
         <Row label="Costo total" value={fmt(r.totalCosto)} />
