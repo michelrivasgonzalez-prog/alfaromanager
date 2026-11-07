@@ -76,8 +76,10 @@ export default function ClienteDetalle() {
   const [deudasOpen, setDeudasOpen] = useState(true);
   const [ocultarPagadas, setOcultarPagadas] = useState(true);
   const [corrigiendo, setCorrigiendo] = useState<string | null>(null);
-  const deudasVisibles = (deudas.data ?? []).filter((d) => !ocultarPagadas || d.estado !== "pagada");
+  const [whatsappDialog, setWhatsappDialog] = useState(false);
+  const [telefonoTemp, setTelefonoTemp] = useState("");
 
+  const deudasVisibles = (deudas.data ?? []).filter((d) => !ocultarPagadas || d.estado !== "pagada");
 
   const pend = (deudas.data ?? []).filter((d) => d.estado !== "pagada");
   const totalDeuda = pend.reduce((s, d) => s + Number(d.saldo), 0);
@@ -117,6 +119,17 @@ export default function ClienteDetalle() {
     lines.push(`Gracias por tu preferencia ☕`);
     lines.push(`_AlFaroCafé — Tu cafetería de confianza_`);
     return lines.join("\n");
+  };
+
+  const enviarWhatsApp = (tel: string) => {
+    const numeroLimpio = tel.replace(/[^\d]/g, "");
+    if (!numeroLimpio) {
+      return toast.error("Introduce un número de teléfono válido");
+    }
+    window.open(
+      `https://wa.me/${numeroLimpio}?text=${encodeURIComponent(mensajeWhatsApp())}`,
+      "_blank"
+    );
   };
 
   return (
@@ -168,15 +181,17 @@ export default function ClienteDetalle() {
         <Button variant="outline" className="h-11 rounded-xl" onClick={() => setNuevaDeuda(true)}>
           <Plus className="mr-2 h-4 w-4" /> Nueva deuda
         </Button>
-        {cliente.telefono && totalDeuda > 0 && (
+        {totalDeuda > 0 && (
           <Button
             variant="outline"
             className="col-span-2 h-11 rounded-xl"
             onClick={() => {
-              window.open(
-                `https://wa.me/${cliente.telefono!.replace(/[^\d]/g, "")}?text=${encodeURIComponent(mensajeWhatsApp())}`,
-                "_blank"
-              );
+              if (cliente.telefono) {
+                enviarWhatsApp(cliente.telefono);
+              } else {
+                setTelefonoTemp("");
+                setWhatsappDialog(true);
+              }
             }}
           >
             <Share2 className="mr-2 h-4 w-4" /> Enviar resumen por WhatsApp
@@ -296,6 +311,41 @@ export default function ClienteDetalle() {
         })}
       </section>
 
+      {/* Diálogo para introducir teléfono si no lo tiene registrado */}
+      <Dialog open={whatsappDialog} onOpenChange={setWhatsappDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Enviar WhatsApp sin número registrado</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Este cliente no tiene un teléfono guardado. Introduce el número de WhatsApp al que deseas enviar el resumen:
+            </p>
+            <div>
+              <Label>Número de teléfono</Label>
+              <Input
+                value={telefonoTemp}
+                onChange={(e) => setTelefonoTemp(e.target.value)}
+                placeholder="+53..."
+                className="mt-1 h-11 rounded-xl"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setWhatsappDialog(false)}>Cancelar</Button>
+            <Button
+              className="gradient-primary text-primary-foreground"
+              onClick={() => {
+                setWhatsappDialog(false);
+                enviarWhatsApp(telefonoTemp);
+              }}
+            >
+              Abrir WhatsApp
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <CorregirAbonoDialog
         open={!!corrigiendo}
         abono={(abonos.data ?? []).find((a) => a.id === corrigiendo) ?? null}
@@ -305,7 +355,6 @@ export default function ClienteDetalle() {
           .filter((ap) => ap.abono_id === corrigiendo)}
         onClose={() => setCorrigiendo(null)}
       />
-
 
       <EditarClienteDialog
         open={editing}
@@ -355,7 +404,6 @@ function DeudaCard({
   const pagado = apps.reduce((s, a) => s + Number(a.monto), 0);
   const label = d.cuadre_label ?? format(new Date(d.fecha), "dd MMM yyyy", { locale: es });
 
-  // Saldo tras cada abono (de más antiguo a más nuevo)
   const saldoTras = new Map<string, number>();
   let acc = Number(d.total);
   for (const a of [...apps].reverse()) {
@@ -479,7 +527,7 @@ function DeudaCard({
         </CollapsibleContent>
       </Collapsible>
 
-                  {d.cuadre_id && (
+      {d.cuadre_id && (
         <Link
           to={`/historial?cuadreId=${d.cuadre_id}`}
           className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-medium text-primary underline-offset-2 hover:underline focus:outline-none focus:ring-1 focus:ring-primary/50 rounded"
@@ -489,15 +537,12 @@ function DeudaCard({
         </Link>
       )}
 
-
-
       <AbonoDeudaDialog
         open={abonando}
         deuda={d}
         onClose={() => setAbonando(false)}
       />
     </div>
-
   );
 }
 
@@ -596,7 +641,6 @@ function AbonoDeudaDialog({
   );
 }
 
-
 function Kpi({ label, value, tone }: { label: string; value: React.ReactNode; tone?: "ok" | "danger" }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-3 shadow-soft">
@@ -681,7 +725,6 @@ function EditarClienteDialog({
   );
 }
 
-
 /** Corrige o elimina un abono, con confirmación exhaustiva por PIN. */
 function CorregirAbonoDialog({
   open,
@@ -743,7 +786,6 @@ function CorregirAbonoDialog({
                 monto: Math.round(((Number(a.monto) / totalApps) * monto) * 100) / 100,
               }))
             : [];
-        // ajuste de redondeo para no exceder el monto
         const suma = apps.reduce((s, a) => s + a.monto, 0);
         if (apps.length > 0 && suma > monto) apps[0].monto -= Math.round((suma - monto) * 100) / 100;
         await registrarAbono({
