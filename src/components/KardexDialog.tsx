@@ -22,10 +22,13 @@ export function KardexDialog({
   const history = useCuadreStore((s) => s.history);
   const settings = useCuadreStore((s) => s.settings);
   const updateSettings = useCuadreStore((s) => s.updateSettings);
+  
+  // Filtramos para conservar únicamente los turnos con ventas mayores a 0
   const filas = useMemo(
-    () => (nombre ? kardexProducto(history, punto, nombre) : []),
+    () => (nombre ? kardexProducto(history, punto, nombre).filter((f) => f.vendido > 0) : []),
     [history, punto, nombre]
   );
+  
   const key = nombre ? stockKey(punto, nombre) : "";
   const minimo = settings.stockMinimo?.[key] ?? 0;
   const totalVendido = filas.reduce((s, f) => s + f.vendido, 0);
@@ -48,7 +51,7 @@ export function KardexDialog({
             <NumberInput value={minimo} onChange={(v) => setMinimo(v || 0)} className="mt-0.5 h-9 w-32 rounded-lg" />
           </label>
           <div>
-            <div className="text-xs text-muted-foreground">Turnos</div>
+            <div className="text-xs text-muted-foreground">Turnos con venta</div>
             <div className="font-semibold">{filas.length}</div>
           </div>
           <div>
@@ -57,7 +60,7 @@ export function KardexDialog({
           </div>
         </div>
         {filas.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">Sin movimientos en cuadres anteriores.</p>
+          <p className="py-6 text-center text-sm text-muted-foreground">Sin movimientos de venta en cuadres anteriores.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -65,10 +68,6 @@ export function KardexDialog({
                 <tr className="border-b border-border text-right">
                   <th className="py-1 text-left">Fecha</th>
                   <th className="text-left">Dependiente</th>
-                  <th>Inicio</th>
-                  <th>Entradas</th>
-                  <th>Traslados</th>
-                  <th>Final</th>
                   <th>Vendido</th>
                   <th>Precio</th>
                   <th>Costo</th>
@@ -79,10 +78,6 @@ export function KardexDialog({
                   <tr key={f.cuadreId} className="border-b border-border/50 text-right">
                     <td className="py-1 text-left">{format(new Date(f.fecha), "d MMM yy", { locale: es })}</td>
                     <td className="text-left">{f.dependiente || "—"}</td>
-                    <td>{n(f.inicio)}</td>
-                    <td>{n(f.entradas)}</td>
-                    <td>{n(f.traslados)}</td>
-                    <td>{n(f.final)}</td>
                     <td className="font-semibold">{n(f.vendido)}</td>
                     <td className={cn(f.cambioPrecio && "font-bold text-primary")}>{n(f.precio)}</td>
                     <td className={cn(f.cambioPrecio && "font-bold text-primary")}>{n(f.costo)}</td>
