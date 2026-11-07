@@ -135,8 +135,10 @@ export function generarPDF(c: Cuadre) {
   td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; }
   td.l { text-align: left; }
   td.name, th.name { white-space: normal; word-break: break-word; }
-  table.gastos td { white-space: normal; word-break: break-word; font-size: 10.5px; font-family: inherit; }
-  table.gastos td.r { white-space: nowrap; overflow: visible; }
+    table.gastos td { white-space: normal; word-break: break-word; font-size: 9.5px; font-family: inherit; vertical-align: top; padding: 2px 4px; }
+  table.gastos td.sec { font-size: 9px; color: #555; }
+  table.gastos td.detalle { font-size: 8.5px; line-height: 1.25; color: #333; }
+  table.gastos td.r { white-space: nowrap; overflow: visible; font-size: 10px; }
   td.b { font-weight: 700; }
   tr.sub td { color: #666; font-size: 9.5px; background: #fafafa; font-family: inherit; }
 
