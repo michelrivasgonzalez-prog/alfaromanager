@@ -167,7 +167,7 @@ export default function Historial() {
   const [corregirFor, setCorregirFor] = useState<Cuadre | null>(null);
   const [punto, setPunto] = useState<"Cafetería" | "Mipyme">("Cafetería");
 
-    // Efecto para abrir el modal automáticamente cuando existe ?cuadreId en la URL
+  // Efecto robusto para abrir el modal automáticamente cuando existe ?cuadreId en la URL
   useEffect(() => {
     if (!cuadreIdUrl || history.length === 0) return;
 
@@ -368,7 +368,6 @@ export default function Historial() {
 
               if (credito <= 0) {
                 const tieneDeudaVinc = canDeuda && deudasEsteCuadre.length > 0;
-                // Mostramos el botón de corregir SÓLO si hay deuda vinculada Y existen diferencias reales
                 return tieneDeudaVinc && hayDiferencias ? (
                   <Button size="sm" variant="outline" className="mt-2 h-7 w-full rounded-lg text-xs" onClick={() => setCorregirFor(c)}>
                     <RefreshCw className="mr-1 h-3 w-3" /> Corregir deudas tras editar
@@ -497,7 +496,7 @@ export default function Historial() {
           deudasAll.refetch();
         }}
       />
-            <Dialog open={!!detalle} onOpenChange={handleCloseDetalle}>
+      <Dialog open={!!detalle} onOpenChange={handleCloseDetalle}>
         <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
