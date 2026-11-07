@@ -803,5 +803,3 @@ function ChangePinForm({ user, onDone }: { user: PinUser; onDone: (pin: string) 
     />
   );
 }
-
-// reload
