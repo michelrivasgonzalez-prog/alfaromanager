@@ -373,7 +373,12 @@ function StepInventario({
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   if (!current) return null;
 
-  const previos = history.filter((h) => h.puntoVenta === activePunto);
+  const previos = useMemo(() => {
+  const fT = (h: any) => h.diasTrabajados?.[h.diasTrabajados.length - 1] ?? h.fecha;
+  return [...history]
+    .filter((h) => h.puntoVenta === activePunto)
+    .sort((a, b) => new Date(fT(b)).getTime() - new Date(fT(a)).getTime());
+}, [history, activePunto]);
   const isInicio = field === "inicio";
   const productoUnlock = current.productos.find((p) => p.id === unlockId);
 
