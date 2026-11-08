@@ -185,13 +185,8 @@ export type Settings = {
   /** Existencia mínima por producto (clave "punto|nombre en minúsculas"). */
   stockMinimo?: Record<string, number>;
   ocultarAlmacen?: boolean;
-  /** Dependientes desactivados sin eliminar su historial. */
-  dependientesInactivos?: string[];
   /** Fotos de perfil de dependientes (por nombre en Base64). */
   dependienteFotos?: Record<string, string>;
-  /** Existencia mínima por producto (clave "punto|nombre en minúsculas"). */
-  stockMinimo?: Record<string, number>;
-
 };
 
 /** Punto habitual: el asignado o, si no hay, el más frecuente en su historial. */
@@ -218,7 +213,7 @@ const DEFAULT_SETTINGS: Settings = {
   ],
   diasNoTrabajados: [],
   diasNoTrabajadosPunto: { "Cafetería": [], "Mipyme": [] },
-    categorias: [],
+  categorias: [],
   dependientesInactivos: [],
   dependienteFotos: {},
   ocultarAlmacen: false,
@@ -303,16 +298,16 @@ export const newCuadre = (
   productos: sortCatalogo(catalogo, settings.categorias)
     .filter((c) => !c.punto || c.punto === punto)
     .map((c) => ({
-    id: crypto.randomUUID(),
-    nombre: c.nombre,
-    inicio: 0,
-    entradas: 0,
-    traslados: 0,
-    final: 0,
-    precio: c.precio,
-    costo: c.costo,
-    categoria: c.categoria,
-  })),
+      id: crypto.randomUUID(),
+      nombre: c.nombre,
+      inicio: 0,
+      entradas: 0,
+      traslados: 0,
+      final: 0,
+      precio: c.precio,
+      costo: c.costo,
+      categoria: c.categoria,
+    })),
   gastos: [],
   denominaciones: emptyDen(),
   divisas: [],
@@ -573,7 +568,7 @@ export const useCuadreStore = create<State>()(
             ? s
             : { dependientes: [...s.dependientes, nombre] }
         ),
-            updateDependiente: (oldName, newName) =>
+      updateDependiente: (oldName, newName) =>
         set((s) => {
           const inactivos = s.settings.dependientesInactivos ?? [];
           const dependientesInactivos = inactivos.map((d) =>
@@ -785,7 +780,7 @@ export const useCuadreStore = create<State>()(
         }
         const catalogo = [...otros, ...delPunto];
 
-                set({
+        set({
           // Se elimina cualquier versión previa con el mismo id (p. ej. al
           // editar un cuadre) para que nunca se duplique en el historial.
           history: [
@@ -953,35 +948,35 @@ export const calcCuadre = (c: Cuadre) => {
   const pct = c.porcentajeVenta ?? 0;
   const salarioBasePeriodo = diasCount * c.salarioBase;
 
-// --- CÁLCULO CON PRODUCTOS EXCLUIDOS Y TARIFA FIJA ---
-const excepciones = c.salarioExcepcionesProductos ?? [];
-let comisionFijaTotal = 0;
-let ventaExcluidaTotal = 0;
-const desgloseExcepciones: { nombre: string; unidades: number; tarifa: number; total: number }[] = [];
+  // --- CÁLCULO CON PRODUCTOS EXCLUIDOS Y TARIFA FIJA ---
+  const excepciones = c.salarioExcepcionesProductos ?? [];
+  let comisionFijaTotal = 0;
+  let ventaExcluidaTotal = 0;
+  const desgloseExcepciones: { nombre: string; unidades: number; tarifa: number; total: number }[] = [];
 
-if (excepciones.length > 0) {
-  for (const exc of excepciones) {
-    const prodMatch = productos.find(
-      (p) => p.nombre.trim().toLowerCase() === exc.productoNombre.trim().toLowerCase()
-    );
-    if (prodMatch) {
-      const unidadesVendidas = Math.max(0, prodMatch.venta);
-      const subtotalFijo = unidadesVendidas * Number(exc.tarifaPorUnidad || 0);
-      comisionFijaTotal += subtotalFijo;
-      ventaExcluidaTotal += prodMatch.importe;
-      desgloseExcepciones.push({
-        nombre: prodMatch.nombre,
-        unidades: unidadesVendidas,
-        tarifa: exc.tarifaPorUnidad,
-        total: subtotalFijo,
-      });
+  if (excepciones.length > 0) {
+    for (const exc of excepciones) {
+      const prodMatch = productos.find(
+        (p) => p.nombre.trim().toLowerCase() === exc.productoNombre.trim().toLowerCase()
+      );
+      if (prodMatch) {
+        const unidadesVendidas = Math.max(0, prodMatch.venta);
+        const subtotalFijo = unidadesVendidas * Number(exc.tarifaPorUnidad || 0);
+        comisionFijaTotal += subtotalFijo;
+        ventaExcluidaTotal += prodMatch.importe;
+        desgloseExcepciones.push({
+          nombre: prodMatch.nombre,
+          unidades: unidadesVendidas,
+          tarifa: exc.tarifaPorUnidad,
+          total: subtotalFijo,
+        });
+      }
     }
   }
-}
 
-const ventaGeneral = Math.max(0, totalVenta - ventaExcluidaTotal);
-const salarioPorPorcentaje = (ventaGeneral * (pct / 100)) + comisionFijaTotal;
-// -----------------------------------------------------
+  const ventaGeneral = Math.max(0, totalVenta - ventaExcluidaTotal);
+  const salarioPorPorcentaje = (ventaGeneral * (pct / 100)) + comisionFijaTotal;
+  // -----------------------------------------------------
 
   const salarioBruto =
     modo === "porcentaje"
