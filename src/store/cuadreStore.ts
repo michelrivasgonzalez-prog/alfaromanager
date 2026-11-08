@@ -96,6 +96,11 @@ export const SALARIO_MODOS: { value: SalarioModo; label: string; desc: string }[
   { value: "porcentaje", label: "% de venta", desc: "Porcentaje del total de ventas" },
   { value: "mixto", label: "Base o % (el mayor)", desc: "El mayor entre el salario base y el % de venta" },
 ];
+export type SalarioProductoExcepcion = {
+  id: string;
+  productoNombre: string;
+  tarifaPorUnidad: number; // Ej: 10 para 10 CUP por cada unidad vendida
+};
 
 /** Billetes en otra moneda convertidos a CUP. */
 export type Divisa = {
@@ -164,6 +169,7 @@ export type Settings = {
   porcentajeTransferencia: number;
   salarioModo: Record<PuntoVenta, SalarioModo>;
   porcentajeVenta: Record<PuntoVenta, number>;
+  salarioExcepcionesProductos?: SalarioProductoExcepcion[];
   /** Días marcados como "no trabajado" en ambos puntos (formato yyyy-MM-dd). */
   diasNoTrabajados?: string[];
   /** Días "no trabajado" solo para un punto de venta. */
@@ -207,6 +213,9 @@ const DEFAULT_SETTINGS: Settings = {
   porcentajeTransferencia: 10,
   salarioModo: { "Cafetería": "base", "Mipyme": "base" },
   porcentajeVenta: { "Cafetería": 3, "Mipyme": 3 },
+  salarioExcepcionesProductos: [
+    { id: "mayabe", productoNombre: "Cerveza Mayabe", tarifaPorUnidad: 10 },
+  ],
   diasNoTrabajados: [],
   diasNoTrabajadosPunto: { "Cafetería": [], "Mipyme": [] },
     categorias: [],
@@ -312,6 +321,9 @@ export const newCuadre = (
   salarioBase: settings.salarioBase[punto] ?? 1000,
   salarioModo: settings.salarioModo?.[punto] ?? "base",
   porcentajeVenta: settings.porcentajeVenta?.[punto] ?? 3,
+  salarioExcepcionesProductos: settings.salarioExcepcionesProductos ?? [
+    { id: "mayabe", productoNombre: "Cerveza Mayabe", tarifaPorUnidad: 10 },
+  ],
   salarioDenominaciones: emptyDen(),
   finalizado: false,
 });
@@ -940,7 +952,37 @@ export const calcCuadre = (c: Cuadre) => {
   const modo: SalarioModo = c.salarioModo ?? "base";
   const pct = c.porcentajeVenta ?? 0;
   const salarioBasePeriodo = diasCount * c.salarioBase;
-  const salarioPorPorcentaje = totalVenta * (pct / 100);
+
+// --- CÁLCULO CON PRODUCTOS EXCLUIDOS Y TARIFA FIJA ---
+const excepciones = c.salarioExcepcionesProductos ?? [];
+let comisionFijaTotal = 0;
+let ventaExcluidaTotal = 0;
+const desgloseExcepciones: { nombre: string; unidades: number; tarifa: number; total: number }[] = [];
+
+if (excepciones.length > 0) {
+  for (const exc of excepciones) {
+    const prodMatch = productos.find(
+      (p) => p.nombre.trim().toLowerCase() === exc.productoNombre.trim().toLowerCase()
+    );
+    if (prodMatch) {
+      const unidadesVendidas = Math.max(0, prodMatch.venta);
+      const subtotalFijo = unidadesVendidas * Number(exc.tarifaPorUnidad || 0);
+      comisionFijaTotal += subtotalFijo;
+      ventaExcluidaTotal += prodMatch.importe;
+      desgloseExcepciones.push({
+        nombre: prodMatch.nombre,
+        unidades: unidadesVendidas,
+        tarifa: exc.tarifaPorUnidad,
+        total: subtotalFijo,
+      });
+    }
+  }
+}
+
+const ventaGeneral = Math.max(0, totalVenta - ventaExcluidaTotal);
+const salarioPorPorcentaje = (ventaGeneral * (pct / 100)) + comisionFijaTotal;
+// -----------------------------------------------------
+
   const salarioBruto =
     modo === "porcentaje"
       ? salarioPorPorcentaje
