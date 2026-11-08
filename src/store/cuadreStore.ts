@@ -82,6 +82,7 @@ export type Gasto = {
   clienteNombre?: string;
   // Importe final
   monto: number;
+  sinClasificar?: boolean;
 };
 
 export type Denominaciones = Record<string, number>;
@@ -138,6 +139,13 @@ export type Cuadre = {
   recogidas?: Recogida[];
   /** Turno del que se importaron los finales como inicios. */
   importadoDe?: string;
+precuadre?: {
+    turnoId?: string;
+    tipoRelevo?: "dependiente" | "admin";
+    entrante?: string;
+    firma?: string;
+    firmadoEn?: string;
+  };
 };
 
 export type Recogida = {
@@ -211,7 +219,7 @@ const DEFAULT_CATALOG: CatalogoItem[] = [];
 
 export const DENOMINACIONES = [20000, 10000, 5000, 2000, 1000, 500, 200, 100, 50, 20, 10, 5];
 
-const emptyDen = (): Denominaciones =>
+export const emptyDen = (): Denominaciones =>
   Object.fromEntries(DENOMINACIONES.map((d) => [String(d), 0]));
 
 const categoriasActuales = (): string[] => {
