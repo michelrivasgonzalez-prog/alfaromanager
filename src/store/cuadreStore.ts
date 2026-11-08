@@ -365,6 +365,7 @@ interface State {
   // Cuadres
   startCuadre: (punto?: PuntoVenta) => void;
   updateCurrent: (patch: Partial<Cuadre>) => void;
+  cargarPrecuadre: (data: Partial<Cuadre>) => void;
   updateProducto: (id: string, patch: Partial<Producto>) => void;
   desbloquearProducto: (id: string, nota: string) => void;
   addProducto: (p: Omit<Producto, "id">) => void;
@@ -605,6 +606,38 @@ export const useCuadreStore = create<State>()(
         }),
 
       updateCurrent: (patch) => set((s) => updateActive(s, (c) => ({ ...c, ...patch }))),
+      cargarPrecuadre: (data) =>
+        set((s) => {
+          const punto = data.puntoVenta ?? s.activePunto;
+          const base = s.currents[punto] ?? newCuadre(punto, s.catalogo, s.settings);
+
+          // Vincula los productos con su precio de costo del catálogo maestro
+          const productosConCosto = (data.productos ?? base.productos).map((p) => {
+            const catItem = s.catalogo.find(
+              (c) =>
+                c.nombre.trim().toLowerCase() === p.nombre.trim().toLowerCase() &&
+                (!c.punto || c.punto === punto)
+            );
+            return {
+              ...p,
+              costo: p.costo || catItem?.costo || 0,
+            };
+          });
+
+          return {
+            activePunto: punto,
+            currents: {
+              ...s.currents,
+              [punto]: {
+                ...base,
+                ...data,
+                productos: productosConCosto,
+                puntoVenta: punto,
+              },
+            },
+            lastStep: { ...s.lastStep, [punto]: 1 },
+          };
+        }),
       updateProducto: (id, patch) =>
         set((s) =>
           updateActive(s, (c) => {
