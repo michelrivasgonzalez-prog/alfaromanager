@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { formatDiasTrabajados } from "@/lib/dias";
 import PortalDependiente from "./PortalDependiente";
+import DashboardMetricas from "@/components/DashboardMetricas";
 
 export default function Index() {
   const nav = useNavigate();
@@ -170,22 +171,8 @@ export default function Index() {
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <StatCard label="Cuadres realizados" value={history.length} />
-        <StatCard
-          label="Última venta"
-          value={
-            sortedHistory[0]
-              ? `$${Math.round(
-                  sortedHistory[0].productos.reduce(
-                    (s, p) => s + (p.inicio + p.entradas - p.traslados - p.final) * p.precio,
-                    0
-                  )
-                )}`
-              : "—"
-          }
-        />
-      </div>
+            {/* Bloque de Métricas Analíticas Avanzadas */}
+      <DashboardMetricas history={history} />
 
       {sortedHistory.length > 0 && (
         <div>
