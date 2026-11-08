@@ -2545,6 +2545,28 @@ function Step9() {
           <div>Por base: <span className="font-semibold text-foreground">{fmt(c.salarioBasePeriodo)}</span></div>
           <div>Por %: <span className="font-semibold text-foreground">{fmt(c.salarioPorPorcentaje)}</span></div>
         </div>
+
+        {/* DESGLOSE TRANSPARENTE DEL SALARIO (% + TARIFAS FIJAS POR PRODUCTO) */}
+        {c.desgloseExcepciones && c.desgloseExcepciones.length > 0 && current.salarioModo !== "base" && (
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs space-y-1.5 mt-2">
+            <div className="font-semibold text-primary flex items-center justify-between">
+              <span>Desglose de cálculo (% + tarifas fijas)</span>
+              <span>${fmt(c.salarioPorPorcentaje)}</span>
+            </div>
+            <div className="text-muted-foreground space-y-1 text-[11px]">
+              <div className="flex justify-between">
+                <span>Venta general (${fmt(c.ventaGeneral)} al {c.porcentajeVenta}%):</span>
+                <span className="font-medium text-foreground">${fmt(c.ventaGeneral * ((c.porcentajeVenta ?? 0) / 100))}</span>
+              </div>
+              {c.desgloseExcepciones.map((exc) => (
+                <div key={exc.nombre} className="flex justify-between text-emerald-600 dark:text-emerald-400">
+                  <span>+ {exc.nombre} ({exc.unidades} u. × ${exc.tarifa} CUP):</span>
+                  <span className="font-semibold">${fmt(exc.total)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-3 gap-2">
@@ -2575,9 +2597,6 @@ function Step9() {
       )}
 
       <PagarDeudasDependientePanel disponible={c.salarioAntesDeudas} />
-
-
-
 
       <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
         <div className="mb-3 flex items-center justify-between">
