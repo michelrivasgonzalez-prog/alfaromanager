@@ -17,14 +17,26 @@ export default function Index() {
   const { currents, activePunto, setActivePunto, startCuadre, history, lastStep, cancelar } =
     useCuadreStore();
   const { role } = useAuth();
+  
   if (role === "dependiente") {
     return <PortalDependiente />;
   }
+
   const canStart = role === "admin" || role === "duena" || role === "dependiente";
   const current = currents[activePunto];
   const catalogo = useCuadreStore((s) => s.catalogo);
   const settings = useCuadreStore((s) => s.settings);
   const alertas = useMemo(() => alertasStock(history, catalogo, settings), [history, catalogo, settings]);
+  
+  // Ordenar el historial por fecha de forma descendente (del más reciente al más antiguo)
+  const sortedHistory = useMemo(() => {
+    return [...history].sort((a, b) => {
+      const dateA = new Date(a.fecha || a.createdAt || 0).getTime();
+      const dateB = new Date(b.fecha || b.createdAt || 0).getTime();
+      return dateB - dateA;
+    });
+  }, [history]);
+
   // La alerta descartada vuelve a salir si cambia la lista.
   const alertaClave = alertas.map((a) => `${a.punto}|${a.nombre}|${a.existencia}`).join(";");
   const [oculta, setOculta] = useState(() => localStorage.getItem("alfaro-alerta-stock-oculta") ?? "");
@@ -163,9 +175,9 @@ export default function Index() {
         <StatCard
           label="Última venta"
           value={
-            history[0]
+            sortedHistory[0]
               ? `$${Math.round(
-                  history[0].productos.reduce(
+                  sortedHistory[0].productos.reduce(
                     (s, p) => s + (p.inicio + p.entradas - p.traslados - p.final) * p.precio,
                     0
                   )
@@ -175,7 +187,7 @@ export default function Index() {
         />
       </div>
 
-      {history.length > 0 && (
+      {sortedHistory.length > 0 && (
         <div>
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-lg font-semibold">Historial reciente</h2>
@@ -184,7 +196,7 @@ export default function Index() {
             </Button>
           </div>
           <div className="space-y-2">
-            {history.slice(0, 3).map((c) => (
+            {sortedHistory.slice(0, 3).map((c) => (
               <div
                 key={c.id}
                 className="rounded-2xl border border-border bg-card p-4 shadow-soft"
