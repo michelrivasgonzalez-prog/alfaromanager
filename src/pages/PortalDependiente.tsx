@@ -270,18 +270,17 @@ export default function PortalDependiente() {
                   <div
                     key={p.id}
                     className="flex items-center justify-between p-3.5 rounded-2xl border border-border bg-card shadow-soft"
-                  >
-                    <div>
-                      <div className="font-semibold text-sm">{p.nombre}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        Disponible: <span className="font-semibold text-foreground">{disponible} u.</span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-xs text-muted-foreground block">Precio de venta</span>
-                      <span className="text-base font-bold text-primary">${p.precio}</span>
-                    </div>
-                  </div>
+                  >          
+                  <div>
+            <div className="font-semibold text-sm">{p.nombre}</div>
+            <div className="text-xs text-muted-foreground mt-0.5">
+              Inicio: <span className="font-semibold text-foreground">{p.inicio ?? 0} und</span>
+            </div>
+          </div>
+          <div className="text-right">
+            <span className="text-xs text-muted-foreground block">Precio de venta</span>
+            <span className="text-base font-bold text-primary">${p.precio}</span>
+          </div>
                 );
               })
             )}
