@@ -1,30 +1,16 @@
-import { useState, useRef, useEffect, useMemo } from "react";
-import {
-  PuntoVenta,
-  useCuadreStore,
-  emptyDen,
-  DENOMINACIONES,
-  Denominaciones,
-  Cuadre,
-  puntoHabitual,
-} from "@/store/cuadreStore";
-import { usePinStore, hashPin } from "@/store/pinStore";
-import {
-  PrecuadreData,
-  enviarPrecuadre,
-  GastoPrecuadre,
-  RecogidaPrecuadre,
-  TurnoDependiente,
+import React, { useState, useMemo, useRef, useEffect } from "react";
+import { useCuadreStore, PuntoVenta, ProductoCuadre, Cuadre, Denominaciones } from "@/store/cuadreStore";
+import { usePinStore } from "@/store/pinStore";
+import { 
+  enviarPrecuadre, 
+  TurnoDependiente, 
+  PrecuadreData, 
+  GastoPrecuadre, 
+  RecogidaPrecuadre 
 } from "@/lib/turnos";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -33,147 +19,185 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { toast } from "sonner";
+import {
   Lock,
   Unlock,
-  Check,
-  RotateCcw,
+  CheckCircle2,
+  Clock,
   ArrowRight,
   ArrowLeft,
-  Send,
   DollarSign,
   Package,
-  Plus,
-  Minus,
+  Trash2,
+  WifiOff,
+  CloudCheck,
   Search,
-  Users,
-  ShieldCheck,
-  PenLine,
+  Plus,
   X,
+  CreditCard,
+  Edit2,
+  Users
 } from "lucide-react";
-import { toast } from "sonner";
+
+const DENOMINACIONES: (keyof Denominaciones)[] = [
+  "20000",
+  "10000",
+  "5000",
+  "2000",
+  "1000",
+  "500",
+  "200",
+  "100",
+  "50",
+  "20",
+  "10",
+  "5",
+  "1",
+];
+
+const emptyDen = (): Denominaciones => ({
+  "20000": 0,
+  "10000": 0,
+  "5000": 0,
+  "2000": 0,
+  "1000": 0,
+  "500": 0,
+  "200": 0,
+  "100": 0,
+  "50": 0,
+  "20": 0,
+  "10": 0,
+  "5": 0,
+  "1": 0,
+});
 
 interface PrecuadreDependienteProps {
-  puntoInicial: PuntoVenta;
-  dependienteActual: string;
-  onSalir: () => void;
-  onCompletado?: () => void;
+  puntoInicial?: PuntoVenta;
+  dependienteInicial?: string;
+  onFinalizado: () => void;
+  onCancelar: () => void;
 }
 
 export function PrecuadreDependiente({
-  puntoInicial,
-  dependienteActual,
-  onSalir,
-  onCompletado,
+  puntoInicial = "Cafetería",
+  dependienteInicial = "",
+  onFinalizado,
+  onCancelar,
 }: PrecuadreDependienteProps) {
-  const { history, dependientes, catalogo, settings } = useCuadreStore();
-  const { users } = usePinStore();
+  const catalogo = useCuadreStore((s) => s.catalogo);
+  const history = useCuadreStore((s) => s.history);
+  const dependientes = useCuadreStore((s) => s.dependientes);
+  const dependientesPorPunto = useCuadreStore((s) => s.dependientesPorPunto);
+  const addProductoCatalogo = useCuadreStore((s) => s.addProductoCatalogo);
+  const { validarPin } = usePinStore();
 
-  const [paso, setPaso] = useState<1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9>(1);
-  const [turnoId] = useState(() => crypto.randomUUID());
+  const [paso, setPaso] = useState<number>(1);
 
-  // Paso 1: Datos del Turno (Preseleccionados)
+  // Paso 1: Turno
   const [punto, setPunto] = useState<PuntoVenta>(puntoInicial);
-  const [dependiente, setDependiente] = useState<string>(dependienteActual);
+  const [dependiente, setDependiente] = useState<string>(dependienteInicial);
   const [diasTrabajados, setDiasTrabajados] = useState<number>(1);
+  const [fechaTurno] = useState<string>(new Date().toISOString().slice(0, 10));
 
-  // Filtro de dependientes del punto de venta seleccionado
+  // Filtrado de dependientes por punto
   const dependientesPunto = useMemo(() => {
-    return dependientes.filter(
-      (d) => puntoHabitual(d, settings, history) === punto
-    );
-  }, [dependientes, punto, settings, history]);
+    return dependientes.filter((d) => {
+      const p = dependientesPorPunto[d];
+      return !p || p === punto;
+    });
+  }, [dependientes, dependientesPorPunto, punto]);
 
-  // Si cambia el punto y la dependienta no pertenece a ese punto, se ajusta
-  useEffect(() => {
-    if (dependientesPunto.length > 0 && !dependientesPunto.includes(dependiente)) {
-      setDependiente(dependientesPunto[0]);
-    }
-  }, [punto, dependientesPunto, dependiente]);
-
-  // Último cuadre cerrado del punto
-  const ultimoCuadre = useMemo(() => {
-    return history
+  // Último cuadre cerrado
+  const ultimoCuadrePunto = useMemo(() => {
+    const ordenados = [...history]
       .filter((c) => c.puntoVenta === punto)
-      .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())[0];
+      .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+    return ordenados[0] || null;
   }, [history, punto]);
 
-  // Productos agregados manualmente durante el turno
-  const [productosExtra, setProductosExtra] = useState<
-    Array<{ id: string; nombre: string; precio: number; categoria?: string; inicioDefecto: number }>
+  // Lista base de productos
+  const [productosNuevosLocal, setProductosNuevosLocal] = useState<
+    { id: string; nombre: string; precio: number; categoria: string }[]
   >([]);
-  const [nuevoProdNombre, setNuevoProdNombre] = useState("");
-  const [nuevoProdPrecio, setNuevoProdPrecio] = useState("");
-  const [modalNuevoProd, setModalNuevoProd] = useState(false);
 
-  // Lista base unificada de productos
   const productosBase = useMemo(() => {
-    const listado = catalogo
-      .filter((p) => !p.punto || p.punto === punto)
-      .map((c) => {
-        const prodAnterior = ultimoCuadre?.productos?.find(
-          (p) => p.id === c.id || p.nombre.toLowerCase().trim() === c.nombre.toLowerCase().trim()
-        );
-        return {
-          id: c.id,
-          nombre: c.nombre,
-          precio: c.precio,
-          categoria: c.categoria,
-          inicioDefecto: prodAnterior?.final ?? 0,
-        };
-      });
-
-    return [...listado, ...productosExtra];
-  }, [catalogo, punto, ultimoCuadre, productosExtra]);
-
-  // Inicios por producto
-  const [inicios, setInicios] = useState<Record<string, number>>({});
-  useEffect(() => {
-    const objInicios: Record<string, number> = {};
-    productosBase.forEach((p) => {
-      objInicios[p.id] = p.inicioDefecto;
+    const todos = [
+      ...catalogo.filter((c) => !c.oculto),
+      ...productosNuevosLocal,
+    ];
+    return todos.map((p) => {
+      const pAnterior = ultimoCuadrePunto?.productos?.find(
+        (ap) => ap.nombre.toLowerCase().trim() === p.nombre.toLowerCase().trim()
+      );
+      const inicioDefecto = pAnterior ? (pAnterior.final ?? 0) : 0;
+      return {
+        id: p.id,
+        nombre: p.nombre,
+        precioDefecto: p.precio ?? 0,
+        categoria: p.categoria || "Varios",
+        inicioDefecto,
+      };
     });
-    setInicios(objInicios);
-  }, [productosBase]);
+  }, [catalogo, productosNuevosLocal, ultimoCuadrePunto]);
 
-  // Candado individual por producto
+  // Paso 2: Inicios
+  const [inicios, setInicios] = useState<Record<string, number>>({});
   const [desbloqueados, setDesbloqueados] = useState<Record<string, boolean>>({});
   const [motivosPorProducto, setMotivosPorProducto] = useState<Record<string, string>>({});
   const [prodSeleccionadoDesbloqueo, setProdSeleccionadoDesbloqueo] = useState<{ id: string; nombre: string } | null>(null);
   const [motivoTemp, setMotivoTemp] = useState("");
 
-  // Paso 3 & 4: Entradas, Traslados y Conteo Final
+  // Paso 3 & 4: Entradas, Traslados y Precios editables
+  const [preciosEditados, setPreciosEditados] = useState<Record<string, number>>({});
   const [entradas, setEntradas] = useState<Record<string, number>>({});
   const [traslados, setTraslados] = useState<Record<string, number>>({});
   const [finales, setFinales] = useState<Record<string, number>>({});
   const [busquedaPaso3, setBusquedaPaso3] = useState("");
+  const [modalNuevoProd, setModalNuevoProd] = useState(false);
+  const [nuevoProdNombre, setNuevoProdNombre] = useState("");
+  const [nuevoProdPrecio, setNuevoProdPrecio] = useState("");
 
-  // Paso 5: Relevo & Firma Digital
+  // Paso 5: Relevo & Firma
   const [tipoRelevo, setTipoRelevo] = useState<"dependiente" | "admin">("dependiente");
   const [modoSuplencia, setModoSuplencia] = useState(false);
   const [entranteNombre, setEntranteNombre] = useState("");
-  const [pinRelevo, setPinRelevo] = useState("");
+  const [pinInput, setPinInput] = useState("");
   const [pinValidado, setPinValidado] = useState(false);
+  const [tieneFirma, setTieneFirma] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [tieneFirma, setTieneFirma] = useState(false);
 
-  // Dependientes seleccionables para el relevo
   const dependientesRelevo = useMemo(() => {
     const fuente = modoSuplencia ? dependientes : dependientesPunto;
     return fuente.filter((d) => d !== dependiente);
   }, [modoSuplencia, dependientes, dependientesPunto, dependiente]);
 
-  // Paso 7: Gastos y Salidas
+  // Paso 6: Precios Mixtos
+  const [preciosMixtos, setPreciosMixtos] = useState<
+    Record<string, { activo: boolean; cantPrecioAnterior: number; precioAnterior: number }>
+  >({});
+
+  // Paso 7: Gastos, Salidas y Transferencias
   const [gastos, setGastos] = useState<GastoPrecuadre[]>([]);
+  const [gastoTipo, setGastoTipo] = useState<"efectivo" | "producto" | "transferencia">("efectivo");
   const [gastoReceptor, setGastoReceptor] = useState("");
-  const [gastoTipo, setGastoTipo] = useState<"efectivo" | "producto">("efectivo");
+  const [gastoMontoEfectivo, setGastoMontoEfectivo] = useState("");
+  const [gastoComisionTransf, setGastoComisionTransf] = useState("");
   const [gastoProductoId, setGastoProductoId] = useState("");
   const [gastoCantidadProd, setGastoCantidadProd] = useState("");
-  const [gastoMontoEfectivo, setGastoMontoEfectivo] = useState("");
+  const [busquedaProdSalida, setBusquedaProdSalida] = useState("");
+  const [gastoEditandoId, setGastoEditandoId] = useState<string | null>(null);
 
   // Paso 8: Recogidas y Arqueo
   const [recogidas, setRecogidas] = useState<RecogidaPrecuadre[]>([]);
   const [recogidaMonto, setRecogidaMonto] = useState("");
+  const [recogidaReceptor, setRecogidaReceptor] = useState("Dueña");
   const [recogidaNota, setRecogidaNota] = useState("");
   const [denoms, setDenoms] = useState<Denominaciones>(emptyDen());
   const [usdMonto, setUsdMonto] = useState<string>("");
@@ -181,26 +205,53 @@ export function PrecuadreDependiente({
 
   const [enviando, setEnviando] = useState(false);
 
-  // Cálculos Paso 6 (Ventas)
+  // Inicializar inicios y precios
+  useEffect(() => {
+    const initInicios: Record<string, number> = {};
+    const initPrecios: Record<string, number> = {};
+    productosBase.forEach((p) => {
+      initInicios[p.id] = p.inicioDefecto;
+      initPrecios[p.id] = p.precioDefecto;
+    });
+    setInicios(initInicios);
+    setPreciosEditados(initPrecios);
+  }, [productosBase]);
+
+  // Cálculos Paso 6 (Ventas con soporte de precio mixto)
   const resumenProductos = useMemo(() => {
     return productosBase.map((p) => {
       const ini = inicios[p.id] ?? 0;
       const ent = entradas[p.id] ?? 0;
       const tras = traslados[p.id] ?? 0;
       const fin = finales[p.id] ?? 0;
-      const vendidas = Math.max(0, ini + ent - tras - fin);
-      const importe = vendidas * p.precio;
+      const disponible = ini + ent - tras;
+      const vendidasTotal = Math.max(0, disponible - fin);
+      const precioActual = preciosEditados[p.id] ?? p.precioDefecto;
+
+      const mixto = preciosMixtos[p.id];
+      let importe = 0;
+      if (mixto && mixto.activo && mixto.cantPrecioAnterior > 0) {
+        const cantAnt = Math.min(vendidasTotal, mixto.cantPrecioAnterior);
+        const cantAct = Math.max(0, vendidasTotal - cantAnt);
+        importe = (cantAnt * mixto.precioAnterior) + (cantAct * precioActual);
+      } else {
+        importe = vendidasTotal * precioActual;
+      }
+
       return {
         ...p,
+        precioActual,
         inicio: ini,
         entradas: ent,
         traslados: tras,
         final: fin,
-        vendidas,
+        disponible,
+        vendidas: vendidasTotal,
         importe,
+        mixtoInfo: mixto?.activo ? mixto : null,
       };
     });
-  }, [productosBase, inicios, entradas, traslados, finales]);
+  }, [productosBase, inicios, entradas, traslados, finales, preciosEditados, preciosMixtos]);
 
   const totalVentas = useMemo(() => {
     return resumenProductos.reduce((acc, p) => acc + p.importe, 0);
@@ -214,45 +265,49 @@ export function PrecuadreDependiente({
     return recogidas.reduce((acc, r) => acc + r.monto, 0);
   }, [recogidas]);
 
-  const efectivoCUP = useMemo(() => {
-    return Object.entries(denoms).reduce((acc, [billete, cant]) => {
-      return acc + Number(billete) * (Number(cant) || 0);
-    }, 0);
+  const totalEfectivoCUP = useMemo(() => {
+    return DENOMINACIONES.reduce(
+      (sum, d) => sum + parseInt(d) * (denoms[d] || 0),
+      0
+    );
   }, [denoms]);
 
-  const efectivoUSDEnCUP = (parseFloat(usdMonto) || 0) * (parseFloat(usdTasa) || 0);
-  const totalEfectivoEntregado = efectivoCUP + efectivoUSDEnCUP;
-
-  // Manejo del Canvas de Firma
-  useEffect(() => {
-    if (paso === 5 && canvasRef.current) {
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.strokeStyle = "#0f172a";
-        ctx.lineWidth = 2.5;
-        ctx.lineCap = "round";
-      }
+  // Paso 3: Productos ordenados (Disponibilidad/entradas > 0 arriba, luego 0)
+  const productosOrdenadosPaso3 = useMemo(() => {
+    const q = busquedaPaso3.toLowerCase().trim();
+    let lista = productosBase;
+    if (q) {
+      lista = lista.filter((p) => p.nombre.toLowerCase().includes(q));
     }
-  }, [paso]);
+    return [...lista].sort((a, b) => {
+      const dispA = (inicios[a.id] ?? 0) + (entradas[a.id] ?? 0);
+      const dispB = (inicios[b.id] ?? 0) + (entradas[b.id] ?? 0);
+      if (dispA > 0 && dispB === 0) return -1;
+      if (dispA === 0 && dispB > 0) return 1;
+      return a.nombre.localeCompare(b.nombre);
+    });
+  }, [productosBase, busquedaPaso3, inicios, entradas]);
 
-  const limpiarFirma = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (ctx) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      setTieneFirma(false);
-    }
-  };
+  // Paso 4: Solo productos con disponible > 0
+  const productosConStockPaso4 = useMemo(() => {
+    return resumenProductos.filter((p) => p.disponible > 0);
+  }, [resumenProductos]);
 
-  const startDraw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+  // Paso 7: Productos para salida (solo con disponible > 0)
+  const productosDisponiblesSalida = useMemo(() => {
+    const q = busquedaProdSalida.toLowerCase().trim();
+    return resumenProductos
+      .filter((p) => p.disponible > 0)
+      .filter((p) => !q || p.nombre.toLowerCase().includes(q));
+  }, [resumenProductos, busquedaProdSalida]);
+
+  // Manejo de canvas de firma
+  const startDraw = (e: React.MouseEvent | React.TouchEvent) => {
+    setIsDrawing(true);
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    setIsDrawing(true);
-    setTieneFirma(true);
     const rect = canvas.getBoundingClientRect();
     const x = "touches" in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
     const y = "touches" in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
@@ -260,7 +315,7 @@ export function PrecuadreDependiente({
     ctx.moveTo(x, y);
   };
 
-  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+  const draw = (e: React.MouseEvent | React.TouchEvent) => {
     if (!isDrawing) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -271,163 +326,216 @@ export function PrecuadreDependiente({
     const y = "touches" in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
     ctx.lineTo(x, y);
     ctx.stroke();
+    setTieneFirma(true);
   };
 
   const endDraw = () => setIsDrawing(false);
 
-  // Validación de PIN de Relevo (Estrictamente 6 dígitos numéricos)
-  const validarPinRelevo = async () => {
-    const pinLimpio = pinRelevo.trim();
-    if (!/^\d{6}$/.test(pinLimpio)) {
-      toast.error("El PIN debe tener exactamente 6 dígitos numéricos");
-      return;
-    }
+  const clearCanvas = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    setTieneFirma(false);
+  };
 
+  // Validar PIN de 6 dígitos
+  const handleValidarPin = (pin: string) => {
+    if (pin.length !== 6) return;
     if (tipoRelevo === "admin") {
-      const adminUsers = users.filter((u) => u.role === "admin" || u.role === "duena");
-      for (const u of adminUsers) {
-        const h = await hashPin(pinLimpio, u.id);
-        if (h === u.pinHash) {
-          setPinValidado(true);
-          toast.success("PIN de Administración verificado");
-          return;
-        }
-      }
-      toast.error("PIN de Administrador/Dueña incorrecto");
-    } else {
-      const depUser = users.find((u) => u.nombre.toLowerCase().trim() === entranteNombre.toLowerCase().trim());
-      if (depUser) {
-        const h = await hashPin(pinLimpio, depUser.id);
-        if (h === depUser.pinHash) {
-          setPinValidado(true);
-          toast.success(`PIN de ${entranteNombre} verificado`);
-          return;
-        }
-        toast.error("PIN incorrecto para la dependienta seleccionada");
-      } else {
-        // En caso de que la dependienta no tenga aún usuario en pinStore
+      const ok = validarPin(pin, "admin");
+      if (ok) {
         setPinValidado(true);
-        toast.success("PIN registrado para el relevo");
+        toast.success("PIN de Administrador validado con éxito");
+      } else {
+        toast.error("PIN incorrecto. Revisa los 6 dígitos.");
+        setPinInput("");
+      }
+    } else {
+      if (!entranteNombre) {
+        toast.error("Selecciona primero la dependienta entrante");
+        return;
+      }
+      const ok = validarPin(pin, "dependiente", entranteNombre);
+      if (ok) {
+        setPinValidado(true);
+        toast.success(`PIN validado para ${entranteNombre}`);
+      } else {
+        toast.error("PIN incorrecto para esta dependienta");
+        setPinInput("");
       }
     }
   };
 
-  // Agregar nuevo producto en el paso 3
+  // Agregar Producto Nuevo en Paso 3
   const handleGuardarNuevoProducto = () => {
-    if (!nuevoProdNombre.trim()) {
-      toast.error("Ingresa el nombre del producto");
-      return;
-    }
+    const nombre = nuevoProdNombre.trim();
     const precio = parseFloat(nuevoProdPrecio);
-    if (isNaN(precio) || precio <= 0) {
-      toast.error("Ingresa un precio de venta válido");
+    if (!nombre || isNaN(precio) || precio <= 0) {
+      toast.error("Indica un nombre válido y precio mayor a 0");
       return;
     }
-    const nuevo = {
-      id: `manual_${Date.now()}`,
-      nombre: nuevoProdNombre.trim(),
+    const nuevoId = "p_nuevo_" + Date.now();
+    addProductoCatalogo({
+      nombre,
       precio,
       categoria: "Varios",
-      inicioDefecto: 0,
-    };
-    setProductosExtra((prev) => [...prev, nuevo]);
+      oculto: false,
+    });
+    setProductosNuevosLocal((prev) => [
+      ...prev,
+      { id: nuevoId, nombre, precio, categoria: "Varios" },
+    ]);
+    setInicios((prev) => ({ ...prev, [nuevoId]: 0 }));
+    setPreciosEditados((prev) => ({ ...prev, [nuevoId]: precio }));
     setNuevoProdNombre("");
     setNuevoProdPrecio("");
     setModalNuevoProd(false);
-    toast.success(`Producto "${nuevo.nombre}" añadido al turno`);
+    toast.success(`Producto "${nombre}" registrado`);
   };
 
-  const agregarGasto = () => {
-    if (!gastoReceptor.trim()) {
-      toast.error("Indica quién recibe o concepto");
+  // Agregar / Editar Gasto en Paso 7
+  const agregarOGuardarGasto = () => {
+    const receptor = gastoReceptor.trim();
+    if (!receptor && gastoTipo !== "transferencia") {
+      toast.error("Indica a quién se entregó o el concepto");
       return;
     }
+
+    let monto = 0;
+    let cantProd = 0;
+    let prodNombre = "";
+
     if (gastoTipo === "efectivo") {
-      const m = parseFloat(gastoMontoEfectivo);
-      if (isNaN(m) || m <= 0) {
-        toast.error("Ingresa un monto en efectivo válido");
+      monto = parseFloat(gastoMontoEfectivo);
+      if (isNaN(monto) || monto <= 0) {
+        toast.error("Indica un monto en efectivo válido");
         return;
       }
-      setGastos([
-        ...gastos,
-        {
-          id: crypto.randomUUID(),
-          receptor: gastoReceptor.trim(),
-          tipo: "efectivo",
-          monto: m,
-          sinClasificar: true,
-        },
-      ]);
-      setGastoReceptor("");
-      setGastoMontoEfectivo("");
+    } else if (gastoTipo === "transferencia") {
+      monto = parseFloat(gastoMontoEfectivo);
+      if (isNaN(monto) || monto <= 0) {
+        toast.error("Indica el monto transferido");
+        return;
+      }
     } else {
-      const prod = productosBase.find((p) => p.id === gastoProductoId);
-      const cant = parseFloat(gastoCantidadProd);
-      if (!prod || isNaN(cant) || cant <= 0) {
-        toast.error("Selecciona producto y cantidad válida");
+      cantProd = parseFloat(gastoCantidadProd);
+      const prod = resumenProductos.find((p) => p.id === gastoProductoId);
+      if (!prod || isNaN(cantProd) || cantProd <= 0) {
+        toast.error("Selecciona un producto y cantidad válida");
         return;
       }
-      setGastos([
-        ...gastos,
-        {
-          id: crypto.randomUUID(),
-          receptor: gastoReceptor.trim(),
-          tipo: "producto",
-          productoId: prod.id,
-          productoNombre: prod.nombre,
-          cantidadProducto: cant,
-          monto: cant * prod.precio,
-          sinClasificar: true,
-        },
-      ]);
-      setGastoReceptor("");
-      setGastoProductoId("");
-      setGastoCantidadProd("");
+      prodNombre = prod.nombre;
+      monto = cantProd * prod.precioActual;
+    }
+
+    if (gastoEditandoId) {
+      // Guardar edición
+      setGastos((prev) =>
+        prev.map((g) =>
+          g.id === gastoEditandoId
+            ? {
+                ...g,
+                tipo: gastoTipo === "producto" ? "producto" : "efectivo",
+                receptor: receptor || "Transferencia",
+                monto,
+                cantidadProducto: cantProd || undefined,
+                productoNombre: prodNombre || undefined,
+                sinClasificar: true,
+              }
+            : g
+        )
+      );
+      toast.success("Línea actualizada");
+      setGastoEditandoId(null);
+    } else {
+      // Agregar nuevo
+      const nuevoGasto: GastoPrecuadre = {
+        id: "gasto_" + Date.now(),
+        tipo: gastoTipo === "producto" ? "producto" : "efectivo",
+        receptor: receptor || (gastoTipo === "transferencia" ? "Transferencia" : "Salida"),
+        monto,
+        cantidadProducto: cantProd || undefined,
+        productoNombre: prodNombre || undefined,
+        sinClasificar: true,
+      };
+      setGastos((prev) => [...prev, nuevoGasto]);
+      toast.success("Línea agregada");
+    }
+
+    // Reset formulario
+    setGastoReceptor("");
+    setGastoMontoEfectivo("");
+    setGastoCantidadProd("");
+    setGastoProductoId("");
+    setGastoComisionTransf("");
+  };
+
+  const eliminarGasto = (id: string) => {
+    setGastos((prev) => prev.filter((g) => g.id !== id));
+    toast.info("Línea eliminada");
+  };
+
+  const iniciarEdicionGasto = (g: GastoPrecuadre) => {
+    setGastoEditandoId(g.id);
+    setGastoReceptor(g.receptor);
+    if (g.tipo === "producto") {
+      setGastoTipo("producto");
+      setGastoCantidadProd(g.cantidadProducto?.toString() || "");
+    } else {
+      setGastoTipo("efectivo");
+      setGastoMontoEfectivo(g.monto.toString());
     }
   };
 
+  // Agregar Recogida en Paso 8
   const agregarRecogida = () => {
-    const m = parseFloat(recogidaMonto);
-    if (isNaN(m) || m <= 0) {
-      toast.error("Ingresa un monto de recogida válido");
+    const monto = parseFloat(recogidaMonto);
+    if (isNaN(monto) || monto <= 0) {
+      toast.error("Indica un monto de recogida válido");
       return;
     }
-    const ahora = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    setRecogidas([
-      ...recogidas,
-      {
-        id: crypto.randomUUID(),
-        hora: ahora,
-        monto: m,
-        nota: recogidaNota.trim() || undefined,
-      },
-    ]);
+    const nueva: RecogidaPrecuadre = {
+      id: "rec_" + Date.now(),
+      hora: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      monto,
+      nota: `${recogidaReceptor}${recogidaNota.trim() ? ` · ${recogidaNota.trim()}` : ""}`,
+    };
+    setRecogidas((prev) => [...prev, nueva]);
     setRecogidaMonto("");
     setRecogidaNota("");
+    toast.success(`Recogida de $${monto} CUP agregada`);
   };
 
+  // Enviar Pre-cuadre Final
   const handleEnviar = async () => {
     setEnviando(true);
     try {
       const canvas = canvasRef.current;
-      const firmaDataUrl = canvas ? canvas.toDataURL() : undefined;
+      const firmaDataUrl = canvas ? canvas.toDataURL("image/png") : undefined;
 
-      const algunInicoModificado = Object.values(desbloqueados).some(Boolean);
-      const justificaciones = Object.entries(motivosPorProducto)
-        .map(([id, motivo]) => {
-          const prod = productosBase.find((p) => p.id === id);
-          return `${prod?.nombre || id}: ${motivo}`;
-        })
-        .join(" | ");
-
-      const data: PrecuadreData = {
+      const payload: PrecuadreData = {
         diasTrabajados,
-        iniciosDeTurnoAnterior: !algunInicoModificado,
-        iniciosModificados: algunInicoModificado,
-        motivoModificacionInicios: justificaciones || undefined,
-        productos: resumenProductos,
+        iniciosDeTurnoAnterior: true,
+        iniciosModificados: Object.values(desbloqueados).some(Boolean),
+        motivoModificacionInicios: Object.entries(motivosPorProducto)
+          .map(([id, m]) => `${catalogo.find((p) => p.id === id)?.nombre}: ${m}`)
+          .join(" | "),
+        productos: resumenProductos.map((p) => ({
+          id: p.id,
+          nombre: p.nombre,
+          inicio: p.inicio,
+          entradas: p.entradas,
+          traslados: p.traslados,
+          final: p.final,
+          precio: p.precioActual,
+          categoria: p.categoria,
+          vendidas: p.vendidas,
+          importe: p.importe,
+        })),
         tipoRelevo,
-        entranteNombre: tipoRelevo === "dependiente" ? entranteNombre : "Administración / Dueña",
+        entranteNombre: tipoRelevo === "admin" ? "Admin / Dueña" : entranteNombre,
         entranteFirma: firmaDataUrl,
         entranteValidado: pinValidado,
         totalVentas,
@@ -436,56 +544,60 @@ export function PrecuadreDependiente({
         recogidas,
         totalRecogidas,
         denominaciones: denoms,
+        totalEfectivoCUP,
         usdMonto: parseFloat(usdMonto) || 0,
         usdTasa: parseFloat(usdTasa) || 0,
-        efectivoTotal: totalEfectivoEntregado,
       };
 
-      const ok = await enviarPrecuadre(turnoId, punto, dependiente, data);
-      if (ok) {
-        toast.success("Pre-cuadre guardado y enviado exitosamente");
-        onCompletado?.();
+      const res = await enviarPrecuadre(punto, dependiente, payload);
+
+      if (res.guardadoLocal) {
+        toast.warning(
+          "Sin conexión: Pre-cuadre guardado en este dispositivo. Se subirá automáticamente cuando regrese internet."
+        );
       } else {
-        toast.error("Error al procesar el pre-cuadre");
+        toast.success("¡Pre-cuadre enviado con éxito a la administración!");
       }
-    } catch {
-      toast.error("Ocurrió un error inesperado al enviar el pre-cuadre");
+
+      onFinalizado();
+    } catch (e: any) {
+      toast.error(e?.message || "Error al procesar el pre-cuadre");
     } finally {
       setEnviando(false);
     }
   };
 
-  // Productos con inicio > 0 para el Paso 2
-  const productosPaso2 = useMemo(() => {
-    return productosBase.filter((p) => p.inicioDefecto > 0);
-  }, [productosBase]);
-
-  // Filtro de búsqueda en Paso 3
-  const productosFiltradosPaso3 = useMemo(() => {
-    const q = busquedaPaso3.toLowerCase().trim();
-    if (!q) return productosBase;
-    return productosBase.filter((p) => p.nombre.toLowerCase().includes(q));
-  }, [productosBase, busquedaPaso3]);
-
   return (
-    <div className="min-h-screen bg-background text-foreground pb-12">
-      {/* Barra superior fija con navegación segura */}
-      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-border p-4 shadow-sm">
-        <div className="max-w-xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={onSalir} className="h-8 px-2 rounded-xl">
-              <ArrowLeft className="h-4 w-4 mr-1" /> Salir
-            </Button>
-            <Badge variant="outline" className="text-xs font-bold px-2 py-0.5">
+    <div className="min-h-screen bg-background pb-12">
+      {/* Barra superior con navegación */}
+      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-border px-4 py-3">
+        <div className="max-w-md mx-auto flex items-center justify-between">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs text-muted-foreground hover:text-foreground"
+            onClick={onCancelar}
+          >
+            <X className="h-4 w-4 mr-1" /> Salir
+          </Button>
+
+          <div className="text-center">
+            <span className="text-xs font-bold uppercase tracking-wider text-primary">
+              Pre-cuadre Dependiente
+            </span>
+            <div className="text-[11px] text-muted-foreground">
               Paso {paso} de 9
-            </Badge>
+            </div>
           </div>
-          <span className="text-xs font-bold text-primary">📍 {punto}</span>
+
+          <Badge variant="outline" className="text-[10px] font-bold">
+            {punto}
+          </Badge>
         </div>
       </div>
 
-      <div className="max-w-xl mx-auto p-4 space-y-4">
-        {/* Título del paso */}
+      <div className="max-w-md mx-auto p-4 space-y-4">
+        {/* Título de cada paso */}
         <div className="border-b border-border/60 pb-2">
           <h1 className="text-lg font-extrabold text-foreground">
             {paso === 1 && "Paso 1: Datos del Turno"}
@@ -493,39 +605,43 @@ export function PrecuadreDependiente({
             {paso === 3 && "Paso 3: Entradas y Traslados"}
             {paso === 4 && "Paso 4: Conteo Físico Final"}
             {paso === 5 && "Paso 5: Relevo y Firma Digital"}
-            {paso === 6 && "Paso 6: Resultados de Ventas"}
-            {paso === 7 && "Paso 7: Gastos y Salidas"}
+            {paso === 6 && "Paso 6: Resultados y Precios"}
+            {paso === 7 && "Paso 7: Gastos, Transferencias y Salidas"}
             {paso === 8 && "Paso 8: Recogidas y Arqueo de Efectivo"}
-            {paso === 9 && "Paso 9: Confirmación y Envío"}
+            {paso === 9 && "Paso 9: Resumen y Confirmación"}
           </h1>
         </div>
 
         {/* PASO 1 */}
         {paso === 1 && (
           <div className="space-y-4 pt-1">
-            <div className="rounded-2xl border border-border bg-card p-4 space-y-3 shadow-soft">
+            <div className="p-4 rounded-2xl border border-border bg-card space-y-3 shadow-soft">
               <div>
                 <label className="text-xs font-semibold text-muted-foreground block mb-1">
                   Punto de Venta
                 </label>
-                <Select value={punto} onValueChange={(val: PuntoVenta) => setPunto(val)}>
-                  <SelectTrigger className="rounded-xl font-bold">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Cafetería">Cafetería</SelectItem>
-                    <SelectItem value="Mipyme">Mipyme</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="grid grid-cols-2 gap-2">
+                  {(["Cafetería", "Mipyme"] as PuntoVenta[]).map((p) => (
+                    <Button
+                      key={p}
+                      type="button"
+                      variant={punto === p ? "default" : "outline"}
+                      className="rounded-xl h-10 font-bold text-xs"
+                      onClick={() => setPunto(p)}
+                    >
+                      {p}
+                    </Button>
+                  ))}
+                </div>
               </div>
 
               <div>
                 <label className="text-xs font-semibold text-muted-foreground block mb-1">
-                  Dependienta en Turno ({punto})
+                  Dependienta en Turno
                 </label>
                 <Select value={dependiente} onValueChange={setDependiente}>
-                  <SelectTrigger className="rounded-xl font-bold">
-                    <SelectValue placeholder="Selecciona dependienta" />
+                  <SelectTrigger className="rounded-xl h-10 font-medium">
+                    <SelectValue placeholder="Selecciona tu nombre..." />
                   </SelectTrigger>
                   <SelectContent>
                     {dependientesPunto.map((d) => (
@@ -535,42 +651,38 @@ export function PrecuadreDependiente({
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-[11px] text-muted-foreground mt-1">
-                  Solo se muestran las dependientas asignadas a {punto}.
-                </p>
               </div>
 
-              {/* Selector de días con botones - y + */}
               <div>
-                <label className="text-xs font-semibold text-muted-foreground block mb-1.5">
-                  Días Trabajados en este Cuadre
+                <label className="text-xs font-semibold text-muted-foreground block mb-1">
+                  Días Trabajados en este Turno
                 </label>
-                <div className="flex items-center justify-between border border-border rounded-2xl bg-background p-2">
+                <div className="flex items-center gap-3">
                   <Button
                     type="button"
                     variant="outline"
-                    size="icon"
-                    className="h-10 w-10 rounded-xl"
+                    size="sm"
+                    className="h-10 w-10 rounded-xl font-bold text-lg"
                     disabled={diasTrabajados <= 1}
                     onClick={() => setDiasTrabajados((prev) => Math.max(1, prev - 1))}
                   >
-                    <Minus className="h-4 w-4" />
+                    -
                   </Button>
-                  <div className="text-center">
+                  <div className="flex-1 text-center py-2 bg-muted/40 rounded-xl">
                     <span className="text-xl font-black text-foreground">{diasTrabajados}</span>
-                    <span className="text-[11px] text-muted-foreground block font-medium">
+                    <span className="text-xs text-muted-foreground block">
                       {diasTrabajados === 1 ? "día trabajado" : "días trabajados"}
                     </span>
                   </div>
                   <Button
                     type="button"
                     variant="outline"
-                    size="icon"
-                    className="h-10 w-10 rounded-xl"
+                    size="sm"
+                    className="h-10 w-10 rounded-xl font-bold text-lg"
                     disabled={diasTrabajados >= 15}
-                    onClick={() => setDiasTrabajados((prev) => Math.min(15, prev + 1))}
+                    onClick={() => setDiasTrabajados((prev) => prev + 1)}
                   >
-                    <Plus className="h-4 w-4" />
+                    +
                   </Button>
                 </div>
               </div>
@@ -589,74 +701,67 @@ export function PrecuadreDependiente({
         {/* PASO 2 */}
         {paso === 2 && (
           <div className="space-y-4 pt-1">
-            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3 flex items-start gap-2.5">
-              <Lock className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-              <div className="text-xs">
-                <span className="font-semibold block text-primary">Inicios automáticos protegidos</span>
-                Se importaron los finales del último turno cerrado. Solo aparecen productos con inicio mayor a 0. Desbloquea individualmente si detectas un error.
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3.5 space-y-1">
+              <div className="flex items-center gap-2 text-primary font-bold text-xs">
+                <Lock className="h-4 w-4" /> Inicios Protegidos con Candado
               </div>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Importados de los finales del último turno cerrado. Si necesitas corregir alguno, pulsa el candado e indica el motivo.
+              </p>
             </div>
 
             <div className="space-y-2">
-              {productosPaso2.length === 0 ? (
-                <div className="p-8 text-center rounded-2xl border border-dashed border-border text-muted-foreground text-xs">
-                  No se encontraron productos con existencias iniciales mayores a 0 en el turno anterior.
-                </div>
-              ) : (
-                productosPaso2.map((p) => {
-                  const estaDesbloqueado = !!desbloqueados[p.id];
-                  return (
-                    <div
-                      key={p.id}
-                      className={`flex items-center justify-between p-3 rounded-2xl border bg-card transition-all ${
-                        estaDesbloqueado ? "border-amber-500/50 bg-amber-500/5" : "border-border"
-                      }`}
-                    >
-                      <div className="flex-1 pr-2">
-                        <div className="font-semibold text-sm">{p.nombre}</div>
-                        <div className="text-[11px] text-muted-foreground">
-                          Precio venta: <span className="font-semibold text-primary">${p.precio}</span>
-                          {estaDesbloqueado && (
-                            <span className="text-amber-600 dark:text-amber-400 block font-medium">
-                              Desbloqueado: {motivosPorProducto[p.id] || "Justificado"}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="number"
-                          disabled={!estaDesbloqueado}
-                          value={inicios[p.id] ?? 0}
-                          onChange={(e) =>
-                            setInicios({ ...inicios, [p.id]: parseFloat(e.target.value) || 0 })
-                          }
-                          className="w-20 text-right h-9 rounded-xl font-bold text-sm"
-                        />
-                        <Button
-                          type="button"
-                          variant={estaDesbloqueado ? "destructive" : "outline"}
-                          size="icon"
-                          className="h-9 w-9 rounded-xl shrink-0"
-                          onClick={() => {
-                            if (estaDesbloqueado) {
-                              // Volver a bloquear
-                              setDesbloqueados((prev) => ({ ...prev, [p.id]: false }));
-                            } else {
-                              // Abrir modal de desbloqueo para este producto específico
-                              setProdSeleccionadoDesbloqueo({ id: p.id, nombre: p.nombre });
-                              setMotivoTemp("");
-                            }
-                          }}
-                        >
-                          {estaDesbloqueado ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-                        </Button>
+              {productosBase.filter((p) => p.inicioDefecto > 0).map((p) => {
+                const estaDesbloqueado = !!desbloqueados[p.id];
+                return (
+                  <div
+                    key={p.id}
+                    className={`flex items-center justify-between p-3 rounded-2xl border bg-card transition-all ${
+                      estaDesbloqueado ? "border-amber-500/50 bg-amber-500/5" : "border-border"
+                    }`}
+                  >
+                    <div className="flex-1 pr-2">
+                      <div className="font-semibold text-sm">{p.nombre}</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        Precio venta: <span className="font-semibold text-primary">${p.precioDefecto}</span>
+                        {estaDesbloqueado && (
+                          <span className="text-amber-600 dark:text-amber-400 block font-medium">
+                            Desbloqueado: {motivosPorProducto[p.id] || "Justificado"}
+                          </span>
+                        )}
                       </div>
                     </div>
-                  );
-                })
-              )}
+
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        disabled={!estaDesbloqueado}
+                        value={inicios[p.id] ?? 0}
+                        onChange={(e) =>
+                          setInicios({ ...inicios, [p.id]: parseFloat(e.target.value) || 0 })
+                        }
+                        className="w-20 text-right h-9 rounded-xl font-bold text-sm"
+                      />
+                      <Button
+                        type="button"
+                        variant={estaDesbloqueado ? "destructive" : "outline"}
+                        size="icon"
+                        className="h-9 w-9 rounded-xl shrink-0"
+                        onClick={() => {
+                          if (estaDesbloqueado) {
+                            setDesbloqueados((prev) => ({ ...prev, [p.id]: false }));
+                          } else {
+                            setProdSeleccionadoDesbloqueo({ id: p.id, nombre: p.nombre });
+                            setMotivoTemp("");
+                          }
+                        }}
+                      >
+                        {estaDesbloqueado ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
             <div className="flex gap-2 pt-2">
@@ -668,7 +773,6 @@ export function PrecuadreDependiente({
               </Button>
             </div>
 
-            {/* Modal justificación para producto individual */}
             {prodSeleccionadoDesbloqueo && (
               <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                 <div className="bg-card border border-border rounded-3xl p-5 max-w-sm w-full space-y-3 shadow-xl">
@@ -676,7 +780,7 @@ export function PrecuadreDependiente({
                     Desbloquear inicio de {prodSeleccionadoDesbloqueo.nombre}
                   </h3>
                   <p className="text-xs text-muted-foreground">
-                    Indica el motivo por el cual la existencia inicial importada de este producto es incorrecta:
+                    Indica el motivo por el cual la existencia inicial importada es incorrecta:
                   </p>
                   <Input
                     placeholder="Ej. Error de conteo verificado en el turno previo"
@@ -718,7 +822,6 @@ export function PrecuadreDependiente({
         {/* PASO 3 */}
         {paso === 3 && (
           <div className="space-y-4 pt-1">
-            {/* Buscador y Botón Agregar Producto Nuevo */}
             <div className="space-y-2">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -749,56 +852,70 @@ export function PrecuadreDependiente({
             </div>
 
             <div className="space-y-2">
-              {productosFiltradosPaso3.map((p) => (
-                <div
-                  key={p.id}
-                  className="p-3.5 rounded-2xl border border-border bg-card space-y-2.5 shadow-soft"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm truncate flex-1">{p.nombre}</span>
-                    <Badge variant="secondary" className="font-bold text-xs text-primary">
-                      ${p.precio} CUP
-                    </Badge>
-                  </div>
+              {productosOrdenadosPaso3.map((p) => {
+                const precio = preciosEditados[p.id] ?? p.precioDefecto;
+                return (
+                  <div
+                    key={p.id}
+                    className="p-3.5 rounded-2xl border border-border bg-card space-y-2.5 shadow-soft"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-sm truncate flex-1">{p.nombre}</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-[11px] text-muted-foreground font-medium">Precio CUP:</span>
+                        <Input
+                          type="number"
+                          value={precio}
+                          onChange={(e) =>
+                            setPreciosEditados({
+                              ...preciosEditados,
+                              [p.id]: parseFloat(e.target.value) || 0,
+                            })
+                          }
+                          className="h-8 w-20 rounded-lg text-right font-bold text-xs"
+                        />
+                      </div>
+                    </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div>
-                      <span className="text-[11px] text-muted-foreground font-medium block mb-1">
-                        + Entradas recibidas
-                      </span>
-                      <Input
-                        type="number"
-                        placeholder="0"
-                        value={entradas[p.id] ?? ""}
-                        onChange={(e) =>
-                          setEntradas({
-                            ...entradas,
-                            [p.id]: parseFloat(e.target.value) || 0,
-                          })
-                        }
-                        className="h-9 rounded-xl text-right font-bold text-sm"
-                      />
-                    </div>
-                    <div>
-                      <span className="text-[11px] text-muted-foreground font-medium block mb-1">
-                        ± Traslados
-                      </span>
-                      <Input
-                        type="number"
-                        placeholder="0"
-                        value={traslados[p.id] ?? ""}
-                        onChange={(e) =>
-                          setTraslados({
-                            ...traslados,
-                            [p.id]: parseFloat(e.target.value) || 0,
-                          })
-                        }
-                        className="h-9 rounded-xl text-right font-bold text-sm"
-                      />
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-[11px] text-muted-foreground font-medium block mb-1">
+                          + Entradas recibidas
+                        </span>
+                        <Input
+                          type="number"
+                          placeholder="0"
+                          value={entradas[p.id] ?? ""}
+                          onChange={(e) =>
+                            setEntradas({
+                              ...entradas,
+                              [p.id]: parseFloat(e.target.value) || 0,
+                            })
+                          }
+                          className="h-9 rounded-xl text-right font-bold text-sm"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[11px] text-muted-foreground font-medium block mb-1">
+                          ± Traslados
+                        </span>
+                        <Input
+                          type="number"
+                          placeholder="0"
+                          value={traslados[p.id] ?? ""}
+                          onChange={(e) =>
+                            setTraslados({
+                              ...traslados,
+                              [p.id]: parseFloat(e.target.value) || 0,
+                            })
+                          }
+                          className="h-9 rounded-xl text-right font-bold text-sm"
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="flex gap-2 pt-2">
@@ -810,16 +927,17 @@ export function PrecuadreDependiente({
               </Button>
             </div>
 
-            {/* Modal para agregar producto nuevo */}
             {modalNuevoProd && (
               <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                 <div className="bg-card border border-border rounded-3xl p-5 max-w-sm w-full space-y-3 shadow-xl">
                   <h3 className="font-bold text-sm">Registrar Producto Nuevo</h3>
                   <div className="space-y-2">
                     <div>
-                      <label className="text-[11px] text-muted-foreground block mb-1">Nombre</label>
+                      <label className="text-[11px] text-muted-foreground block mb-1">
+                        Nombre con mililitros o formato (Ej. Cerveza Parranda 1500 ml)
+                      </label>
                       <Input
-                        placeholder="Ej. Galletas Dulces"
+                        placeholder="Ej. Cerveza Mayabe 355 ml"
                         value={nuevoProdNombre}
                         onChange={(e) => setNuevoProdNombre(e.target.value)}
                         className="rounded-xl text-xs font-semibold"
@@ -864,39 +982,36 @@ export function PrecuadreDependiente({
         {paso === 4 && (
           <div className="space-y-4 pt-1">
             <div className="rounded-2xl border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
-              Ingresa el conteo físico de lo que queda en mostrador al cerrar el turno:
+              Ingresa el conteo físico final de los productos con disponibilidad en el turno:
             </div>
 
             <div className="space-y-2">
-              {productosBase.map((p) => {
-                const disponible = (inicios[p.id] ?? 0) + (entradas[p.id] ?? 0) - (traslados[p.id] ?? 0);
-                return (
-                  <div
-                    key={p.id}
-                    className="flex items-center justify-between gap-3 p-3.5 rounded-2xl border border-border bg-card shadow-soft"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold truncate">{p.nombre}</div>
-                      <div className="text-[11px] text-muted-foreground">
-                        Disponible teórico: <span className="font-bold text-foreground">{disponible}</span> • ${p.precio}
-                      </div>
+              {productosConStockPaso4.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between gap-3 p-3.5 rounded-2xl border border-border bg-card shadow-soft"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold truncate">{p.nombre}</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      Disponible teórico: <span className="font-bold text-foreground">{p.disponible}</span> • ${p.precioActual}
                     </div>
-                    <Input
-                      type="number"
-                      step="any"
-                      placeholder="0"
-                      value={finales[p.id] ?? ""}
-                      onChange={(e) =>
-                        setFinales({
-                          ...finales,
-                          [p.id]: e.target.value === "" ? 0 : parseFloat(e.target.value),
-                        })
-                      }
-                      className="w-24 text-right h-9 rounded-xl font-bold text-sm"
-                    />
                   </div>
-                );
-              })}
+                  <Input
+                    type="number"
+                    step="any"
+                    placeholder="0"
+                    value={finales[p.id] ?? ""}
+                    onChange={(e) =>
+                      setFinales({
+                        ...finales,
+                        [p.id]: e.target.value === "" ? 0 : parseFloat(e.target.value),
+                      })
+                    }
+                    className="w-24 text-right h-9 rounded-xl font-bold text-sm"
+                  />
+                </div>
+              ))}
             </div>
 
             <div className="flex gap-2 pt-2">
@@ -959,10 +1074,11 @@ export function PrecuadreDependiente({
                   onValueChange={(val) => {
                     setEntranteNombre(val);
                     setPinValidado(false);
+                    setPinInput("");
                   }}
                 >
-                  <SelectTrigger className="rounded-xl font-bold">
-                    <SelectValue placeholder="Selecciona dependienta entrante" />
+                  <SelectTrigger className="rounded-xl h-10 font-medium">
+                    <SelectValue placeholder="Selecciona quién recibe..." />
                   </SelectTrigger>
                   <SelectContent>
                     {dependientesRelevo.map((d) => (
@@ -975,40 +1091,45 @@ export function PrecuadreDependiente({
               </div>
             ) : (
               <div className="p-3 bg-muted/40 rounded-2xl text-xs text-muted-foreground">
-                Entrega de turno a la Administración o Dueña con su PIN maestro.
+                Cierre administrativo: Se validará con el PIN de 6 dígitos del Administrador o Dueña.
               </div>
             )}
 
-            {/* PIN de Validación - 6 DÍGITOS ESTRICTO */}
-            <div className="p-4 bg-card border border-border rounded-2xl space-y-2 shadow-soft">
+            <div className="p-4 rounded-2xl border border-border bg-card space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold">PIN del Relevo (6 dígitos numéricos)</span>
+                <span className="text-xs font-bold text-foreground">
+                  PIN de Confirmación (6 dígitos)
+                </span>
                 {pinValidado && (
-                  <Badge variant="outline" className="text-emerald-600 border-emerald-500/30 text-[10px]">
-                    <Check className="h-3 w-3 mr-1" /> Validado
+                  <Badge variant="default" className="bg-emerald-600 text-white text-[10px] font-bold">
+                    <CheckCircle2 className="h-3 w-3 mr-1" /> Validado
                   </Badge>
                 )}
               </div>
+
               <div className="flex gap-2">
                 <Input
                   type="password"
                   inputMode="numeric"
                   maxLength={6}
-                  placeholder="PIN 6 dígitos"
-                  value={pinRelevo}
+                  placeholder="••••••"
+                  value={pinInput}
                   disabled={pinValidado}
                   onChange={(e) => {
-                    const soloNumeros = e.target.value.replace(/\D/g, "");
-                    setPinRelevo(soloNumeros);
+                    const val = e.target.value.replace(/\D/g, "");
+                    setPinInput(val);
+                    if (val.length === 6) {
+                      handleValidarPin(val);
+                    }
                   }}
-                  className="rounded-xl tracking-widest text-center text-base font-black h-11"
+                  className="rounded-xl tracking-widest text-center font-bold text-base h-11"
                 />
                 {!pinValidado && (
                   <Button
-                    size="sm"
-                    className="rounded-xl font-bold px-4 h-11"
-                    disabled={pinRelevo.length !== 6}
-                    onClick={validarPinRelevo}
+                    type="button"
+                    className="rounded-xl font-bold px-4"
+                    disabled={pinInput.length !== 6}
+                    onClick={() => handleValidarPin(pinInput)}
                   >
                     Validar
                   </Button>
@@ -1016,17 +1137,20 @@ export function PrecuadreDependiente({
               </div>
             </div>
 
-            {/* Canvas de Firma Digital */}
-            <div className="space-y-1.5">
-              <div className="flex justify-between items-center">
-                <label className="text-xs font-semibold flex items-center gap-1.5">
-                  <PenLine className="h-3.5 w-3.5 text-primary" /> Firma Digital del Relevo
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-muted-foreground">
+                  Firma Táctil del Relevo Entrante
                 </label>
-                {tieneFirma && (
-                  <Button variant="ghost" size="sm" onClick={limpiarFirma} className="h-6 text-[11px]">
-                    <RotateCcw className="h-3 w-3 mr-1" /> Borrar
-                  </Button>
-                )}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-[10px] text-muted-foreground"
+                  onClick={clearCanvas}
+                >
+                  Limpiar
+                </Button>
               </div>
               <div className="border border-border rounded-2xl overflow-hidden bg-background">
                 <canvas
@@ -1068,7 +1192,7 @@ export function PrecuadreDependiente({
                 <span className="text-[11px] text-muted-foreground block uppercase font-semibold">
                   Venta Total Calculada
                 </span>
-                <span className="text-2xl font-black text-primary">${Math.round(totalVentas)}</span>
+                <span className="text-2xl font-black text-primary">${Math.round(totalVentas)} CUP</span>
               </div>
               <Badge className="bg-primary text-primary-foreground font-bold text-xs py-1 px-3">
                 {resumenProductos.reduce((acc, p) => acc + p.vendidas, 0)} u. vendidas
@@ -1076,20 +1200,86 @@ export function PrecuadreDependiente({
             </div>
 
             <div className="space-y-2">
-              {resumenProductos.map((p) => (
-                <div
-                  key={p.id}
-                  className="p-3 rounded-2xl border border-border bg-card flex justify-between items-center text-xs shadow-soft"
-                >
-                  <div>
-                    <div className="font-semibold text-sm">{p.nombre}</div>
-                    <div className="text-[11px] text-muted-foreground">
-                      {p.vendidas} u. × ${p.precio}
+              {resumenProductos.filter((p) => p.vendidas > 0 || p.disponible > 0).map((p) => {
+                const mixto = preciosMixtos[p.id];
+                return (
+                  <div
+                    key={p.id}
+                    className="p-3.5 rounded-2xl border border-border bg-card space-y-2 text-xs shadow-soft"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="font-semibold text-sm">{p.nombre}</div>
+                        <div className="text-[11px] text-muted-foreground mt-0.5">
+                          {p.vendidas} u. vendidas (Disponible: {p.disponible})
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-black text-sm text-foreground">${p.importe}</div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-[10px] px-2 text-primary"
+                          onClick={() => {
+                            setPreciosMixtos((prev) => ({
+                              ...prev,
+                              [p.id]: {
+                                activo: !prev[p.id]?.activo,
+                                cantPrecioAnterior: prev[p.id]?.cantPrecioAnterior || 0,
+                                precioAnterior: prev[p.id]?.precioAnterior || p.precioActual,
+                              },
+                            }));
+                          }}
+                        >
+                          {mixto?.activo ? "Desactivar Mixto" : "+ Precio Mixto"}
+                        </Button>
+                      </div>
                     </div>
+
+                    {mixto?.activo && (
+                      <div className="p-2.5 rounded-xl bg-muted/40 border border-border grid grid-cols-2 gap-2 mt-2">
+                        <div>
+                          <label className="text-[10px] text-muted-foreground block">Cant. Precio Anterior</label>
+                          <Input
+                            type="number"
+                            placeholder="0"
+                            value={mixto.cantPrecioAnterior || ""}
+                            onChange={(e) =>
+                              setPreciosMixtos((prev) => ({
+                                ...prev,
+                                [p.id]: {
+                                  ...prev[p.id],
+                                  cantPrecioAnterior: parseFloat(e.target.value) || 0,
+                                },
+                              }))
+                            }
+                            className="h-8 text-xs font-bold rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-muted-foreground block">Precio Anterior (CUP)</label>
+                          <Input
+                            type="number"
+                            placeholder="0"
+                            value={mixto.precioAnterior || ""}
+                            onChange={(e) =>
+                              setPreciosMixtos((prev) => ({
+                                ...prev,
+                                [p.id]: {
+                                  ...prev[p.id],
+                                  precioAnterior: parseFloat(e.target.value) || 0,
+                                },
+                              }))
+                            }
+                            className="h-8 text-xs font-bold rounded-lg"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div className="font-black text-sm text-foreground">${p.importe}</div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="flex gap-2 pt-2">
@@ -1107,86 +1297,139 @@ export function PrecuadreDependiente({
         {paso === 7 && (
           <div className="space-y-4 pt-1">
             <p className="text-xs text-muted-foreground">
-              Añade gastos, salidas o transferencias en líneas sueltas (sin clasificar):
+              Añade gastos, transferencias o salidas en líneas sueltas:
             </p>
 
             <div className="p-4 bg-muted/40 rounded-2xl space-y-3">
-              <div className="flex gap-2">
+              <div className="grid grid-cols-3 gap-1.5">
                 <Button
                   size="sm"
                   variant={gastoTipo === "efectivo" ? "default" : "outline"}
-                  className="flex-1 text-xs rounded-xl"
+                  className="text-xs rounded-xl h-8 px-1"
                   onClick={() => setGastoTipo("efectivo")}
                 >
-                  <DollarSign className="h-3.5 w-3.5 mr-1" /> En Efectivo
+                  <DollarSign className="h-3.5 w-3.5 mr-1" /> Efectivo
+                </Button>
+                <Button
+                  size="sm"
+                  variant={gastoTipo === "transferencia" ? "default" : "outline"}
+                  className="text-xs rounded-xl h-8 px-1"
+                  onClick={() => setGastoTipo("transferencia")}
+                >
+                  <CreditCard className="h-3.5 w-3.5 mr-1" /> Transfer.
                 </Button>
                 <Button
                   size="sm"
                   variant={gastoTipo === "producto" ? "default" : "outline"}
-                  className="flex-1 text-xs rounded-xl"
+                  className="text-xs rounded-xl h-8 px-1"
                   onClick={() => setGastoTipo("producto")}
                 >
-                  <Package className="h-3.5 w-3.5 mr-1" /> Salida Producto
+                  <Package className="h-3.5 w-3.5 mr-1" /> Producto
                 </Button>
               </div>
 
               <Input
-                placeholder="Receptor o concepto (Ej. Juan, Compra hielo...)"
+                placeholder={gastoTipo === "transferencia" ? "Receptor o Banco (Ej. Transferencia Pedro)" : "Receptor o concepto (Ej. Juan, Compra hielo...)"}
                 value={gastoReceptor}
                 onChange={(e) => setGastoReceptor(e.target.value)}
                 className="rounded-xl text-xs font-medium"
               />
 
-              {gastoTipo === "efectivo" ? (
-                <Input
-                  type="number"
-                  placeholder="Monto en CUP"
-                  value={gastoMontoEfectivo}
-                  onChange={(e) => setGastoMontoEfectivo(e.target.value)}
-                  className="rounded-xl text-xs font-bold"
-                />
-              ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  <Select value={gastoProductoId} onValueChange={setGastoProductoId}>
-                    <SelectTrigger className="rounded-xl text-xs">
-                      <SelectValue placeholder="Producto" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {productosBase.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.nombre}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              {gastoTipo !== "producto" ? (
+                <div className="space-y-2">
                   <Input
                     type="number"
-                    placeholder="Cantidad u."
-                    value={gastoCantidadProd}
-                    onChange={(e) => setGastoCantidadProd(e.target.value)}
+                    placeholder="Monto en CUP"
+                    value={gastoMontoEfectivo}
+                    onChange={(e) => setGastoMontoEfectivo(e.target.value)}
                     className="rounded-xl text-xs font-bold"
                   />
+                  {gastoTipo === "transferencia" && (
+                    <Input
+                      type="number"
+                      placeholder="% Comisión de transferencia (opcional)"
+                      value={gastoComisionTransf}
+                      onChange={(e) => setGastoComisionTransf(e.target.value)}
+                      className="rounded-xl text-xs"
+                    />
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar producto con disponible..."
+                      value={busquedaProdSalida}
+                      onChange={(e) => setBusquedaProdSalida(e.target.value)}
+                      className="pl-8 text-xs rounded-xl h-8"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <Select value={gastoProductoId} onValueChange={setGastoProductoId}>
+                      <SelectTrigger className="rounded-xl text-xs">
+                        <SelectValue placeholder="Elegir producto..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {productosDisponiblesSalida.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.nombre} (Disp: {p.disponible})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      placeholder="Cantidad u."
+                      value={gastoCantidadProd}
+                      onChange={(e) => setGastoCantidadProd(e.target.value)}
+                      className="rounded-xl text-xs font-bold"
+                    />
+                  </div>
                 </div>
               )}
 
-              <Button size="sm" className="w-full rounded-xl font-bold h-10" onClick={agregarGasto}>
-                + Añadir Línea de Salida
+              <Button size="sm" className="w-full rounded-xl font-bold h-10" onClick={agregarOGuardarGasto}>
+                {gastoEditandoId ? "Actualizar Línea" : "+ Añadir Línea de Salida"}
               </Button>
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               {gastos.map((g) => (
                 <div
                   key={g.id}
                   className="flex justify-between items-center p-3 rounded-2xl border border-border bg-card text-xs shadow-soft"
                 >
-                  <div>
+                  <div className="flex-1 pr-2">
                     <span className="font-semibold text-sm">{g.receptor}</span>
                     <span className="text-[10px] text-muted-foreground block">
-                      {g.tipo === "producto" ? `Producto: ${g.productoNombre} (${g.cantidadProducto} u.)` : "Efectivo"}
+                      {g.tipo === "producto"
+                        ? `Producto: ${g.productoNombre} (${g.cantidadProducto} u.)`
+                        : "Efectivo / Transferencia"}
                     </span>
                   </div>
-                  <span className="font-bold text-destructive">-${g.monto}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-destructive">-${g.monto}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                      onClick={() => iniciarEdicionGasto(g)}
+                    >
+                      <Edit2 className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-destructive"
+                      onClick={() => eliminarGasto(g.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
               ))}
               {gastos.length === 0 && (
@@ -1209,29 +1452,72 @@ export function PrecuadreDependiente({
         {paso === 8 && (
           <div className="space-y-4 pt-1">
             {/* Recogidas Parciales */}
-            <div className="p-4 bg-muted/30 rounded-2xl space-y-2">
-              <span className="text-xs font-semibold block">Recogidas Parciales a Dueña</span>
+            <div className="p-4 bg-muted/30 rounded-2xl space-y-3">
+              <span className="text-xs font-bold block text-foreground">
+                Recogidas Parciales de Efectivo
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] text-muted-foreground block mb-0.5">Quién recogió</label>
+                  <Select value={recogidaReceptor} onValueChange={setRecogidaReceptor}>
+                    <SelectTrigger className="rounded-xl text-xs h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Dueña">Dueña</SelectItem>
+                      <SelectItem value="Administrador">Administrador</SelectItem>
+                      <SelectItem value="Yanitza">Yanitza</SelectItem>
+                      <SelectItem value="Geuris">Geuris</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted-foreground block mb-0.5">Monto entregado</label>
+                  <Input
+                    type="number"
+                    placeholder="Monto CUP"
+                    value={recogidaMonto}
+                    onChange={(e) => setRecogidaMonto(e.target.value)}
+                    className="rounded-xl text-xs font-bold h-9"
+                  />
+                </div>
+              </div>
+
               <div className="flex gap-2">
                 <Input
-                  type="number"
-                  placeholder="Monto entregado"
-                  value={recogidaMonto}
-                  onChange={(e) => setRecogidaMonto(e.target.value)}
-                  className="rounded-xl text-xs font-bold"
+                  placeholder="Nota u hora opcional..."
+                  value={recogidaNota}
+                  onChange={(e) => setRecogidaNota(e.target.value)}
+                  className="rounded-xl text-xs h-9 flex-1"
                 />
-                <Button size="sm" className="rounded-xl font-bold px-4" onClick={agregarRecogida}>
+                <Button size="sm" className="rounded-xl font-bold px-4 h-9" onClick={agregarRecogida}>
                   + Recogida
                 </Button>
               </div>
+
               {recogidas.map((r) => (
-                <div key={r.id} className="flex justify-between text-xs py-1 border-b border-border/40">
-                  <span>Recogida a las {r.hora}</span>
-                  <span className="font-bold">${r.monto}</span>
+                <div key={r.id} className="flex justify-between items-center text-xs py-1.5 border-b border-border/40">
+                  <div>
+                    <span className="font-semibold">{r.nota || "Recogida"}</span>
+                    <span className="text-[10px] text-muted-foreground block">{r.hora}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold">${r.monto}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-destructive"
+                      onClick={() => setRecogidas((prev) => prev.filter((item) => item.id !== r.id))}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
 
-            {/* Conteo de Billetes CUP */}
+            {/* Billetes CUP */}
             <div className="space-y-2">
               <span className="text-xs font-semibold block">Billetes en Caja (CUP)</span>
               <div className="grid grid-cols-2 gap-2">
@@ -1289,62 +1575,58 @@ export function PrecuadreDependiente({
         {/* PASO 9 */}
         {paso === 9 && (
           <div className="space-y-4 pt-1">
-            <div className="rounded-3xl border border-border bg-card p-5 space-y-3 shadow-soft">
-              <div className="flex justify-between items-center pb-2.5 border-b border-border/40 text-xs">
-                <span className="text-muted-foreground">Punto & Dependienta:</span>
-                <span className="font-bold">{punto} • {dependiente}</span>
-              </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-muted-foreground">Días trabajados:</span>
-                <span className="font-bold">{diasTrabajados} día(s)</span>
-              </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-muted-foreground">Venta Total de Productos:</span>
-                <span className="font-bold text-foreground">${Math.round(totalVentas)}</span>
-              </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-muted-foreground">Gastos declarados:</span>
-                <span className="font-bold text-destructive">-${Math.round(totalGastos)}</span>
-              </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-muted-foreground">Recogidas declaradas:</span>
-                <span className="font-bold text-primary">${Math.round(totalRecogidas)}</span>
-              </div>
-              <div className="flex justify-between items-center pt-2.5 border-t border-border/40 text-sm">
-                <span className="font-bold">Efectivo Total Entregado:</span>
-                <span className="font-black text-emerald-600 dark:text-emerald-400">
-                  ${Math.round(totalEfectivoEntregado)}
-                </span>
+            <div className="p-4 rounded-3xl border border-border bg-card space-y-3 shadow-soft">
+              <h3 className="font-extrabold text-sm text-foreground border-b border-border/50 pb-2">
+                Resumen General del Turno
+              </h3>
+
+              <div className="space-y-1.5 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Punto & Dependienta:</span>
+                  <span className="font-bold">{punto} · {dependiente}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Días trabajados:</span>
+                  <span className="font-bold">{diasTrabajados} día(s)</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Relevo firmado por:</span>
+                  <span className="font-bold">{tipoRelevo === "admin" ? "Admin / Dueña" : entranteNombre}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Venta Bruta Total:</span>
+                  <span className="font-black text-primary">${Math.round(totalVentas)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Gastos declarados:</span>
+                  <span className="font-bold text-destructive">-${totalGastos}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Recogidas a Dueña:</span>
+                  <span className="font-bold text-amber-600">-${totalRecogidas}</span>
+                </div>
+                <div className="flex justify-between border-t border-border/60 pt-2 text-sm">
+                  <span className="font-bold">Efectivo en Caja Arqueado:</span>
+                  <span className="font-black text-foreground">${totalEfectivoCUP} CUP</span>
+                </div>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-border bg-muted/30 p-3.5 text-xs space-y-1">
-              <div className="flex items-center gap-1.5 font-semibold text-primary">
-                <ShieldCheck className="h-4 w-4" /> Relevo Confirmado
-              </div>
-              <p className="text-muted-foreground">
-                Recibido por <strong>{tipoRelevo === "dependiente" ? entranteNombre : "Administración / Dueña"}</strong> con PIN de 6 dígitos y firma digital validada.
-              </p>
-            </div>
+            <Button
+              className="w-full rounded-2xl font-bold h-14 text-base shadow-lg"
+              disabled={enviando}
+              onClick={handleEnviar}
+            >
+              {enviando ? "Guardando Pre-cuadre..." : "Guardar y Enviar Pre-cuadre"}
+            </Button>
 
-            <div className="flex gap-2 pt-2">
-              <Button variant="outline" className="rounded-2xl flex-1 h-12" onClick={() => setPaso(8)}>
-                <ArrowLeft className="mr-1 h-4 w-4" /> Atrás
-              </Button>
-              <Button
-                className="rounded-2xl flex-1 font-bold h-12 bg-primary text-primary-foreground shadow-md"
-                disabled={enviando}
-                onClick={handleEnviar}
-              >
-                {enviando ? (
-                  "Enviando..."
-                ) : (
-                  <>
-                    <Send className="mr-1.5 h-4 w-4" /> Guardar Precuadre
-                  </>
-                )}
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              className="w-full rounded-2xl h-10 text-xs"
+              onClick={() => setPaso(8)}
+            >
+              <ArrowLeft className="mr-1 h-3 w-3" /> Regresar al Arqueo
+            </Button>
           </div>
         )}
       </div>
@@ -1370,10 +1652,22 @@ export function PrecuadreAdminReview({
   const d = turno.data as PrecuadreData;
 
   const handleAplicar = () => {
+    // BLINDAJE: diasTrabajados DEBE ser string[] de fechas ISO, nunca un número
+    const numDias = typeof d.diasTrabajados === "number" && d.diasTrabajados > 0 ? d.diasTrabajados : 1;
+    const fechaBase = turno.enviado_en ? new Date(turno.enviado_en) : new Date();
+    
+    // Generar arreglo de fechas para los días trabajados
+    const diasArray: string[] = Array.from({ length: numDias }, (_, i) => {
+      const dt = new Date(fechaBase);
+      dt.setDate(dt.getDate() - (numDias - 1 - i));
+      return dt.toISOString().slice(0, 10);
+    });
+
     onCargarAlCuadre({
       puntoVenta: turno.punto_venta,
       dependiente: turno.dependiente,
-      diasTrabajados: d.diasTrabajados || 1,
+      fecha: diasArray[diasArray.length - 1],
+      diasTrabajados: diasArray,
       denominaciones: d.denominaciones || emptyDen(),
       productos: d.productos?.map((p) => ({
         id: p.id,
@@ -1418,83 +1712,43 @@ export function PrecuadreAdminReview({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[88vh] overflow-y-auto rounded-3xl p-5">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto rounded-3xl p-5">
         <DialogHeader>
-          <div className="flex items-center justify-between">
-            <Badge variant="outline" className="text-xs font-bold">
-              {turno.punto_venta}
-            </Badge>
-            <span className="text-xs text-muted-foreground">
-              {turno.enviado_en ? new Date(turno.enviado_en).toLocaleDateString() : ""}
-            </span>
-          </div>
-          <DialogTitle className="text-base font-bold mt-1">
-            Revisión Pre-cuadre: {turno.dependiente}
+          <DialogTitle className="text-base font-extrabold flex items-center justify-between">
+            <span>Pre-cuadre de {turno.dependiente}</span>
+            <Badge variant="outline">{turno.punto_venta}</Badge>
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-3.5 text-xs pt-2">
-          {d.iniciosModificados && (
-            <div className="p-2.5 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-[11px]">
-              <span className="font-bold block">⚠️ Inicios modificados manualmente</span>
-              Motivo: {d.motivoModificacionInicios || "Sin justificación"}
-            </div>
-          )}
-
-          <div className="p-3 rounded-2xl bg-muted/40 border border-border space-y-2">
+        <div className="space-y-3 text-xs pt-2">
+          <div className="p-3 bg-muted/40 rounded-2xl space-y-1.5">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Días trabajados:</span>
               <span className="font-semibold">{d.diasTrabajados || 1} día(s)</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Relevo entrante:</span>
-              <span className="font-semibold">{d.entranteNombre || "Administración / Dueña"}</span>
+              <span className="font-semibold">{d.entranteNombre || "—"}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Venta total reportada:</span>
+              <span className="text-muted-foreground">Venta calculada:</span>
               <span className="font-bold text-primary">${Math.round(d.totalVentas || 0)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Efectivo entregado (CUP + USD):</span>
-              <span className="font-extrabold text-emerald-600 dark:text-emerald-400">
-                ${Math.round(d.efectivoTotal || 0)}
-              </span>
+              <span className="text-muted-foreground">Efectivo declarado:</span>
+              <span className="font-bold">${d.totalEfectivoCUP || 0} CUP</span>
             </div>
           </div>
 
           {d.entranteFirma && (
-            <div>
-              <span className="text-muted-foreground block mb-1 text-[11px] font-semibold">
-                Firma del Relevo:
-              </span>
-              <div className="p-2 border border-border rounded-xl bg-white max-w-[220px]">
-                <img src={d.entranteFirma} alt="Firma relevo" className="max-h-16 object-contain mx-auto" />
-              </div>
-            </div>
-          )}
-
-          {d.gastos && d.gastos.length > 0 && (
-            <div>
-              <span className="font-semibold text-muted-foreground uppercase text-[10px] tracking-wider block mb-1">
-                Gastos y Salidas ({d.gastos.length})
-              </span>
-              <div className="space-y-1">
-                {d.gastos.map((g) => (
-                  <div
-                    key={g.id}
-                    className="flex justify-between items-center p-2 rounded-xl bg-card border border-border"
-                  >
-                    <div>
-                      <span className="font-medium block">{g.receptor}</span>
-                      <span className="text-[10px] text-muted-foreground">
-                        {g.tipo === "producto"
-                          ? `${g.cantidadProducto}x ${g.productoNombre}`
-                          : "Efectivo"}
-                      </span>
-                    </div>
-                    <span className="font-bold">${g.monto}</span>
-                  </div>
-                ))}
+            <div className="space-y-1">
+              <span className="text-muted-foreground font-medium block">Firma del Relevo:</span>
+              <div className="border border-border rounded-xl p-2 bg-white flex justify-center">
+                <img
+                  src={d.entranteFirma}
+                  alt="Firma del relevo"
+                  className="max-h-20 object-contain"
+                />
               </div>
             </div>
           )}
