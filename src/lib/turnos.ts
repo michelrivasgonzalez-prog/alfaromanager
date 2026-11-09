@@ -1,7 +1,32 @@
 import { supabase } from "@/integrations/supabase/client";
-import { PuntoVenta, Producto, Gasto, Denominaciones } from "@/store/cuadreStore";
+import { PuntoVenta, Denominaciones } from "@/store/cuadreStore";
+
+export type GastoPrecuadre = {
+  id: string;
+  receptor: string;
+  tipo: "efectivo" | "producto";
+  productoId?: string;
+  productoNombre?: string;
+  cantidadProducto?: number;
+  monto: number;
+  sinClasificar?: boolean;
+};
+
+export type RecogidaPrecuadre = {
+  id: string;
+  hora: string;
+  monto: number;
+  nota?: string;
+};
 
 export type PrecuadreData = {
+  // Paso 1
+  diasTrabajados: number;
+  // Paso 2: Inicios
+  iniciosDeTurnoAnterior: boolean;
+  iniciosModificados?: boolean;
+  motivoModificacionInicios?: string;
+  // Paso 3 y 4: Inventario
   productos: {
     id: string;
     nombre: string;
@@ -11,19 +36,26 @@ export type PrecuadreData = {
     final: number;
     precio: number;
     categoria?: string;
+    vendidas?: number;
+    importe?: number;
   }[];
-  gastos: {
-    id: string;
-    descripcion: string;
-    monto: number;
-    nombre?: string;
-  }[];
-  denominaciones: Denominaciones;
-  efectivoTotal: number;
+  // Paso 5: Relevo & Firma
   tipoRelevo: "dependiente" | "admin";
-  entranteNombre?: string;
+  entranteNombre: string;
   entranteFirma?: string;
-  notas?: string;
+  entranteValidado?: boolean;
+  // Paso 6: Resumen ventas
+  totalVentas: number;
+  // Paso 7: Gastos y salidas
+  gastos: GastoPrecuadre[];
+  totalGastos: number;
+  // Paso 8: Efectivo y Recogidas
+  recogidas: RecogidaPrecuadre[];
+  totalRecogidas: number;
+  denominaciones: Denominaciones;
+  usdMonto: number;
+  usdTasa: number;
+  efectivoTotal: number;
 };
 
 export type TurnoDependiente = {
@@ -31,6 +63,7 @@ export type TurnoDependiente = {
   punto_venta: PuntoVenta;
   dependiente: string;
   entrante?: string;
+  dias_trabajados?: number;
   estado: "en_curso" | "precuadrado" | "conciliado" | "descartado";
   data: Partial<PrecuadreData>;
   enviado_en?: string;
@@ -40,7 +73,6 @@ export type TurnoDependiente = {
 
 const OFFLINE_KEY = "alfaro_turnos_offline_queue";
 
-// Helper de cola offline
 function getOfflineQueue(): TurnoDependiente[] {
   try {
     return JSON.parse(localStorage.getItem(OFFLINE_KEY) || "[]");
@@ -53,7 +85,7 @@ function saveOfflineQueue(queue: TurnoDependiente[]) {
   localStorage.setItem(OFFLINE_KEY, JSON.stringify(queue));
 }
 
-// Vacía la cola offline cuando vuelve la conexión
+// Sincroniza la cola local con la nube cuando regresa la red
 export async function syncOfflineTurnos(): Promise<void> {
   if (!navigator.onLine) return;
   const queue = getOfflineQueue();
@@ -79,65 +111,6 @@ if (typeof window !== "undefined") {
   });
 }
 
-// API de Turnos
-export async function getTurnoEnCurso(
-  punto: PuntoVenta,
-  dependiente: string
-): Promise<TurnoDependiente | null> {
-  try {
-    const { data, error } = await supabase
-      .from("turnos_dependiente" as any)
-      .select("*")
-      .eq("punto_venta", punto)
-      .eq("dependiente", dependiente)
-      .eq("estado", "en_curso")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (error || !data) return null;
-    return data as TurnoDependiente;
-  } catch {
-    return null;
-  }
-}
-
-export async function guardarTurnoEnCurso(
-  turno: Partial<TurnoDependiente> & { punto_venta: PuntoVenta; dependiente: string }
-): Promise<TurnoDependiente> {
-  const record: TurnoDependiente = {
-    id: turno.id || crypto.randomUUID(),
-    punto_venta: turno.punto_venta,
-    dependiente: turno.dependiente,
-    estado: "en_curso",
-    data: turno.data || {},
-    updated_at: new Date().toISOString(),
-  };
-
-  if (!navigator.onLine) {
-    const queue = getOfflineQueue().filter((q) => q.id !== record.id);
-    queue.push(record);
-    saveOfflineQueue(queue);
-    return record;
-  }
-
-  try {
-    const { data, error } = await supabase
-      .from("turnos_dependiente" as any)
-      .upsert(record)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data as TurnoDependiente;
-  } catch {
-    const queue = getOfflineQueue().filter((q) => q.id !== record.id);
-    queue.push(record);
-    saveOfflineQueue(queue);
-    return record;
-  }
-}
-
 export async function enviarPrecuadre(
   turnoId: string,
   punto: PuntoVenta,
@@ -149,6 +122,7 @@ export async function enviarPrecuadre(
     punto_venta: punto,
     dependiente,
     entrante: precuadre.entranteNombre,
+    dias_trabajados: precuadre.diasTrabajados || 1,
     estado: "precuadrado",
     data: precuadre,
     enviado_en: new Date().toISOString(),
