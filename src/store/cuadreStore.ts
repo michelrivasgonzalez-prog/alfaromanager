@@ -133,18 +133,14 @@ export type Cuadre = {
   salarioModo: SalarioModo;
   porcentajeVenta: number;
   salarioDenominaciones: Denominaciones;
+  salarioExcepcionesProductos?: SalarioProductoExcepcion[]; // <-- AGREGAR ESTA LÍNEA
   finalizado: boolean;
-  /** ID de la cuenta por cobrar creada por el faltante del dependiente. */
   deudaDependienteId?: string | null;
-  /** Monto del salario usado para pagar deudas propias del dependiente. */
   descuentoDeudas?: number;
-  /** ID del abono creado al descontar deudas del salario. */
   abonoDeudasId?: string | null;
-  /** Recogidas de efectivo hechas durante el turno (antes del arqueo final). */
   recogidas?: Recogida[];
-  /** Turno del que se importaron los finales como inicios. */
   importadoDe?: string;
-precuadre?: {
+  precuadre?: {
     turnoId?: string;
     tipoRelevo?: "dependiente" | "admin";
     entrante?: string;
