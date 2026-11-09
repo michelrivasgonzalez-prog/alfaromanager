@@ -1096,3 +1096,162 @@ export function PrecuadreDependiente({
     </Dialog>
   );
 }
+// Modal para que el Administrador revise el pre-cuadre de 9 pasos y lo traslade al Cuadre oficial
+interface PrecuadreAdminReviewProps {
+  turno: TurnoDependiente | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCargarAlCuadre: (cuadre: Partial<Cuadre>) => void;
+}
+
+export function PrecuadreAdminReview({
+  turno,
+  open,
+  onOpenChange,
+  onCargarAlCuadre,
+}: PrecuadreAdminReviewProps) {
+  if (!turno || !turno.data) return null;
+  const d = turno.data as PrecuadreData;
+
+  const handleAplicar = () => {
+    onCargarAlCuadre({
+      puntoVenta: turno.punto_venta,
+      dependiente: turno.dependiente,
+      diasTrabajados: d.diasTrabajados || 1,
+      denominaciones: d.denominaciones || emptyDen(),
+      productos: d.productos?.map((p) => ({
+        id: p.id,
+        nombre: p.nombre,
+        inicio: p.inicio,
+        entradas: p.entradas,
+        traslados: p.traslados,
+        final: p.final,
+        precio: p.precio,
+        costo: 0,
+        categoria: p.categoria,
+      })),
+      gastos: d.gastos?.map((g) => ({
+        id: g.id,
+        categoria: "Local",
+        tipo: g.tipo === "producto" ? "Producto" : "Efectivo",
+        nombre: g.receptor || turno.dependiente,
+        descripcion:
+          g.tipo === "producto"
+            ? `${g.cantidadProducto}x ${g.productoNombre || "Producto"} (${g.receptor})`
+            : g.receptor,
+        monto: g.monto,
+        sinClasificar: true,
+      })),
+      recogidas: d.recogidas?.map((r) => ({
+        id: r.id,
+        hora: r.hora,
+        monto: r.monto,
+        pendiente: true,
+        nota: r.nota,
+      })),
+      precuadre: {
+        turnoId: turno.id,
+        tipoRelevo: d.tipoRelevo,
+        entrante: d.entranteNombre,
+        firma: d.entranteFirma,
+        firmadoEn: turno.enviado_en,
+      },
+    });
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md max-h-[88vh] overflow-y-auto rounded-3xl p-5">
+        <DialogHeader>
+          <div className="flex items-center justify-between">
+            <Badge variant="outline" className="text-xs font-bold">
+              {turno.punto_venta}
+            </Badge>
+            <span className="text-xs text-muted-foreground">
+              {turno.enviado_en ? new Date(turno.enviado_en).toLocaleDateString() : ""}
+            </span>
+          </div>
+          <DialogTitle className="text-base font-bold mt-1">
+            Revisión Pre-cuadre: {turno.dependiente}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3.5 text-xs pt-2">
+          {/* Alerta de inicios modificados si la dependienta abrió el candado */}
+          {d.iniciosModificados && (
+            <div className="p-2.5 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-[11px]">
+              <span className="font-bold block">⚠️ Inicios modificados manualmente</span>
+              Motivo: {d.motivoModificacionInicios || "Sin justificación"}
+            </div>
+          )}
+
+          {/* Resumen general */}
+          <div className="p-3 rounded-2xl bg-muted/40 border border-border space-y-2">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Días trabajados:</span>
+              <span className="font-semibold">{d.diasTrabajados || 1} día(s)</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Relevo entrante:</span>
+              <span className="font-semibold">{d.entranteNombre || "Administración / Dueña"}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Venta total reportada:</span>
+              <span className="font-bold text-primary">${Math.round(d.totalVentas || 0)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Efectivo entregado (CUP + USD):</span>
+              <span className="font-extrabold text-emerald-600 dark:text-emerald-400">
+                ${Math.round(d.efectivoTotal || 0)}
+              </span>
+            </div>
+          </div>
+
+          {/* Firma digital */}
+          {d.entranteFirma && (
+            <div>
+              <span className="text-muted-foreground block mb-1 text-[11px] font-semibold">
+                Firma del Relevo:
+              </span>
+              <div className="p-2 border border-border rounded-xl bg-white max-w-[220px]">
+                <img src={d.entranteFirma} alt="Firma relevo" className="max-h-16 object-contain mx-auto" />
+              </div>
+            </div>
+          )}
+
+          {/* Gastos declarados */}
+          {d.gastos && d.gastos.length > 0 && (
+            <div>
+              <span className="font-semibold text-muted-foreground uppercase text-[10px] tracking-wider block mb-1">
+                Gastos y Salidas ({d.gastos.length})
+              </span>
+              <div className="space-y-1">
+                {d.gastos.map((g) => (
+                  <div
+                    key={g.id}
+                    className="flex justify-between items-center p-2 rounded-xl bg-card border border-border"
+                  >
+                    <div>
+                      <span className="font-medium block">{g.receptor}</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {g.tipo === "producto"
+                          ? `${g.cantidadProducto}x ${g.productoNombre}`
+                          : "Efectivo"}
+                      </span>
+                    </div>
+                    <span className="font-bold">${g.monto}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <Button className="w-full rounded-2xl font-bold mt-2" onClick={handleAplicar}>
+            Cargar al Cuadre Oficial <ArrowRight className="ml-1.5 h-4 w-4" />
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
