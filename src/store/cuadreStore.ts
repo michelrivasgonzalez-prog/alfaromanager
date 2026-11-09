@@ -90,12 +90,14 @@ export type Denominaciones = Record<string, number>;
 export type PuntoVenta = "Cafetería" | "Mipyme";
 export const PUNTOS: PuntoVenta[] = ["Cafetería", "Mipyme"];
 
-export type SalarioModo = "base" | "porcentaje" | "mixto";
+export type SalarioModo = "base" | "porcentaje" | "mixto" | "comision_producto";
 export const SALARIO_MODOS: { value: SalarioModo; label: string; desc: string }[] = [
   { value: "base", label: "Salario base/día", desc: "Salario base por día × días trabajados" },
-  { value: "porcentaje", label: "% de venta", desc: "Porcentaje del total de ventas" },
+  { value: "porcentaje", label: "% de venta", desc: "Porcentaje estándar de la venta total" },
   { value: "mixto", label: "Base o % (el mayor)", desc: "El mayor entre el salario base y el % de venta" },
+  { value: "comision_producto", label: "% venta + tarifas fijas x producto", desc: "% de venta general (ej. 2.5%) más tarifa fija por unidad de productos seleccionados" },
 ];
+
 export type SalarioProductoExcepcion = {
   id: string;
   productoNombre: string;
@@ -939,18 +941,19 @@ export const calcCuadre = (c: Cuadre) => {
   // Diferencia simple: en caja - a depositar  (positivo = sobrante / propina, negativo = faltante)
   const diferencia = efectivoEnCaja - efectivoADepositar;
 
-  const diasCount = c.diasTrabajados.length;
+    const diasCount = c.diasTrabajados.length;
   const modo: SalarioModo = c.salarioModo ?? "base";
   const pct = c.porcentajeVenta ?? 0;
   const salarioBasePeriodo = diasCount * c.salarioBase;
 
   // --- CÁLCULO CON PRODUCTOS EXCLUIDOS Y TARIFA FIJA ---
-  const excepciones = c.salarioExcepcionesProductos ?? [];
+  // Solo se aplica si el modo seleccionado en este cuadre es "comision_producto"
+  const excepciones = modo === "comision_producto" ? (c.salarioExcepcionesProductos ?? []) : [];
   let comisionFijaTotal = 0;
   let ventaExcluidaTotal = 0;
   const desgloseExcepciones: { nombre: string; unidades: number; tarifa: number; total: number }[] = [];
 
-  if (excepciones.length > 0) {
+  if (modo === "comision_producto" && excepciones.length > 0) {
     for (const exc of excepciones) {
       const prodMatch = productos.find(
         (p) => p.nombre.trim().toLowerCase() === exc.productoNombre.trim().toLowerCase()
@@ -971,11 +974,13 @@ export const calcCuadre = (c: Cuadre) => {
   }
 
   const ventaGeneral = Math.max(0, totalVenta - ventaExcluidaTotal);
-  const salarioPorPorcentaje = (ventaGeneral * (pct / 100)) + comisionFijaTotal;
+  const salarioPorPorcentaje = modo === "comision_producto"
+    ? (ventaGeneral * (pct / 100)) + comisionFijaTotal
+    : (totalVenta * (pct / 100));
   // -----------------------------------------------------
 
   const salarioBruto =
-    modo === "porcentaje"
+    modo === "porcentaje" || modo === "comision_producto"
       ? salarioPorPorcentaje
       : modo === "mixto"
       ? Math.max(salarioBasePeriodo, salarioPorPorcentaje)
