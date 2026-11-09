@@ -11,9 +11,10 @@ import { PrecuadreDependiente } from "@/components/cuadre/Precuadre";
 export default function PortalDependiente() {
   const { nombre } = useAuth();
   const { history, currents, activePunto, catalogo, settings } = useCuadreStore();
-  
+
   // 1. Inicia directamente en "historial" (Mis Liquidaciones)
   const [tab, setTab] = useState<"historial" | "turno">("historial");
+
   // 2. Control de página completa para el pre-cuadre (sin modal flotante)
   const [entregandoTurno, setEntregandoTurno] = useState(false);
 
@@ -22,14 +23,20 @@ export default function PortalDependiente() {
   const ultimoCuadre = useMemo(() => {
     return history
       .filter((c) => c.puntoVenta === activePunto)
-      .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())[0];
+      .sort(
+        (a, b) =>
+          new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
+      )[0];
   }, [history, activePunto]);
 
   // Cuadres trabajados históricamente por la dependienta
   const misCuadres = useMemo(() => {
     if (!nombre) return [];
+
     return history.filter(
-      (c) => c.dependiente.trim().toLowerCase() === nombre.trim().toLowerCase()
+      (c) =>
+        c.dependiente.trim().toLowerCase() ===
+        nombre.trim().toLowerCase()
     );
   }, [history, nombre]);
 
@@ -46,10 +53,14 @@ export default function PortalDependiente() {
       diferenciasSumadas += res.diferencia;
     });
 
-    return { salarioTotal, salarioRealTotal, diferenciasSumadas };
+    return {
+      salarioTotal,
+      salarioRealTotal,
+      diferenciasSumadas,
+    };
   }, [misCuadres]);
 
-  // Productos del turno: ÚNICAMENTE los que tienen existencias al inicio (> 0)
+  // Productos del turno: únicamente los que tienen existencias al inicio
   const productosTurno = useMemo(() => {
     let prods: {
       id: string;
@@ -78,6 +89,7 @@ export default function PortalDependiente() {
           const anterior = ultimoCuadre?.productos?.find(
             (p) => p.id === c.id || p.nombre === c.nombre
           );
+
           return {
             id: c.id,
             nombre: c.nombre,
@@ -90,22 +102,26 @@ export default function PortalDependiente() {
         });
     }
 
-    // Regla estricta: sólo los productos con existencias en el inicio del turno
+    // Solo los productos con existencias al inicio del turno
     return prods.filter((p) => (p.inicio || 0) > 0);
   }, [cuadreActual, catalogo, activePunto, ultimoCuadre]);
 
-  // Si está entregando turno, se renderiza la página completa de Precuadre
+  // Página completa de entrega del turno
   if (entregandoTurno) {
     return (
       <PrecuadreDependiente
         puntoInicial={activePunto}
-        dependienteActual={nombre || ""}
-        onSalir={() => {
-          if (window.confirm("¿Segura que deseas volver al portal? Los cambios no guardados se perderán.")) {
+        dependienteInicial={nombre || ""}
+        onCancelar={() => {
+          if (
+            window.confirm(
+              "¿Segura que deseas volver al portal? Los cambios no guardados se perderán."
+            )
+          ) {
             setEntregandoTurno(false);
           }
         }}
-        onCompletado={() => {
+        onFinalizado={() => {
           setEntregandoTurno(false);
           setTab("historial");
         }}
@@ -115,68 +131,103 @@ export default function PortalDependiente() {
 
   return (
     <div className="space-y-6 pb-6">
-      {/* Cabecera con Avatar de 64px */}
+      {/* Cabecera */}
       <div className="rounded-3xl border border-border bg-card p-5 shadow-soft">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3.5">
-            <Avatar nombre={nombre || "Dependiente"} size={64} className="rounded-2xl shadow-sm" />
+            <Avatar
+              nombre={nombre || "Dependiente"}
+              size={64}
+              className="rounded-2xl shadow-sm"
+            />
+
             <div>
               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Portal del Dependiente
               </span>
-              <h1 className="text-2xl font-bold">{nombre || "Dependiente"}</h1>
+
+              <h1 className="text-2xl font-bold">
+                {nombre || "Dependiente"}
+              </h1>
             </div>
           </div>
-          <Badge variant="outline" className="text-xs px-3 py-1 font-bold">
+
+          <Badge
+            variant="outline"
+            className="text-xs px-3 py-1 font-bold"
+          >
             📍 {activePunto}
           </Badge>
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Pestañas */}
       <div className="flex rounded-2xl border border-border bg-muted/40 p-1">
         <button
           onClick={() => setTab("historial")}
           className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${
-            tab === "historial" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
+            tab === "historial"
+              ? "bg-card text-foreground shadow-sm"
+              : "text-muted-foreground"
           }`}
         >
-          <Calendar className="h-4 w-4" /> Mis Liquidaciones
+          <Calendar className="h-4 w-4" />
+          Mis Liquidaciones
         </button>
+
         <button
           onClick={() => setTab("turno")}
           className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${
-            tab === "turno" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
+            tab === "turno"
+              ? "bg-card text-foreground shadow-sm"
+              : "text-muted-foreground"
           }`}
         >
-          <Clock className="h-4 w-4" /> Turno en Curso
+          <Clock className="h-4 w-4" />
+          Turno en Curso
         </button>
       </div>
 
-      {/* Vista de Historial / Liquidaciones (Principal) */}
+      {/* Historial y liquidaciones */}
       {tab === "historial" && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
               <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                <Calendar className="h-4 w-4 text-primary" /> Turnos
+                <Calendar className="h-4 w-4 text-primary" />
+                Turnos
               </div>
-              <div className="mt-2 text-2xl font-bold text-foreground">{misCuadres.length}</div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">completados</div>
+
+              <div className="mt-2 text-2xl font-bold text-foreground">
+                {misCuadres.length}
+              </div>
+
+              <div className="text-[11px] text-muted-foreground mt-0.5">
+                completados
+              </div>
             </div>
 
             <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
               <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                <Wallet className="h-4 w-4 text-emerald-500" /> Salarios Reales
+                <Wallet className="h-4 w-4 text-emerald-500" />
+                Salarios Reales
               </div>
-              <div className="mt-2 text-2xl font-bold text-foreground">${Math.round(metricas.salarioRealTotal)}</div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">cobrados</div>
+
+              <div className="mt-2 text-2xl font-bold text-foreground">
+                ${Math.round(metricas.salarioRealTotal)}
+              </div>
+
+              <div className="text-[11px] text-muted-foreground mt-0.5">
+                cobrados
+              </div>
             </div>
 
             <div className="rounded-2xl border border-border bg-card p-4 shadow-soft col-span-2">
               <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                <Scale className="h-4 w-4 text-amber-500" /> Balance de Faltantes / Sobrantes
+                <Scale className="h-4 w-4 text-amber-500" />
+                Balance de Faltantes / Sobrantes
               </div>
+
               <div
                 className={`mt-2 text-2xl font-bold ${
                   metricas.diferenciasSumadas < 0
@@ -197,15 +248,24 @@ export default function PortalDependiente() {
             {misCuadres.map((c) => {
               const res = calcCuadre(c);
               const diff = res.diferencia;
+
               return (
-                <div key={c.id} className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3">
+                <div
+                  key={c.id}
+                  className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3"
+                >
                   <div className="flex items-center justify-between pb-2 border-b border-border/40">
                     <div>
-                      <div className="text-sm font-semibold text-foreground">📍 {c.puntoVenta}</div>
+                      <div className="text-sm font-semibold text-foreground">
+                        📍 {c.puntoVenta}
+                      </div>
+
                       <div className="text-xs text-muted-foreground">
-                        {formatDiasTrabajados(c.diasTrabajados) || "Fecha no especificada"}
+                        {formatDiasTrabajados(c.diasTrabajados) ||
+                          "Fecha no especificada"}
                       </div>
                     </div>
+
                     <span
                       className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         diff < 0
@@ -225,12 +285,23 @@ export default function PortalDependiente() {
 
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div className="bg-muted/40 p-2.5 rounded-xl space-y-0.5">
-                      <span className="text-muted-foreground text-[11px]">Ventas Totales</span>
-                      <div className="font-semibold text-sm text-foreground">${Math.round(res.totalVenta)}</div>
+                      <span className="text-muted-foreground text-[11px]">
+                        Ventas Totales
+                      </span>
+
+                      <div className="font-semibold text-sm text-foreground">
+                        ${Math.round(res.totalVenta)}
+                      </div>
                     </div>
+
                     <div className="bg-muted/40 p-2.5 rounded-xl space-y-0.5">
-                      <span className="text-muted-foreground text-[11px]">Salario Cobrado</span>
-                      <div className="font-semibold text-sm text-primary">${Math.round(res.salarioReal)}</div>
+                      <span className="text-muted-foreground text-[11px]">
+                        Salario Cobrado
+                      </span>
+
+                      <div className="font-semibold text-sm text-primary">
+                        ${Math.round(res.salarioReal)}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -240,7 +311,7 @@ export default function PortalDependiente() {
         </div>
       )}
 
-      {/* Vista de Turno en Curso */}
+      {/* Turno en curso */}
       {tab === "turno" && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -248,39 +319,57 @@ export default function PortalDependiente() {
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                 Inventario con Inicio ({productosTurno.length} productos)
               </h2>
-              <p className="text-xs text-muted-foreground">Productos activos en mostrador</p>
+
+              <p className="text-xs text-muted-foreground">
+                Productos activos en mostrador
+              </p>
             </div>
+
             <Button
               className="rounded-2xl font-bold text-xs"
               onClick={() => setEntregandoTurno(true)}
             >
-              <Send className="mr-1.5 h-3.5 w-3.5" /> Entregar Turno
+              <Send className="mr-1.5 h-3.5 w-3.5" />
+              Entregar Turno
             </Button>
           </div>
 
           <div className="space-y-2">
             {productosTurno.length === 0 ? (
               <div className="p-8 text-center rounded-2xl border border-dashed border-border text-muted-foreground text-xs">
-                No hay productos con existencias iniciales mayores a 0 en este turno.
+                No hay productos con existencias iniciales mayores a 0
+                en este turno.
               </div>
             ) : (
               productosTurno.map((p) => {
-                const disponible = (p.inicio || 0) + (p.entradas || 0) - (p.traslados || 0);
                 return (
                   <div
                     key={p.id}
                     className="flex items-center justify-between p-3.5 rounded-2xl border border-border bg-card shadow-soft"
-                  >          
-                  <div>
-            <div className="font-semibold text-sm">{p.nombre}</div>
-            <div className="text-xs text-muted-foreground mt-0.5">
-              Inicio: <span className="font-semibold text-foreground">{p.inicio ?? 0} und</span>
-            </div>
-          </div>
-          <div className="text-right">
-            <span className="text-xs text-muted-foreground block">Precio de venta</span>
-            <span className="text-base font-bold text-primary">${p.precio}</span>
-          </div>
+                  >
+                    <div>
+                      <div className="font-semibold text-sm">
+                        {p.nombre}
+                      </div>
+
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        Inicio:{" "}
+                        <span className="font-semibold text-foreground">
+                          {p.inicio ?? 0} und
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <span className="text-xs text-muted-foreground block">
+                        Precio de venta
+                      </span>
+
+                      <span className="text-base font-bold text-primary">
+                        ${p.precio}
+                      </span>
+                    </div>
+                  </div>
                 );
               })
             )}
