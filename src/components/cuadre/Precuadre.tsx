@@ -381,7 +381,29 @@ export function PrecuadreDependiente({
       0
     );
   }, [denoms]);
+  const efectivoArqueado =
+    totalEfectivoCUP +
+    (parseFloat(usdMonto) || 0) * (parseFloat(usdTasa) || 0);
 
+  const diferencia =
+    Math.round((efectivoArqueado + totalRecogidas - (totalVentas - totalGastos)) * 100) / 100;
+
+  const validarPrecios = () => {
+    const producto = resumenProductos.find((p) =>
+      p.vendidas > 0 &&
+      (
+        !Number.isFinite(p.precioActual) ||
+        p.precioActual <= 0 ||
+        (p.mixtoInfo && p.mixtoInfo.cantPrecioAnterior > 0 &&
+          (!Number.isFinite(p.mixtoInfo.precioAnterior) || p.mixtoInfo.precioAnterior <= 0))
+      )
+    );
+
+    if (!producto) return true;
+    toast.error(`Revisa el precio de ${producto.nombre} antes de continuar.`);
+    setPaso(6);
+    return false;
+  };
   // Paso 3: productos con disponibilidad arriba
   const productosOrdenadosPaso3 = useMemo(() => {
     const q = busquedaPaso3.toLowerCase().trim();
@@ -779,7 +801,8 @@ export function PrecuadreDependiente({
   };
 
   // Enviar pre-cuadre final
-  const handleEnviar = async () => {
+    const handleEnviar = async () => {
+    if (!validarPrecios()) return;
     setEnviando(true);
 
     try {
@@ -1833,14 +1856,7 @@ export function PrecuadreDependiente({
                 </span>
               </div>
 
-              <Badge className="bg-primary text-primary-foreground font-bold text-xs py-1 px-3">
-                {resumenProductos.reduce(
-                  (acc, p) =>
-                    acc + p.vendidas,
-                  0
-                )}{" "}
-                u. vendidas
-              </Badge>
+              
             </div>
 
             <div className="space-y-2">
@@ -1866,9 +1882,7 @@ export function PrecuadreDependiente({
                           </div>
 
                           <div className="text-[11px] text-muted-foreground mt-0.5">
-                            {p.vendidas} u. vendidas
-                            (Disponible:{" "}
-                            {p.disponible})
+                                                        Inicio {p.inicio} · Entrada {p.entradas} · Traslado {p.traslados} · Final {p.final} · Venta {p.vendidas}
                           </div>
                         </div>
 
@@ -1912,7 +1926,20 @@ export function PrecuadreDependiente({
                           </Button>
                         </div>
                       </div>
-
+                      <label className="block text-xs text-muted-foreground">
+                        Precio base (CUP)
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={p.precioActual || ""}
+                          onChange={(e) => {
+                            const precio = Number(e.target.value);
+                            setPreciosEditados((prev) => ({ ...prev, [p.id]: precio }));
+                          }}
+                          className="mt-1 h-8 rounded-lg"
+                        />
+                      </label>
                       {mixto?.activo && (
                         <div className="p-2.5 rounded-xl bg-muted/40 border border-border grid grid-cols-2 gap-2 mt-2">
                           <div>
@@ -2003,7 +2030,9 @@ export function PrecuadreDependiente({
 
               <Button
                 className="rounded-2xl flex-1 font-bold h-12"
-                onClick={() => setPaso(7)}
+                                onClick={() => {
+                  if (validarPrecios()) setPaso(7);
+                }}
               >
                 Declarar Gastos
                 <ArrowRight className="ml-1 h-4 w-4" />
@@ -2471,7 +2500,24 @@ export function PrecuadreDependiente({
                 </div>
               </div>
             </div>
-
+            <div className="rounded-2xl border border-border bg-card p-4 text-sm">
+              {diferencia < 0 ? (
+                <p className="font-bold text-destructive">
+                  Faltante de {Math.abs(diferencia).toFixed(2)} CUP
+                </p>
+              ) : diferencia > 0 ? (
+                <>
+                  <p className="font-bold text-emerald-700 dark:text-emerald-400">
+                    Sobrante de {diferencia.toFixed(2)} CUP
+                  </p>
+                  <p className="mt-1 text-muted-foreground">
+                    El sobrante se agrega a tu salario al conciliar el cuadre.
+                  </p>
+                </>
+              ) : (
+                <p className="font-bold">Cuadrado · 0.00 CUP de diferencia</p>
+              )}
+            </div>
             <Button
               className="w-full rounded-2xl font-bold h-14 text-base shadow-lg"
               disabled={enviando}
