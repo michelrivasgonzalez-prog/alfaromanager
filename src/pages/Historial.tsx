@@ -796,10 +796,12 @@ function CuadreDetalle({ c }: { c: Cuadre }) {
             label="Modo"
             value={
               r.salarioModo === "porcentaje"
-                ? `${r.porcentajeVenta}% de venta`
-                : r.salarioModo === "mixto"
-                ? `Base o ${r.porcentajeVenta}% (mayor)`
-                : "Base/día"
+  ? `${r.porcentajeVenta}% de venta`
+  : r.salarioModo === "mixto"
+  ? `Base o ${r.porcentajeVenta}% (mayor)`
+  : r.salarioModo === "comision_producto"
+  ? `${r.porcentajeVenta}% + tarifas fijas`
+  : "Base/día"
             }
           />
           <Row label="Salario base/día" value={fmt(c.salarioBase)} />
