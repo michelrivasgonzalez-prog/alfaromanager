@@ -1,9 +1,9 @@
 import { useState, useMemo } from "react";
-import { useCuadreStore, calcCuadre, PuntoVenta } from "@/store/cuadreStore";
+import { useCuadreStore, calcCuadre } from "@/store/cuadreStore";
 import { useAuth } from "@/hooks/useAuth";
-import { User, Calendar, DollarSign, Wallet, Scale, Clock, Send, PackagePlus, ArrowRightLeft } from "lucide-react";
+import { Calendar, Scale, Clock, Send, Wallet } from "lucide-react";
 import { formatDiasTrabajados } from "@/lib/dias";
-import { Avatar } from "@/components/Avatar";
+import Avatar from "@/components/Avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PrecuadreDependiente } from "@/components/cuadre/Precuadre";
@@ -11,13 +11,14 @@ import { PrecuadreDependiente } from "@/components/cuadre/Precuadre";
 export default function PortalDependiente() {
   const { nombre } = useAuth();
   const { history, currents, activePunto, catalogo } = useCuadreStore();
-  const [tab, setTab] = useState<"turno" | "historial">("turno");
+  
+  // 1. Inicia directamente en "historial" (Mis Liquidaciones) por defecto
+  const [tab, setTab] = useState<"historial" | "turno">("historial");
   const [modalPrecuadre, setModalPrecuadre] = useState(false);
 
-  // Cuadre en curso para este punto
   const cuadreActual = currents[activePunto];
 
-  // 1. Filtrar cuadres trabajados históricamente
+  // Cuadres trabajados históricamente
   const misCuadres = useMemo(() => {
     if (!nombre) return [];
     return history.filter(
@@ -25,7 +26,7 @@ export default function PortalDependiente() {
     );
   }, [history, nombre]);
 
-  // 2. Calcular métricas agregadas
+  // Métricas agregadas
   const metricas = useMemo(() => {
     let salarioTotal = 0;
     let salarioRealTotal = 0;
@@ -41,7 +42,7 @@ export default function PortalDependiente() {
     return { salarioTotal, salarioRealTotal, diferenciasSumadas };
   }, [misCuadres]);
 
-  // Productos para el pre-cuadre
+  // Productos para el turno
   const productosTurno = useMemo(() => {
     if (cuadreActual?.productos && cuadreActual.productos.length > 0) {
       return cuadreActual.productos;
@@ -61,11 +62,11 @@ export default function PortalDependiente() {
 
   return (
     <div className="space-y-6 pb-6">
-      {/* Cabecera */}
+      {/* Cabecera con Avatar más grande */}
       <div className="rounded-3xl border border-border bg-card p-5 shadow-soft">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Avatar nombre={nombre || "Dependiente"} size={48} className="rounded-2xl" />
+          <div className="flex items-center gap-3.5">
+            <Avatar nombre={nombre || "Dependiente"} size={64} className="rounded-2xl shadow-sm" />
             <div>
               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Portal del Dependiente
@@ -82,14 +83,6 @@ export default function PortalDependiente() {
       {/* Tabs */}
       <div className="flex rounded-2xl border border-border bg-muted/40 p-1">
         <button
-          onClick={() => setTab("turno")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${
-            tab === "turno" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
-          }`}
-        >
-          <Clock className="h-4 w-4" /> Turno en Curso
-        </button>
-        <button
           onClick={() => setTab("historial")}
           className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${
             tab === "historial" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
@@ -97,60 +90,17 @@ export default function PortalDependiente() {
         >
           <Calendar className="h-4 w-4" /> Mis Liquidaciones
         </button>
+        <button
+          onClick={() => setTab("turno")}
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${
+            tab === "turno" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
+          }`}
+        >
+          <Clock className="h-4 w-4" /> Turno en Curso
+        </button>
       </div>
 
-      {/* Vista de Turno en Curso */}
-      {tab === "turno" && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                Inventario del Turno ({productosTurno.length} productos)
-              </h2>
-              <p className="text-xs text-muted-foreground">Disponibilidad en mostrador</p>
-            </div>
-            <Button
-              className="rounded-2xl font-bold text-xs"
-              onClick={() => setModalPrecuadre(true)}
-            >
-              <Send className="mr-1.5 h-3.5 w-3.5" /> Entregar Turno
-            </Button>
-          </div>
-
-          <div className="space-y-2">
-            {productosTurno.map((p) => {
-              const disponible = (p.inicio || 0) + (p.entradas || 0) - (p.traslados || 0);
-              return (
-                <div
-                  key={p.id}
-                  className="flex items-center justify-between p-3.5 rounded-2xl border border-border bg-card shadow-soft"
-                >
-                  <div>
-                    <div className="font-semibold text-sm">{p.nombre}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      Precio de venta: <span className="font-semibold text-foreground">${p.precio}</span>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xs text-muted-foreground block">Disponible</span>
-                    <span className="text-base font-bold text-primary">{disponible}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <PrecuadreDependiente
-            open={modalPrecuadre}
-            onOpenChange={setModalPrecuadre}
-            punto={activePunto}
-            dependiente={nombre || "Dependiente"}
-            productosIniciales={productosTurno}
-          />
-        </div>
-      )}
-
-      {/* Vista de Historial / Liquidaciones */}
+      {/* Vista de Historial / Liquidaciones (Principal) */}
       {tab === "historial" && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-3">
@@ -234,6 +184,58 @@ export default function PortalDependiente() {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* Vista de Turno en Curso */}
+      {tab === "turno" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Inventario del Turno ({productosTurno.length} productos)
+              </h2>
+              <p className="text-xs text-muted-foreground">Disponibilidad en mostrador</p>
+            </div>
+            <Button
+              className="rounded-2xl font-bold text-xs"
+              onClick={() => setModalPrecuadre(true)}
+            >
+              <Send className="mr-1.5 h-3.5 w-3.5" /> Entregar Turno
+            </Button>
+          </div>
+
+          <div className="space-y-2">
+            {productosTurno.map((p) => {
+              const disponible = (p.inicio || 0) + (p.entradas || 0) - (p.traslados || 0);
+              return (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between p-3.5 rounded-2xl border border-border bg-card shadow-soft"
+                >
+                  {/* Datos invertidos: Disponible en el texto secundario */}
+                  <div>
+                    <div className="font-semibold text-sm">{p.nombre}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      Disponible: <span className="font-semibold text-foreground">{disponible} u.</span>
+                    </div>
+                  </div>
+                  {/* Precio de venta en el bloque numérico grande de la derecha */}
+                  <div className="text-right">
+                    <span className="text-xs text-muted-foreground block">Precio de venta</span>
+                    <span className="text-base font-bold text-primary">${p.precio}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <PrecuadreDependiente
+            open={modalPrecuadre}
+            onOpenChange={setModalPrecuadre}
+            puntoInicial={activePunto}
+            dependienteActual={nombre || ""}
+          />
         </div>
       )}
     </div>
