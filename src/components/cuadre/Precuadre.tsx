@@ -5,9 +5,16 @@ import {
   emptyDen,
   DENOMINACIONES,
   Denominaciones,
+  Cuadre,
 } from "@/store/cuadreStore";
 import { usePinStore, hashPin } from "@/store/pinStore";
-import { PrecuadreData, enviarPrecuadre, GastoPrecuadre, RecogidaPrecuadre } from "@/lib/turnos";
+import {
+  PrecuadreData,
+  enviarPrecuadre,
+  GastoPrecuadre,
+  RecogidaPrecuadre,
+  TurnoDependiente,
+} from "@/lib/turnos";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
