@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
-import { useCuadreStore, calcCuadre } from "@/store/cuadreStore";
+import { useCuadreStore, calcCuadre, puntoHabitual } from "@/store/cuadreStore";
 import { useAuth } from "@/hooks/useAuth";
-import { Calendar, Scale, Clock, Send, Wallet } from "lucide-react";
+import { Calendar, Scale, Clock, Send, Wallet, ArrowLeft } from "lucide-react";
 import { formatDiasTrabajados } from "@/lib/dias";
 import Avatar from "@/components/Avatar";
 import { Button } from "@/components/ui/button";
@@ -10,15 +10,22 @@ import { PrecuadreDependiente } from "@/components/cuadre/Precuadre";
 
 export default function PortalDependiente() {
   const { nombre } = useAuth();
-  const { history, currents, activePunto, catalogo } = useCuadreStore();
+  const { history, currents, activePunto, catalogo, settings } = useCuadreStore();
   
-  // 1. Inicia directamente en "historial" (Mis Liquidaciones) por defecto
+  // 1. Inicia directamente en "historial" (Mis Liquidaciones)
   const [tab, setTab] = useState<"historial" | "turno">("historial");
-  const [modalPrecuadre, setModalPrecuadre] = useState(false);
+  // 2. Control de página completa para el pre-cuadre (sin modal flotante)
+  const [entregandoTurno, setEntregandoTurno] = useState(false);
 
   const cuadreActual = currents[activePunto];
 
-  // Cuadres trabajados históricamente
+  const ultimoCuadre = useMemo(() => {
+    return history
+      .filter((c) => c.puntoVenta === activePunto)
+      .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())[0];
+  }, [history, activePunto]);
+
+  // Cuadres trabajados históricamente por la dependienta
   const misCuadres = useMemo(() => {
     if (!nombre) return [];
     return history.filter(
@@ -26,7 +33,7 @@ export default function PortalDependiente() {
     );
   }, [history, nombre]);
 
-  // Métricas agregadas
+  // Métricas acumuladas
   const metricas = useMemo(() => {
     let salarioTotal = 0;
     let salarioRealTotal = 0;
@@ -42,27 +49,73 @@ export default function PortalDependiente() {
     return { salarioTotal, salarioRealTotal, diferenciasSumadas };
   }, [misCuadres]);
 
-  // Productos para el turno
+  // Productos del turno: ÚNICAMENTE los que tienen existencias al inicio (> 0)
   const productosTurno = useMemo(() => {
+    let prods: {
+      id: string;
+      nombre: string;
+      inicio: number;
+      entradas: number;
+      traslados: number;
+      precio: number;
+      categoria?: string;
+    }[] = [];
+
     if (cuadreActual?.productos && cuadreActual.productos.length > 0) {
-      return cuadreActual.productos;
-    }
-    return catalogo
-      .filter((c) => !c.punto || c.punto === activePunto)
-      .map((c) => ({
-        id: c.id,
-        nombre: c.nombre,
-        inicio: 0,
-        entradas: 0,
-        traslados: 0,
-        precio: c.precio,
-        categoria: c.categoria,
+      prods = cuadreActual.productos.map((p) => ({
+        id: p.id,
+        nombre: p.nombre,
+        inicio: p.inicio || 0,
+        entradas: p.entradas || 0,
+        traslados: p.traslados || 0,
+        precio: p.precio || 0,
+        categoria: p.categoria,
       }));
-  }, [cuadreActual, catalogo, activePunto]);
+    } else {
+      prods = catalogo
+        .filter((c) => !c.punto || c.punto === activePunto)
+        .map((c) => {
+          const anterior = ultimoCuadre?.productos?.find(
+            (p) => p.id === c.id || p.nombre === c.nombre
+          );
+          return {
+            id: c.id,
+            nombre: c.nombre,
+            inicio: anterior?.final ?? 0,
+            entradas: 0,
+            traslados: 0,
+            precio: c.precio,
+            categoria: c.categoria,
+          };
+        });
+    }
+
+    // Regla estricta: sólo los productos con existencias en el inicio del turno
+    return prods.filter((p) => (p.inicio || 0) > 0);
+  }, [cuadreActual, catalogo, activePunto, ultimoCuadre]);
+
+  // Si está entregando turno, se renderiza la página completa de Precuadre
+  if (entregandoTurno) {
+    return (
+      <PrecuadreDependiente
+        puntoInicial={activePunto}
+        dependienteActual={nombre || ""}
+        onSalir={() => {
+          if (window.confirm("¿Segura que deseas volver al portal? Los cambios no guardados se perderán.")) {
+            setEntregandoTurno(false);
+          }
+        }}
+        onCompletado={() => {
+          setEntregandoTurno(false);
+          setTab("historial");
+        }}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6 pb-6">
-      {/* Cabecera con Avatar más grande */}
+      {/* Cabecera con Avatar de 64px */}
       <div className="rounded-3xl border border-border bg-card p-5 shadow-soft">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3.5">
@@ -193,49 +246,46 @@ export default function PortalDependiente() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                Inventario del Turno ({productosTurno.length} productos)
+                Inventario con Inicio ({productosTurno.length} productos)
               </h2>
-              <p className="text-xs text-muted-foreground">Disponibilidad en mostrador</p>
+              <p className="text-xs text-muted-foreground">Productos activos en mostrador</p>
             </div>
             <Button
               className="rounded-2xl font-bold text-xs"
-              onClick={() => setModalPrecuadre(true)}
+              onClick={() => setEntregandoTurno(true)}
             >
               <Send className="mr-1.5 h-3.5 w-3.5" /> Entregar Turno
             </Button>
           </div>
 
           <div className="space-y-2">
-            {productosTurno.map((p) => {
-              const disponible = (p.inicio || 0) + (p.entradas || 0) - (p.traslados || 0);
-              return (
-                <div
-                  key={p.id}
-                  className="flex items-center justify-between p-3.5 rounded-2xl border border-border bg-card shadow-soft"
-                >
-                  {/* Datos invertidos: Disponible en el texto secundario */}
-                  <div>
-                    <div className="font-semibold text-sm">{p.nombre}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      Disponible: <span className="font-semibold text-foreground">{disponible} u.</span>
+            {productosTurno.length === 0 ? (
+              <div className="p-8 text-center rounded-2xl border border-dashed border-border text-muted-foreground text-xs">
+                No hay productos con existencias iniciales mayores a 0 en este turno.
+              </div>
+            ) : (
+              productosTurno.map((p) => {
+                const disponible = (p.inicio || 0) + (p.entradas || 0) - (p.traslados || 0);
+                return (
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between p-3.5 rounded-2xl border border-border bg-card shadow-soft"
+                  >
+                    <div>
+                      <div className="font-semibold text-sm">{p.nombre}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        Disponible: <span className="font-semibold text-foreground">{disponible} u.</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs text-muted-foreground block">Precio de venta</span>
+                      <span className="text-base font-bold text-primary">${p.precio}</span>
                     </div>
                   </div>
-                  {/* Precio de venta en el bloque numérico grande de la derecha */}
-                  <div className="text-right">
-                    <span className="text-xs text-muted-foreground block">Precio de venta</span>
-                    <span className="text-base font-bold text-primary">${p.precio}</span>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
-
-          <PrecuadreDependiente
-            open={modalPrecuadre}
-            onOpenChange={setModalPrecuadre}
-            puntoInicial={activePunto}
-            dependienteActual={nombre || ""}
-          />
         </div>
       )}
     </div>
