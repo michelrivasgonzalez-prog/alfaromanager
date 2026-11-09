@@ -2434,11 +2434,14 @@ function Step9() {
   const { currents, activePunto, updateCurrent, setSalarioDen, settings } =
     useCuadreStore();
   const current = currents[activePunto];
+  
+  // Estado local para agregar una nueva excepción de producto en el cuadre
+  const [productoSeleccionado, setProductoSeleccionado] = useState<string>("");
+  const [tarifaUnidad, setTarifaUnidad] = useState<number>(10);
+
   if (!current) return null;
 
-  // Sincroniza el salario base con lo definido en Ajustes para este punto.
-  // Solo lo aplica cuando difiere, así si el admin lo edita manualmente en
-  // este paso se respeta su edición posterior.
+  // Sincroniza valores iniciales si cambian en Ajustes
   useEffect(() => {
     const conf = settings.salarioBase[activePunto];
     if (conf && conf !== current.salarioBase) {
@@ -2456,6 +2459,13 @@ function Step9() {
   }, [activePunto, settings.salarioBase[activePunto], settings.salarioModo?.[activePunto], settings.porcentajeVenta?.[activePunto]]);
 
   const c = calcCuadre(current);
+
+  // Filtro de productos del cuadre que tuvieron venta > 0 (si ninguno tiene venta aún, muestra todos)
+  const productosDisponibles = useMemo(() => {
+    const conVenta = c.productos.filter((p) => (p.venta ?? 0) > 0);
+    return conVenta.length > 0 ? conVenta : c.productos;
+  }, [c.productos]);
+
   const sugerencia = useMemo(
     () => sugerirPagoSalario(c.salarioReal, current.denominaciones),
     [c.salarioReal, current.denominaciones]
@@ -2483,19 +2493,51 @@ function Step9() {
     0
   );
 
-  // Lista compacta del pago sugerido (solo billetes con cantidad > 0)
   const sugerenciaCompacta = Object.entries(sugerencia)
     .filter(([, n]) => n > 0)
     .sort(([a], [b]) => Number(b) - Number(a));
 
+  const agregarExcepcion = () => {
+    if (!productoSeleccionado) return;
+    const actuales = current.salarioExcepcionesProductos ?? [];
+    if (actuales.some((e) => e.productoNombre.toLowerCase() === productoSeleccionado.toLowerCase())) {
+      return; // ya está agregado
+    }
+    updateCurrent({
+      salarioExcepcionesProductos: [
+        ...actuales,
+        {
+          id: `exc-${Date.now()}`,
+          productoNombre: productoSeleccionado,
+          tarifaPorUnidad: Number(tarifaUnidad) || 0,
+        },
+      ],
+    });
+    setProductoSeleccionado("");
+  };
+
+  const eliminarExcepcion = (id: string) => {
+    updateCurrent({
+      salarioExcepcionesProductos: (current.salarioExcepcionesProductos ?? []).filter((e) => e.id !== id),
+    });
+  };
+
   return (
     <StepShell>
-      <div className="rounded-2xl border border-border bg-card p-5 shadow-soft space-y-3">
+      <div className="rounded-2xl border border-border bg-card p-5 shadow-soft space-y-4">
         <div>
           <Label>Modo de salario</Label>
           <Select
             value={current.salarioModo ?? "base"}
-            onValueChange={(v) => updateCurrent({ salarioModo: v as SalarioModo })}
+            onValueChange={(v) => {
+              const nuevoModo = v as SalarioModo;
+              const patch: Partial<Cuadre> = { salarioModo: nuevoModo };
+              // Si cambia a comisión por producto y el porcentaje está en 0 o 3, sugerir 2.5
+              if (nuevoModo === "comision_producto" && (!current.porcentajeVenta || current.porcentajeVenta === 3)) {
+                patch.porcentajeVenta = 2.5;
+              }
+              updateCurrent(patch);
+            }}
           >
             <SelectTrigger className="mt-1 h-11 rounded-xl">
               <SelectValue />
@@ -2512,6 +2554,7 @@ function Step9() {
             {SALARIO_MODOS.find((m) => m.value === (current.salarioModo ?? "base"))?.desc}
           </p>
         </div>
+
         <div className="grid grid-cols-3 gap-3">
           <div>
             <Label>Días trabajados</Label>
@@ -2528,7 +2571,7 @@ function Step9() {
               value={current.salarioBase}
               onChange={(v) => updateCurrent({ salarioBase: v })}
               className="mt-1 h-11 rounded-xl"
-              disabled={current.salarioModo === "porcentaje"}
+              disabled={current.salarioModo === "porcentaje" || current.salarioModo === "comision_producto"}
             />
           </div>
           <div>
@@ -2541,53 +2584,120 @@ function Step9() {
             />
           </div>
         </div>
-        <div className="rounded-xl bg-muted/40 p-2 text-[11px] text-muted-foreground grid grid-cols-2 gap-2">
-          <div>Por base: <span className="font-semibold text-foreground">{fmt(c.salarioBasePeriodo)}</span></div>
-          <div>Por %: <span className="font-semibold text-foreground">{fmt(c.salarioPorPorcentaje)}</span></div>
-        </div>
-        {/* DESGLOSE EN TIEMPO REAL DEL SALARIO */}
-        {c.desgloseExcepciones && c.desgloseExcepciones.length > 0 && current.salarioModo !== "base" && (
-          <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs space-y-1.5 mt-2">
-            <div className="font-semibold text-primary flex items-center justify-between">
-              <span>Desglose por % + tarifas fijas</span>
-              <span>{fmt(c.salarioPorPorcentaje)}</span>
-            </div>
-            <div className="text-muted-foreground space-y-1">
-              <div className="flex justify-between">
-                <span>Venta general (${fmt(c.ventaGeneral)} al {c.porcentajeVenta}%):</span>
-                <span className="font-medium text-foreground">
-                  ${fmt(c.ventaGeneral * (c.porcentajeVenta / 100))}
-                </span>
-              </div>
-              {c.desgloseExcepciones.map((exc) => (
-                <div key={exc.nombre} className="flex justify-between text-emerald-600 dark:text-emerald-400">
-                  <span>+ {exc.nombre} ({exc.unidades} u. × ${exc.tarifa}):</span>
-                  <span className="font-semibold">${fmt(exc.total)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
-        {/* DESGLOSE TRANSPARENTE DEL SALARIO (% + TARIFAS FIJAS POR PRODUCTO) */}
-        {c.desgloseExcepciones && c.desgloseExcepciones.length > 0 && current.salarioModo !== "base" && (
-          <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs space-y-1.5 mt-2">
-            <div className="font-semibold text-primary flex items-center justify-between">
-              <span>Desglose de cálculo (% + tarifas fijas)</span>
-              <span>${fmt(c.salarioPorPorcentaje)}</span>
+        <div className="rounded-xl bg-muted/40 p-2.5 text-[11px] text-muted-foreground grid grid-cols-2 gap-2">
+          <div>Por base: <span className="font-semibold text-foreground">${fmt(c.salarioBasePeriodo)}</span></div>
+          <div>Por %: <span className="font-semibold text-foreground">${fmt(c.salarioPorPorcentaje)}</span></div>
+        </div>
+
+        {/* SELECTOR Y CONFIGURACIÓN DE PRODUCTOS CON TARIFA FIJA */}
+        {current.salarioModo === "comision_producto" && (
+          <div className="rounded-xl border border-primary/20 bg-muted/20 p-3.5 space-y-3">
+            <div className="text-xs font-semibold text-foreground flex items-center justify-between">
+              <span>Productos con tarifa fija por unidad</span>
+              <span className="text-[10px] text-muted-foreground">Descontados del {current.porcentajeVenta}% general</span>
             </div>
-            <div className="text-muted-foreground space-y-1 text-[11px]">
-              <div className="flex justify-between">
-                <span>Venta general (${fmt(c.ventaGeneral)} al {c.porcentajeVenta}%):</span>
-                <span className="font-medium text-foreground">${fmt(c.ventaGeneral * ((c.porcentajeVenta ?? 0) / 100))}</span>
+
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+              <div className="sm:col-span-6">
+                <Select
+                  value={productoSeleccionado}
+                  onValueChange={setProductoSeleccionado}
+                >
+                  <SelectTrigger className="h-10 text-xs rounded-lg">
+                    <SelectValue placeholder="Seleccionar producto..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover max-h-56">
+                    {productosDisponibles.map((p) => (
+                      <SelectItem key={p.id} value={p.nombre} className="text-xs">
+                        {p.nombre} ({p.venta} u. vendidas)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              {c.desgloseExcepciones.map((exc) => (
-                <div key={exc.nombre} className="flex justify-between text-emerald-600 dark:text-emerald-400">
-                  <span>+ {exc.nombre} ({exc.unidades} u. × ${exc.tarifa} CUP):</span>
-                  <span className="font-semibold">${fmt(exc.total)}</span>
+
+              <div className="sm:col-span-3">
+                <div className="relative">
+                  <Input
+                    type="number"
+                    value={tarifaUnidad}
+                    onChange={(e) => setTarifaUnidad(Number(e.target.value) || 0)}
+                    placeholder="Tarifa CUP"
+                    className="h-10 text-xs rounded-lg pr-10"
+                  />
+                  <span className="absolute right-2.5 top-2.5 text-[10px] text-muted-foreground font-medium">CUP</span>
                 </div>
-              ))}
+              </div>
+
+              <div className="sm:col-span-3">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={agregarExcepcion}
+                  disabled={!productoSeleccionado}
+                  className="w-full h-10 text-xs rounded-lg font-medium"
+                >
+                  Añadir
+                </Button>
+              </div>
             </div>
+
+            {/* Lista de productos configurados en este cuadre */}
+            {(current.salarioExcepcionesProductos ?? []).length > 0 && (
+              <div className="space-y-1.5 pt-1">
+                {(current.salarioExcepcionesProductos ?? []).map((exc) => {
+                  const prod = c.productos.find(
+                    (p) => p.nombre.trim().toLowerCase() === exc.productoNombre.trim().toLowerCase()
+                  );
+                  const vendidos = Math.max(0, prod?.venta ?? 0);
+                  const totalTarifa = vendidos * exc.tarifaPorUnidad;
+                  return (
+                    <div
+                      key={exc.id}
+                      className="flex items-center justify-between rounded-lg bg-card border border-border/60 px-2.5 py-1.5 text-xs"
+                    >
+                      <div>
+                        <span className="font-medium text-foreground">{exc.productoNombre}</span>
+                        <span className="ml-2 text-muted-foreground text-[11px]">
+                          ({vendidos} u. × ${exc.tarifaPorUnidad} CUP = <strong className="text-emerald-600 dark:text-emerald-400">${fmt(totalTarifa)}</strong>)
+                        </span>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => eliminarExcepcion(exc.id)}
+                        className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Desglose matemático en vivo */}
+            {c.desgloseExcepciones && c.desgloseExcepciones.length > 0 && (
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-2.5 text-xs space-y-1 mt-2">
+                <div className="font-semibold text-primary flex items-center justify-between text-[11px]">
+                  <span>Venta general sujeta al {current.porcentajeVenta}%:</span>
+                  <span>${fmt(c.ventaGeneral)} → ${fmt(c.ventaGeneral * ((current.porcentajeVenta ?? 0) / 100))}</span>
+                </div>
+                {c.desgloseExcepciones.map((exc) => (
+                  <div key={exc.nombre} className="flex justify-between text-emerald-600 dark:text-emerald-400 text-[11px]">
+                    <span>+ {exc.nombre} ({exc.unidades} u. × ${exc.tarifa} CUP):</span>
+                    <span className="font-semibold">${fmt(exc.total)}</span>
+                  </div>
+                ))}
+                <div className="border-t border-primary/20 pt-1 flex justify-between font-bold text-foreground text-xs">
+                  <span>Total Comisión:</span>
+                  <span>${fmt(c.salarioPorPorcentaje)}</span>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -2619,99 +2729,51 @@ function Step9() {
         <DeudaDependientePanel monto={c.deudaDependiente} />
       )}
 
-      <PagarDeudasDependientePanel disponible={c.salarioAntesDeudas} />
+      {/* Selector de desglose de efectivo a pagar */}
+      {c.salarioReal > 0 && !noHayEfectivo && (
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-soft space-y-3">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+              Desglose de efectivo entregado al dependiente
+            </Label>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                DENOMINACIONES.forEach((d) => setSalarioDen(String(d), 0));
+                Object.entries(sugerencia).forEach(([b, n]) => setSalarioDen(b, n));
+              }}
+              className="h-7 text-[11px] rounded-lg"
+            >
+              Aplicar sugerido
+            </Button>
+          </div>
 
-      <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
-        <div className="mb-3 flex items-center justify-between">
-          <div>
-            <div className="font-semibold">Pago sugerido</div>
-            <div className="text-xs text-muted-foreground">
-              Desde efectivo recibido en caja: {fmt(efectivoRecibido)}
-            </div>
-          </div>
-        </div>
-        {noHayEfectivo ? (
-          <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-4 text-center text-xs font-medium text-destructive">
-            No tienes efectivo en caja para pagar.
-          </div>
-        ) : sugerenciaCompacta.length === 0 ? (
-          <div className="rounded-xl bg-muted/60 px-3 py-4 text-center text-xs text-muted-foreground">
-            No alcanza el efectivo recibido para sugerir una denominación completa.
-          </div>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {sugerenciaCompacta.map(([b, n]) => (
-              <span
-                key={b}
-                className="rounded-full bg-secondary/10 px-3 py-1.5 text-sm font-semibold text-secondary"
-              >
-                ${b} × {n}
-              </span>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {DENOMINACIONES.map((d) => (
+              <div key={d} className="rounded-xl border border-border/60 bg-muted/20 p-2 text-center">
+                <div className="text-xs font-semibold text-muted-foreground">${d}</div>
+                <Input
+                  type="number"
+                  min={0}
+                  value={current.salarioDenominaciones[d] || ""}
+                  onChange={(e) => setSalarioDen(String(d), Number(e.target.value) || 0)}
+                  className="mt-1 h-9 text-center text-sm font-bold rounded-lg"
+                  placeholder="0"
+                />
+              </div>
             ))}
           </div>
-        )}
-      </div>
 
-      <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
-        <div className="mb-2 flex items-center justify-between">
-          <div>
-            <div className="text-sm font-semibold">Denominación a entregar</div>
-            <div className="text-[11px] text-muted-foreground">
-              Acepta la sugerencia o edita manualmente
-            </div>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 rounded-lg text-xs"
-            disabled={noHayEfectivo}
-            onClick={() => {
-              Object.entries(sugerencia).forEach(([b, n]) => setSalarioDen(b, n));
-              toast.success("Sugerencia aplicada");
-            }}
-          >
-            Aceptar sugerencia
-          </Button>
-        </div>
-        <div className="mt-3 mb-2 flex items-center justify-between">
-          <div className="text-xs text-muted-foreground">Pagado</div>
-          <div
-            className={cn(
-              "font-mono font-bold tabular-nums",
-              totalPagado === c.salarioReal ? "text-secondary" : "text-destructive"
-            )}
-          >
-            {fmt(totalPagado)}
+          <div className="flex items-center justify-between text-xs pt-1 border-t border-border/40">
+            <span className="text-muted-foreground">Efectivo asignado:</span>
+            <span className={`font-bold ${totalPagado === c.salarioReal ? "text-emerald-600 dark:text-emerald-400" : "text-amber-500"}`}>
+              ${fmt(totalPagado)} / ${fmt(c.salarioReal)}
+            </span>
           </div>
         </div>
-        <div className="space-y-2">
-          {DENOMINACIONES.map((d) => (
-            <div key={d} className="flex items-center gap-3">
-              <div className="flex h-9 w-16 flex-col items-center justify-center rounded-lg bg-muted text-xs font-bold leading-tight">
-                <span>${d}</span>
-                <span className="text-[9px] font-medium text-muted-foreground">
-                  max {current.denominaciones[String(d)] || 0}
-                </span>
-              </div>
-              <NumberInput
-                value={current.salarioDenominaciones[String(d)] || 0}
-                onChange={(v) =>
-                  setSalarioDen(
-                    String(d),
-                    Math.min(v, current.denominaciones[String(d)] || 0)
-                  )
-                }
-                disabled={noHayEfectivo}
-                className="h-9 flex-1 rounded-lg"
-                placeholder="0"
-              />
-              <div className="w-20 text-right font-mono text-xs tabular-nums">
-                {fmt(d * (current.salarioDenominaciones[String(d)] || 0))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      )}
     </StepShell>
   );
 }
