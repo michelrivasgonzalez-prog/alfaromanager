@@ -42,6 +42,7 @@ import {
 } from "@/lib/cobrar";
 import NuevaDeudaDialog from "@/components/NuevaDeudaDialog";
 import { useAuth } from "@/hooks/useAuth";
+import { useCuadreStore } from "@/store/cuadreStore";
 
 export default function Cobrar() {
   const qc = useQueryClient();
@@ -62,16 +63,16 @@ export default function Cobrar() {
     );
   }, [esDependiente, nombre, clientes.data]);
 
-    useEffect(() => {
+  useEffect(() => {
     // Si es dependiente pero NO tiene permiso de cobro general
-    if (esDependiente && !tienePermisoCobrar) {
+    if (esDependiente && !tienePermisoCobrar && clientes.isSuccess) {
       if (miCliente) {
         nav(`/cobrar/clientes/${miCliente.id}`, { replace: true });
       } else {
-        nav(`/portal-dependiente`, { replace: true });
+        nav("/", { replace: true });
       }
     }
-  }, [esDependiente, tienePermisoCobrar, miCliente, nav]);
+  }, [esDependiente, tienePermisoCobrar, clientes.isSuccess, miCliente, nav]);
 
   const pendienteTotal = (deudas.data ?? [])
     .filter((d) => d.estado !== "pagada")
