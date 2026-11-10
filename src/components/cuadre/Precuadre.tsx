@@ -1,4 +1,6 @@
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import { puntoHabitual, sortProductos, catLabel, type GastoCategoria } from "@/store/cuadreStore";
+import React, { useState, useMemo, useRef } from "react";
+import type { PrecioTramo } from "@/store/cuadreStore";
 import { useCuadreStore, PuntoVenta, Cuadre, Denominaciones } from "@/store/cuadreStore";
 import { usePinStore, hashPin } from "@/store/pinStore";
 import { 
@@ -44,6 +46,10 @@ import {
   Users
 } from "lucide-react";
 
+const enteroCUP = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+const dineroCUP = (monto: number) => enteroCUP.format(monto).replace(/,/g, ".");
+type TramoVenta = Pick<PrecioTramo, "id" | "cantidad" | "precio">;
+
 const DENOMINACIONES: (keyof Denominaciones)[] = [
   "20000",
   "10000",
@@ -57,7 +63,6 @@ const DENOMINACIONES: (keyof Denominaciones)[] = [
   "20",
   "10",
   "5",
-  "1",
 ];
 
 const emptyDen = (): Denominaciones => ({
@@ -73,7 +78,6 @@ const emptyDen = (): Denominaciones => ({
   "20": 0,
   "10": 0,
   "5": 0,
-  "1": 0,
 });
 
 interface PrecuadreDependienteProps {
@@ -92,9 +96,7 @@ export function PrecuadreDependiente({
   const catalogo = useCuadreStore((s) => s.catalogo);
   const history = useCuadreStore((s) => s.history);
   const dependientes = useCuadreStore((s) => s.dependientes);
-  const dependientesPorPunto = useCuadreStore(
-    (s) => s.settings.dependientePunto
-  );
+  const settings = useCuadreStore((s) => s.settings);
   const [turnoId] = useState(() => crypto.randomUUID());
 
   const [paso, setPaso] = useState<number>(1);
@@ -109,12 +111,12 @@ export function PrecuadreDependiente({
   );
 
   // Filtrado de dependientes por punto
-  const dependientesPunto = useMemo(() => {
-    return dependientes.filter((d) => {
-      const p = dependientesPorPunto?.[d];
-      return !p || p === punto;
-    });
-  }, [dependientes, dependientesPorPunto, punto]);
+  const dependientesActivos = useMemo(() => dependientes.filter(
+    (nombre) => !settings.dependientesInactivos?.includes(nombre)
+  ), [dependientes, settings.dependientesInactivos]);
+  const dependientesPunto = useMemo(() => dependientesActivos.filter(
+    (nombre) => puntoHabitual(nombre, settings, history) === punto
+  ), [dependientesActivos, settings, history, punto]);
 
   // Último cuadre cerrado
   const ultimoCuadrePunto = useMemo(() => {
@@ -144,7 +146,7 @@ export function PrecuadreDependiente({
       ...productosNuevosLocal,
     ];
 
-    return todos.map((p) => {
+    return sortProductos(todos, settings.categorias).map((p) => {
       const pAnterior = ultimoCuadrePunto?.productos?.find(
         (ap) =>
           ap.nombre.toLowerCase().trim() ===
@@ -159,11 +161,11 @@ export function PrecuadreDependiente({
         id: p.id,
         nombre: p.nombre,
         precioDefecto: p.precio ?? 0,
-        categoria: p.categoria || "Varios",
+        categoria: p.categoria || "Sin categoría",
         inicioDefecto,
       };
     });
-  }, [catalogo, productosNuevosLocal, ultimoCuadrePunto]);
+  }, [catalogo, productosNuevosLocal, ultimoCuadrePunto, punto, settings.categorias]);
 
   // Paso 2: Inicios
   const [inicios, setInicios] =
@@ -219,28 +221,22 @@ export function PrecuadreDependiente({
 
   const dependientesRelevo = useMemo(() => {
     const fuente = modoSuplencia
-      ? dependientes
+      ? dependientesActivos
       : dependientesPunto;
 
     return fuente.filter((d) => d !== dependiente);
   }, [
     modoSuplencia,
-    dependientes,
+    dependientesActivos,
     dependientesPunto,
     dependiente,
   ]);
 
   // Paso 6: Precios mixtos
-  const [preciosMixtos, setPreciosMixtos] = useState<
-    Record<
-      string,
-      {
-        activo: boolean;
-        cantPrecioAnterior: number;
-        precioAnterior: number;
-      }
-    >
-  >({});
+  const [preciosMixtos, setPreciosMixtos] = useState<Record<string, TramoVenta[]>>({});
+
+  const cambiarTramos = (id: string, cambiar: (tramos: TramoVenta[]) => TramoVenta[]) =>
+    setPreciosMixtos((prev) => ({ ...prev, [id]: cambiar(prev[id] ?? []) }));
 
   // Paso 7: Gastos, salidas y transferencias
   const [gastos, setGastos] = useState<GastoPrecuadre[]>([]);
@@ -253,8 +249,12 @@ export function PrecuadreDependiente({
   const [gastoReceptor, setGastoReceptor] = useState("");
   const [gastoMontoEfectivo, setGastoMontoEfectivo] =
     useState("");
-  const [gastoComisionTransf, setGastoComisionTransf] =
-    useState("");
+  const [gastoFecha, setGastoFecha] = useState(fechaTurno);
+  const [gastoTransaccion, setGastoTransaccion] = useState("");
+  const [gastoPrecio, setGastoPrecio] = useState("");
+  const porcentaje = settings.porcentajeTransferencia;
+  const importeTransferencia = Number(gastoMontoEfectivo) || 0;
+  const cargoTransferencia = Math.round(importeTransferencia * porcentaje) / 100;
   const [gastoProductoId, setGastoProductoId] = useState("");
   const [gastoCantidadProd, setGastoCantidadProd] =
     useState("");
@@ -270,7 +270,7 @@ export function PrecuadreDependiente({
   const [recogidaMonto, setRecogidaMonto] = useState("");
   const [recogidaReceptor, setRecogidaReceptor] =
     useState("Dueña");
-  const [recogidaNota, setRecogidaNota] = useState("");
+  const [recogidaFecha, setRecogidaFecha] = useState(fechaTurno);
   const [denoms, setDenoms] =
     useState<Denominaciones>(emptyDen());
 
@@ -279,24 +279,10 @@ export function PrecuadreDependiente({
 
   const [enviando, setEnviando] = useState(false);
 
-  // Inicializar inicios y precios
-  useEffect(() => {
-    const initInicios: Record<string, number> = {};
-    const initPrecios: Record<string, number> = {};
-
-    productosBase.forEach((p) => {
-      initInicios[p.id] = p.inicioDefecto;
-      initPrecios[p.id] = p.precioDefecto;
-    });
-
-    setInicios(initInicios);
-    setPreciosEditados(initPrecios);
-  }, [productosBase]);
-
   // Cálculos de ventas con soporte de precio mixto
   const resumenProductos = useMemo(() => {
     return productosBase.map((p) => {
-      const ini = inicios[p.id] ?? 0;
+      const ini = inicios[p.id] ?? p.inicioDefecto;
       const ent = entradas[p.id] ?? 0;
       const tras = traslados[p.id] ?? 0;
       const fin = finales[p.id] ?? 0;
@@ -305,30 +291,11 @@ export function PrecuadreDependiente({
       const precioActual =
         preciosEditados[p.id] ?? p.precioDefecto;
 
-      const mixto = preciosMixtos[p.id];
-      let importe = 0;
-
-      if (
-        mixto &&
-        mixto.activo &&
-        mixto.cantPrecioAnterior > 0
-      ) {
-        const cantAnt = Math.min(
-          vendidasTotal,
-          mixto.cantPrecioAnterior
-        );
-
-        const cantAct = Math.max(
-          0,
-          vendidasTotal - cantAnt
-        );
-
-        importe =
-          cantAnt * mixto.precioAnterior +
-          cantAct * precioActual;
-      } else {
-        importe = vendidasTotal * precioActual;
-      }
+      const tramos = preciosMixtos[p.id] ?? [];
+      const cantidadTramos = tramos.reduce((total, tramo) => total + tramo.cantidad, 0);
+      const cantidadBase = Math.max(0, vendidasTotal - cantidadTramos);
+      const importe = cantidadBase * precioActual +
+        tramos.reduce((total, tramo) => total + tramo.cantidad * tramo.precio, 0);
 
       return {
         ...p,
@@ -340,7 +307,9 @@ export function PrecuadreDependiente({
         disponible,
         vendidas: vendidasTotal,
         importe,
-        mixtoInfo: mixto?.activo ? mixto : null,
+        tramos,
+        cantidadTramos,
+        cantidadBase,
       };
     });
   }, [
@@ -390,21 +359,22 @@ export function PrecuadreDependiente({
 
   const validarPrecios = () => {
     const producto = resumenProductos.find((p) =>
-      p.vendidas > 0 &&
       (
-        !Number.isFinite(p.precioActual) ||
-        p.precioActual <= 0 ||
-        (p.mixtoInfo && p.mixtoInfo.cantPrecioAnterior > 0 &&
-          (!Number.isFinite(p.mixtoInfo.precioAnterior) || p.mixtoInfo.precioAnterior <= 0))
+        (p.vendidas > 0 && (!Number.isFinite(p.precioActual) || p.precioActual <= 0)) ||
+        Math.round((p.cantidadTramos - p.vendidas) * 1e8) > 0 ||
+        p.tramos.some((tramo) =>
+          !Number.isFinite(tramo.cantidad) || tramo.cantidad <= 0 ||
+          !Number.isFinite(tramo.precio) || tramo.precio <= 0
+        )
       )
     );
 
     if (!producto) return true;
-    toast.error(`Revisa el precio de ${producto.nombre} antes de continuar.`);
+    toast.error(`Revisa los precios y las cantidades vendidas de ${producto.nombre}.`);
     setPaso(6);
     return false;
   };
-  // Paso 3: productos con disponibilidad arriba
+  // Paso 3: buscar sin alterar el orden de categorías
   const productosOrdenadosPaso3 = useMemo(() => {
     const q = busquedaPaso3.toLowerCase().trim();
     let lista = productosBase;
@@ -415,26 +385,8 @@ export function PrecuadreDependiente({
       );
     }
 
-    return [...lista].sort((a, b) => {
-      const dispA =
-        (inicios[a.id] ?? 0) +
-        (entradas[a.id] ?? 0);
-
-      const dispB =
-        (inicios[b.id] ?? 0) +
-        (entradas[b.id] ?? 0);
-
-      if (dispA > 0 && dispB === 0) return -1;
-      if (dispA === 0 && dispB > 0) return 1;
-
-      return a.nombre.localeCompare(b.nombre);
-    });
-  }, [
-    productosBase,
-    busquedaPaso3,
-    inicios,
-    entradas,
-  ]);
+    return lista;
+  }, [productosBase, busquedaPaso3]);
 
   // Paso 4: productos con disponibilidad
   const productosConStockPaso4 = useMemo(() => {
@@ -616,119 +568,54 @@ export function PrecuadreDependiente({
   // Agregar o editar gasto en el paso 7
   const agregarOGuardarGasto = () => {
     const receptor = gastoReceptor.trim();
+    const producto = resumenProductos.find((p) => p.id === gastoProductoId);
+    const cantidad = Number(gastoCantidadProd);
+    const precio = Number(gastoPrecio);
+    const esProducto = gastoTipo === "producto";
+    const esTransferencia = gastoTipo === "transferencia";
+    const monto = esProducto ? cantidad * precio : Number(gastoMontoEfectivo);
 
-    if (
-      !receptor &&
-      gastoTipo !== "transferencia"
-    ) {
-      toast.error(
-        "Indica a quién se entregó o el concepto"
-      );
+    if ((!receptor && !esTransferencia) || (esTransferencia && !gastoFecha) ||
+        !Number.isFinite(monto) || monto <= 0 ||
+        (esProducto && (!producto || cantidad <= 0 || precio <= 0))) {
+      toast.error("Revisa los datos de la salida antes de guardarla.");
       return;
     }
 
-    let monto = 0;
-    let cantProd = 0;
-    let prodNombre = "";
+    const gasto: GastoPrecuadre = {
+      id: gastoEditandoId ?? crypto.randomUUID(),
+      tipo: gastoTipo,
+      receptor: receptor || "Transferencia",
+      monto,
+      sinClasificar: true,
+      ...(esProducto && producto && {
+        productoId: producto.id,
+        productoNombre: producto.nombre,
+        cantidadProducto: cantidad,
+        precioProducto: precio,
+      }),
+      ...(esTransferencia && {
+        fecha: gastoFecha,
+        transaccion: gastoTransaccion.trim() || undefined,
+        porcentaje,
+        montoRecibido: monto + cargoTransferencia,
+      }),
+    };
 
-    if (gastoTipo === "efectivo") {
-      monto = parseFloat(gastoMontoEfectivo);
-
-      if (isNaN(monto) || monto <= 0) {
-        toast.error(
-          "Indica un monto en efectivo válido"
-        );
-        return;
-      }
-    } else if (gastoTipo === "transferencia") {
-      monto = parseFloat(gastoMontoEfectivo);
-
-      if (isNaN(monto) || monto <= 0) {
-        toast.error(
-          "Indica el monto transferido"
-        );
-        return;
-      }
-    } else {
-      cantProd = parseFloat(gastoCantidadProd);
-
-      const prod = resumenProductos.find(
-        (p) => p.id === gastoProductoId
-      );
-
-      if (
-        !prod ||
-        isNaN(cantProd) ||
-        cantProd <= 0
-      ) {
-        toast.error(
-          "Selecciona un producto y cantidad válida"
-        );
-        return;
-      }
-
-      prodNombre = prod.nombre;
-      monto = cantProd * prod.precioActual;
-    }
-
-    if (gastoEditandoId) {
-      setGastos((prev) =>
-        prev.map((g) =>
-          g.id === gastoEditandoId
-            ? {
-                ...g,
-                tipo:
-                  gastoTipo === "producto"
-                    ? "producto"
-                    : "efectivo",
-                receptor:
-                  receptor || "Transferencia",
-                monto,
-                cantidadProducto:
-                  cantProd || undefined,
-                productoNombre:
-                  prodNombre || undefined,
-                sinClasificar: true,
-              }
-            : g
-        )
-      );
-
-      toast.success("Línea actualizada");
-      setGastoEditandoId(null);
-    } else {
-      const nuevoGasto: GastoPrecuadre = {
-        id: `gasto_${Date.now()}`,
-        tipo:
-          gastoTipo === "producto"
-            ? "producto"
-            : "efectivo",
-        receptor:
-          receptor ||
-          (gastoTipo === "transferencia"
-            ? "Transferencia"
-            : "Salida"),
-        monto,
-        cantidadProducto:
-          cantProd || undefined,
-        productoNombre:
-          prodNombre || undefined,
-        sinClasificar: true,
-      };
-
-      setGastos((prev) => [
-        ...prev,
-        nuevoGasto,
-      ]);
-
-      toast.success("Línea agregada");
-    }
-
+    setGastos((prev) => gastoEditandoId
+      ? prev.map((item) => item.id === gasto.id ? gasto : item)
+      : [...prev, gasto]
+    );
+    setGastoEditandoId(null);
     setGastoReceptor("");
     setGastoMontoEfectivo("");
     setGastoCantidadProd("");
     setGastoProductoId("");
-    setGastoComisionTransf("");
+    setBusquedaProdSalida("");
+    setGastoPrecio("");
+    setGastoFecha(fechaTurno);
+    setGastoTransaccion("");
+    toast.success("Salida guardada");
   };
 
   const eliminarGasto = (id: string) => {
@@ -745,18 +632,14 @@ export function PrecuadreDependiente({
     setGastoEditandoId(g.id);
     setGastoReceptor(g.receptor);
 
-    if (g.tipo === "producto") {
-      setGastoTipo("producto");
-
-      setGastoCantidadProd(
-        g.cantidadProducto?.toString() || ""
-      );
-    } else {
-      setGastoTipo("efectivo");
-      setGastoMontoEfectivo(
-        g.monto.toString()
-      );
-    }
+    setGastoTipo(g.tipo);
+    setGastoProductoId(g.productoId ?? resumenProductos.find((p) => p.nombre === g.productoNombre)?.id ?? "");
+    setBusquedaProdSalida(g.productoNombre ?? "");
+    setGastoCantidadProd(String(g.cantidadProducto ?? ""));
+    setGastoPrecio(String(g.precioProducto ?? (g.cantidadProducto ? g.monto / g.cantidadProducto : "")));
+    setGastoMontoEfectivo(String(g.monto));
+    setGastoFecha(g.fecha ?? fechaTurno);
+    setGastoTransaccion(g.transaccion ?? "");
   };
 
   // Agregar recogida en el paso 8
@@ -770,33 +653,20 @@ export function PrecuadreDependiente({
       return;
     }
 
-    const nueva: RecogidaPrecuadre = {
-      id: `rec_${Date.now()}`,
-      hora: new Date().toLocaleTimeString(
-        [],
-        {
-          hour: "2-digit",
-          minute: "2-digit",
-        }
-      ),
+    if (!recogidaFecha || !recogidaReceptor.trim()) {
+      toast.error("Indica la fecha y quién recogió el efectivo.");
+      return;
+    }
+    setRecogidas((prev) => [...prev, {
+      id: crypto.randomUUID(),
+      fecha: recogidaFecha,
+      quien: recogidaReceptor.trim(),
       monto,
-      nota: `${recogidaReceptor}${
-        recogidaNota.trim()
-          ? ` · ${recogidaNota.trim()}`
-          : ""
-      }`,
-    };
-
-    setRecogidas((prev) => [
-      ...prev,
-      nueva,
-    ]);
-
+    }]);
     setRecogidaMonto("");
-    setRecogidaNota("");
 
     toast.success(
-      `Recogida de $${monto} CUP agregada`
+      `Recogida de $${dineroCUP(monto)} CUP agregada`
     );
   };
 
@@ -839,6 +709,7 @@ export function PrecuadreDependiente({
             categoria: p.categoria,
             vendidas: p.vendidas,
             importe: p.importe,
+            tramos: p.tramos,
           })
         ),
 
@@ -1130,7 +1001,7 @@ export function PrecuadreDependiente({
                         <div className="text-[11px] text-muted-foreground">
                           Precio venta:{" "}
                           <span className="font-semibold text-primary">
-                            ${p.precioDefecto}
+                            ${dineroCUP(preciosEditados[p.id] ?? p.precioDefecto)}
                           </span>
 
                           {estaDesbloqueado && (
@@ -1150,7 +1021,7 @@ export function PrecuadreDependiente({
                           disabled={
                             !estaDesbloqueado
                           }
-                          value={inicios[p.id] ?? 0}
+                          value={inicios[p.id] ?? p.inicioDefecto}
                           onChange={(e) =>
                             setInicios({
                               ...inicios,
@@ -1354,103 +1225,34 @@ export function PrecuadreDependiente({
             </div>
 
             <div className="space-y-2">
-              {productosOrdenadosPaso3.map(
-                (p) => {
-                  const precio =
-                    preciosEditados[p.id] ??
-                    p.precioDefecto;
-
-                  return (
-                    <div
-                      key={p.id}
-                      className="p-3.5 rounded-2xl border border-border bg-card space-y-2.5 shadow-soft"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-bold text-sm truncate flex-1">
-                          {p.nombre}
-                        </span>
-
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <span className="text-[11px] text-muted-foreground font-medium">
-                            Precio CUP:
-                          </span>
-
-                          <Input
-                            type="number"
-                            value={precio}
-                            onChange={(e) =>
-                              setPreciosEditados({
-                                ...preciosEditados,
-                                [p.id]:
-                                  parseFloat(
-                                    e.target
-                                      .value
-                                  ) || 0,
-                              })
-                            }
-                            className="h-8 w-20 rounded-lg text-right font-bold text-xs"
+              {productosOrdenadosPaso3.map((p, i) => (
+                <React.Fragment key={p.id}>
+                  {(i === 0 || productosOrdenadosPaso3[i - 1].categoria !== p.categoria) && (
+                    <h3 className="pt-2 text-xs font-bold text-muted-foreground">{p.categoria}</h3>
+                  )}
+                  <div className="space-y-2 rounded-2xl border border-border bg-card p-3">
+                    <p className="overflow-x-auto whitespace-nowrap text-sm font-bold">{p.nombre}</p>
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      {([
+                        ["Entradas", entradas[p.id] ?? "", setEntradas],
+                        ["Traslados", traslados[p.id] ?? "", setTraslados],
+                        ["Precio CUP", preciosEditados[p.id] ?? p.precioDefecto, setPreciosEditados],
+                      ] as const).map(([etiqueta, valor, guardar]) => (
+                        <label key={etiqueta} className="min-w-0">
+                          {etiqueta}
+                          <Input type="number" step="any" value={valor} placeholder="0"
+                            onChange={(e) => {
+                              const numero = Number(e.target.value);
+                              guardar((prev) => ({ ...prev, [p.id]: numero }));
+                            }}
+                            className="mt-1 h-9 px-2 text-right"
                           />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div>
-                          <span className="text-[11px] text-muted-foreground font-medium block mb-1">
-                            + Entradas recibidas
-                          </span>
-
-                          <Input
-                            type="number"
-                            placeholder="0"
-                            value={
-                              entradas[p.id] ??
-                              ""
-                            }
-                            onChange={(e) =>
-                              setEntradas({
-                                ...entradas,
-                                [p.id]:
-                                  parseFloat(
-                                    e.target
-                                      .value
-                                  ) || 0,
-                              })
-                            }
-                            className="h-9 rounded-xl text-right font-bold text-sm"
-                          />
-                        </div>
-
-                        <div>
-                          <span className="text-[11px] text-muted-foreground font-medium block mb-1">
-                            ± Traslados
-                          </span>
-
-                          <Input
-                            type="number"
-                            placeholder="0"
-                            value={
-                              traslados[
-                                p.id
-                              ] ?? ""
-                            }
-                            onChange={(e) =>
-                              setTraslados({
-                                ...traslados,
-                                [p.id]:
-                                  parseFloat(
-                                    e.target
-                                      .value
-                                  ) || 0,
-                              })
-                            }
-                            className="h-9 rounded-xl text-right font-bold text-sm"
-                          />
-                        </div>
-                      </div>
+                        </label>
+                      ))}
                     </div>
-                  );
-                }
-              )}
+                  </div>
+                </React.Fragment>
+              ))}
             </div>
 
             <div className="flex gap-2 pt-2">
@@ -1564,11 +1366,11 @@ export function PrecuadreDependiente({
                     </div>
 
                     <div className="text-[11px] text-muted-foreground">
-                      Disponible teórico:{" "}
+                      Existencia previa:{" "}
                       <span className="font-bold text-foreground">
                         {p.disponible}
                       </span>{" "}
-                      • ${p.precioActual}
+                      • ${dineroCUP(p.precioActual)}
                     </div>
                   </div>
 
@@ -1667,11 +1469,12 @@ export function PrecuadreDependiente({
                     }
                     size="sm"
                     className="h-6 text-[11px] px-2 rounded-lg"
-                    onClick={() =>
-                      setModoSuplencia(
-                        (prev) => !prev
-                      )
-                    }
+                    onClick={() => {
+                      setModoSuplencia((prev) => !prev);
+                      setEntranteNombre("");
+                      setPinValidado(false);
+                      setPinInput("");
+                    }}
                   >
                     <Users className="h-3 w-3 mr-1" />
 
@@ -1852,7 +1655,7 @@ export function PrecuadreDependiente({
                 </span>
 
                 <span className="text-2xl font-black text-primary">
-                  ${Math.round(totalVentas)} CUP
+                  ${dineroCUP(totalVentas)} CUP
                 </span>
               </div>
 
@@ -1866,156 +1669,90 @@ export function PrecuadreDependiente({
                     p.vendidas > 0 ||
                     p.disponible > 0
                 )
-                .map((p) => {
-                  const mixto =
-                    preciosMixtos[p.id];
-
-                  return (
-                    <div
-                      key={p.id}
-                      className="p-3.5 rounded-2xl border border-border bg-card space-y-2 text-xs shadow-soft"
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <div className="font-semibold text-sm">
-                            {p.nombre}
-                          </div>
-
-                          <div className="text-[11px] text-muted-foreground mt-0.5">
-                                                        Inicio {p.inicio} · Entrada {p.entradas} · Traslado {p.traslados} · Final {p.final} · Venta {p.vendidas}
-                          </div>
-                        </div>
-
-                        <div className="text-right">
-                          <div className="font-black text-sm text-foreground">
-                            ${p.importe}
-                          </div>
-
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 text-[10px] px-2 text-primary"
-                            onClick={() => {
-                              setPreciosMixtos(
-                                (prev) => ({
-                                  ...prev,
-                                  [p.id]: {
-                                    activo:
-                                      !prev[
-                                        p.id
-                                      ]?.activo,
-
-                                    cantPrecioAnterior:
-                                      prev[p.id]
-                                        ?.cantPrecioAnterior ||
-                                      0,
-
-                                    precioAnterior:
-                                      prev[p.id]
-                                        ?.precioAnterior ||
-                                      p.precioActual,
-                                  },
-                                })
-                              );
-                            }}
-                          >
-                            {mixto?.activo
-                              ? "Desactivar Mixto"
-                              : "+ Precio Mixto"}
-                          </Button>
-                        </div>
-                      </div>
-                      <label className="block text-xs text-muted-foreground">
-                        Precio base (CUP)
-                        <Input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          value={p.precioActual || ""}
-                          onChange={(e) => {
-                            const precio = Number(e.target.value);
-                            setPreciosEditados((prev) => ({ ...prev, [p.id]: precio }));
-                          }}
-                          className="mt-1 h-8 rounded-lg"
-                        />
-                      </label>
-                      {mixto?.activo && (
-                        <div className="p-2.5 rounded-xl bg-muted/40 border border-border grid grid-cols-2 gap-2 mt-2">
-                          <div>
-                            <label className="text-[10px] text-muted-foreground block">
-                              Cant. Precio Anterior
-                            </label>
-
-                            <Input
-                              type="number"
-                              placeholder="0"
-                              value={
-                                mixto.cantPrecioAnterior ||
-                                ""
-                              }
-                              onChange={(e) =>
-                                setPreciosMixtos(
-                                  (prev) => ({
-                                    ...prev,
-
-                                    [p.id]: {
-                                      ...prev[
-                                        p.id
-                                      ],
-
-                                      cantPrecioAnterior:
-                                        parseFloat(
-                                          e.target
-                                            .value
-                                        ) || 0,
-                                    },
-                                  })
-                                )
-                              }
-                              className="h-8 text-xs font-bold rounded-lg"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="text-[10px] text-muted-foreground block">
-                              Precio Anterior (CUP)
-                            </label>
-
-                            <Input
-                              type="number"
-                              placeholder="0"
-                              value={
-                                mixto.precioAnterior ||
-                                ""
-                              }
-                              onChange={(e) =>
-                                setPreciosMixtos(
-                                  (prev) => ({
-                                    ...prev,
-
-                                    [p.id]: {
-                                      ...prev[
-                                        p.id
-                                      ],
-
-                                      precioAnterior:
-                                        parseFloat(
-                                          e.target
-                                            .value
-                                        ) || 0,
-                                    },
-                                  })
-                                )
-                              }
-                              className="h-8 text-xs font-bold rounded-lg"
-                            />
-                          </div>
-                        </div>
-                      )}
+                .map((p) => (
+                  <div key={p.id} className="space-y-2 rounded-2xl border border-border bg-card p-3.5 text-xs shadow-soft">
+                    <div className="flex justify-between gap-2">
+                      <span className="font-semibold text-sm">{p.nombre}</span>
+                      <strong className="shrink-0">${dineroCUP(p.importe)} CUP</strong>
                     </div>
-                  );
-                })}
+                    <p className="text-muted-foreground">
+                      Inicio {p.inicio} · Entrada {p.entradas} · Traslado {p.traslados} · Final {p.final} · Venta {p.vendidas}
+                    </p>
+                    <label className="block text-muted-foreground">
+                      Precio base (CUP)
+                      <Input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={p.precioActual || ""}
+                        onChange={(e) => {
+                          const precio = Number(e.target.value);
+                          setPreciosEditados((prev) => ({ ...prev, [p.id]: precio }));
+                        }}
+                        className="mt-1 h-8 rounded-lg"
+                      />
+                    </label>
+
+                    <details className="rounded-xl border border-border p-2">
+                      <summary className="cursor-pointer font-semibold">Desglose y precios mixtos</summary>
+                      <div className="mt-2 space-y-2">
+                        {p.tramos.map((tramo) => (
+                          <div key={tramo.id} className="grid grid-cols-[1fr_1fr_auto] items-end gap-2">
+                            {(["cantidad", "precio"] as const).map((campo) => (
+                              <label key={campo} className="min-w-0">
+                                {campo === "cantidad" ? "Cantidad" : "Precio (CUP)"}
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  step="any"
+                                  value={tramo[campo] || ""}
+                                  onChange={(e) => {
+                                    const valor = Number(e.target.value);
+                                    cambiarTramos(p.id, (actuales) => actuales.map((t) =>
+                                      t.id === tramo.id ? { ...t, [campo]: valor } : t
+                                    ));
+                                  }}
+                                  className="h-8"
+                                />
+                              </label>
+                            ))}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              aria-label="Eliminar tramo de precio"
+                              onClick={() => cambiarTramos(p.id, (actuales) => actuales.filter((t) => t.id !== tramo.id))}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                            <p className="col-span-3">
+                              {tramo.cantidad} × ${dineroCUP(tramo.precio)} = ${dineroCUP(tramo.cantidad * tramo.precio)} CUP
+                            </p>
+                          </div>
+                        ))}
+                        {p.cantidadBase > 0 && (
+                          <p>{p.cantidadBase} × ${dineroCUP(p.precioActual)} = ${dineroCUP(p.cantidadBase * p.precioActual)} CUP</p>
+                        )}
+                        {Math.round((p.cantidadTramos - p.vendidas) * 1e8) > 0 && (
+                          <p className="text-destructive">Los tramos superan las unidades vendidas.</p>
+                        )}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={p.vendidas <= 0}
+                          onClick={() => {
+                            const tramo = { id: crypto.randomUUID(), cantidad: 0, precio: p.precioActual };
+                            cambiarTramos(p.id, (actuales) => [...actuales, tramo]);
+                          }}
+                        >
+                          + Agregar precio mixto
+                        </Button>
+                      </div>
+                    </details>
+                  </div>
+                ))}
             </div>
 
             <div className="flex gap-2 pt-2">
@@ -2100,54 +1837,52 @@ export function PrecuadreDependiente({
                   />
 
                   {gastoTipo === "transferencia" && (
-                    <Input
-                      type="number"
-                      placeholder="% Comisión de transferencia (opcional)"
-                      value={gastoComisionTransf}
-                      onChange={(e) => setGastoComisionTransf(e.target.value)}
-                      className="rounded-xl text-xs"
-                    />
+                    <div className="space-y-2 text-xs">
+                      <label className="block">Fecha de transferencia
+                        <Input type="date" value={gastoFecha} onChange={(e) => setGastoFecha(e.target.value)} />
+                      </label>
+                      <Input aria-label="Número de transacción" placeholder="N.º de transacción (opcional)"
+                        value={gastoTransaccion} onChange={(e) => setGastoTransaccion(e.target.value)} />
+                      <p>Cargo ({porcentaje} %): ${dineroCUP(cargoTransferencia)} CUP</p>
+                      <p className="font-bold">Monto recibido: ${dineroCUP(importeTransferencia + cargoTransferencia)} CUP</p>
+                    </div>
                   )}
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-
-                    <Input
-                      placeholder="Buscar producto con disponible..."
-                      value={busquedaProdSalida}
-                      onChange={(e) => setBusquedaProdSalida(e.target.value)}
-                      className="pl-8 text-xs rounded-xl h-8"
-                    />
-                  </div>
-
+                <div className="space-y-2 text-xs">
+                  <Input aria-label="Buscar producto" placeholder="Buscar producto..."
+                    value={busquedaProdSalida} onChange={(e) => {
+                      setBusquedaProdSalida(e.target.value);
+                      setGastoProductoId("");
+                      setGastoPrecio("");
+                    }} />
+                  {!gastoProductoId && (
+                    <ul className="max-h-36 overflow-y-auto rounded-lg border border-border">
+                      {productosDisponiblesSalida.map((p) => (
+                        <li key={p.id}>
+                          <button type="button" className="block w-full p-2 text-left hover:bg-muted"
+                            onClick={() => {
+                              setGastoProductoId(p.id);
+                              setBusquedaProdSalida(p.nombre);
+                              setGastoPrecio(String(p.precioActual));
+                            }}
+                          >{p.nombre}</button>
+                        </li>
+                      ))}
+                      {!productosDisponiblesSalida.length && <li className="p-2">Sin resultados</li>}
+                    </ul>
+                  )}
                   <div className="grid grid-cols-2 gap-2">
-                    <Select
-                      value={gastoProductoId}
-                      onValueChange={setGastoProductoId}
-                    >
-                      <SelectTrigger className="rounded-xl text-xs">
-                        <SelectValue placeholder="Elegir producto..." />
-                      </SelectTrigger>
-
-                      <SelectContent>
-                        {productosDisponiblesSalida.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.nombre} (Disp: {p.disponible})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
-                    <Input
-                      type="number"
-                      placeholder="Cantidad u."
-                      value={gastoCantidadProd}
-                      onChange={(e) => setGastoCantidadProd(e.target.value)}
-                      className="rounded-xl text-xs font-bold"
-                    />
+                    <label>Cantidad
+                      <Input type="number" step="any" value={gastoCantidadProd}
+                        onChange={(e) => setGastoCantidadProd(e.target.value)} />
+                    </label>
+                    <label>Precio CUP
+                      <Input type="number" step="any" value={gastoPrecio}
+                        onChange={(e) => setGastoPrecio(e.target.value)} />
+                    </label>
                   </div>
+                  <p className="font-bold">Importe: ${dineroCUP(Number(gastoCantidadProd) * Number(gastoPrecio))} CUP</p>
                 </div>
               )}
 
@@ -2176,13 +1911,13 @@ export function PrecuadreDependiente({
                     <span className="text-[10px] text-muted-foreground block">
                       {g.tipo === "producto"
                         ? `Producto: ${g.productoNombre} (${g.cantidadProducto} u.)`
-                        : "Efectivo / Transferencia"}
+                        : g.tipo === "transferencia" ? `Transferencia · ${g.fecha} · Recibido: ${dineroCUP(g.montoRecibido ?? g.monto)} CUP` : "Efectivo"}
                     </span>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-destructive">
-                      -${g.monto}
+                      -${dineroCUP(g.monto)}
                     </span>
 
                     <Button
@@ -2250,23 +1985,9 @@ export function PrecuadreDependiente({
                     Quién recogió
                   </label>
 
-                  <Select
-                    value={recogidaReceptor}
-                    onValueChange={setRecogidaReceptor}
-                  >
-                    <SelectTrigger className="rounded-xl text-xs h-9">
-                      <SelectValue />
-                    </SelectTrigger>
+                  <Input value={recogidaReceptor} onChange={(e) => setRecogidaReceptor(e.target.value)}
+                    aria-label="Quién recogió" />
 
-                    <SelectContent>
-                      <SelectItem value="Dueña">Dueña</SelectItem>
-                      <SelectItem value="Administrador">
-                        Administrador
-                      </SelectItem>
-                      <SelectItem value="Yanitza">Yanitza</SelectItem>
-                      <SelectItem value="Geuris">Geuris</SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
 
                 <div>
@@ -2286,9 +2007,10 @@ export function PrecuadreDependiente({
 
               <div className="flex gap-2">
                 <Input
-                  placeholder="Nota u hora opcional..."
-                  value={recogidaNota}
-                  onChange={(e) => setRecogidaNota(e.target.value)}
+                  type="date"
+                  aria-label="Fecha de recogida"
+                  value={recogidaFecha}
+                  onChange={(e) => setRecogidaFecha(e.target.value)}
                   className="rounded-xl text-xs h-9 flex-1"
                 />
 
@@ -2308,16 +2030,16 @@ export function PrecuadreDependiente({
                 >
                   <div>
                     <span className="font-semibold">
-                      {r.nota || "Recogida"}
+                      {r.quien || r.nota || "Recogida"}
                     </span>
 
                     <span className="text-[10px] text-muted-foreground block">
-                      {r.hora}
+                      {r.fecha ?? r.hora}
                     </span>
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="font-bold">${r.monto}</span>
+                    <span className="font-bold">${dineroCUP(r.monto)}</span>
 
                     <Button
                       type="button"
@@ -2343,13 +2065,13 @@ export function PrecuadreDependiente({
                 Billetes en Caja (CUP)
               </span>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2">
                 {DENOMINACIONES.map((d) => (
                   <div
                     key={d}
                     className="flex items-center justify-between p-2.5 rounded-2xl border border-border bg-card"
                   >
-                    <span className="text-xs font-bold">${d}</span>
+                    <span className="text-xs font-bold">${dineroCUP(Number(d))}</span>
 
                     <Input
                       type="number"
@@ -2361,8 +2083,9 @@ export function PrecuadreDependiente({
                           [d]: parseInt(e.target.value) || 0,
                         })
                       }
-                      className="w-20 h-8 text-right font-bold text-xs rounded-lg"
+                      className="w-16 h-8 text-right font-bold text-xs rounded-lg"
                     />
+                    <span className="w-24 text-right text-xs font-bold">${dineroCUP(Number(d) * (denoms[d] || 0))} CUP</span>
                   </div>
                 ))}
               </div>
@@ -2465,7 +2188,7 @@ export function PrecuadreDependiente({
                   </span>
 
                   <span className="font-black text-primary">
-                    ${Math.round(totalVentas)}
+                    ${dineroCUP(totalVentas)}
                   </span>
                 </div>
 
@@ -2475,7 +2198,7 @@ export function PrecuadreDependiente({
                   </span>
 
                   <span className="font-bold text-destructive">
-                    -${totalGastos}
+                    -${dineroCUP(totalGastos)}
                   </span>
                 </div>
 
@@ -2485,7 +2208,7 @@ export function PrecuadreDependiente({
                   </span>
 
                   <span className="font-bold text-amber-600">
-                    -${totalRecogidas}
+                    -${dineroCUP(totalRecogidas)}
                   </span>
                 </div>
 
@@ -2495,7 +2218,7 @@ export function PrecuadreDependiente({
                   </span>
 
                   <span className="font-black text-foreground">
-                    ${totalEfectivoCUP} CUP
+                    ${dineroCUP(totalEfectivoCUP)} CUP
                   </span>
                 </div>
               </div>
@@ -2503,19 +2226,19 @@ export function PrecuadreDependiente({
             <div className="rounded-2xl border border-border bg-card p-4 text-sm">
               {diferencia < 0 ? (
                 <p className="font-bold text-destructive">
-                  Faltante de {Math.abs(diferencia).toFixed(2)} CUP
+                  Faltante de {dineroCUP(Math.abs(diferencia))} CUP
                 </p>
               ) : diferencia > 0 ? (
                 <>
                   <p className="font-bold text-emerald-700 dark:text-emerald-400">
-                    Sobrante de {diferencia.toFixed(2)} CUP
+                    Sobrante de {dineroCUP(diferencia)} CUP
                   </p>
                   <p className="mt-1 text-muted-foreground">
                     El sobrante se agrega a tu salario al conciliar el cuadre.
                   </p>
                 </>
               ) : (
-                <p className="font-bold">Cuadrado · 0.00 CUP de diferencia</p>
+                <p className="font-bold">Cuadrado · 0 CUP de diferencia</p>
               )}
             </div>
             <Button
@@ -2551,7 +2274,7 @@ interface PrecuadreAdminReviewProps {
   onOpenChange: (open: boolean) => void;
   onCargarAlCuadre: (
     cuadre: Partial<Cuadre>
-  ) => void;
+  ) => boolean;
 }
 
 export function PrecuadreAdminReview({
@@ -2560,10 +2283,22 @@ export function PrecuadreAdminReview({
   onOpenChange,
   onCargarAlCuadre,
 }: PrecuadreAdminReviewProps) {
+  const history = useCuadreStore((state) => state.history);
+  const [anteriorId, setAnteriorId] = useState("");
+  const [categorias, setCategorias] = useState<Record<string, GastoCategoria>>({});
   if (!turno || !turno.data) return null;
 
   const d = turno.data as PrecuadreData;
 
+  const anteriores = history.filter((cuadre) =>
+    cuadre.finalizado && cuadre.puntoVenta === turno.punto_venta &&
+    (!turno.enviado_en || new Date(cuadre.fecha) <= new Date(turno.enviado_en))
+  ).sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+  const anterior = anteriores.find((cuadre) => cuadre.id === anteriorId);
+  const categoriasDisponibles: GastoCategoria[] = [
+    "Local", "Yanitza", "Salida de efectivo", "Cuentas por Cobrar", "Transferencia",
+  ];
+  const sinClasificar = d.gastos?.some((gasto) => !categorias[gasto.id]);
   const handleAplicar = () => {
     // diasTrabajados debe convertirse en un arreglo
     // de fechas ISO para el cuadre oficial
@@ -2594,7 +2329,8 @@ export function PrecuadreAdminReview({
         }
       );
 
-    onCargarAlCuadre({
+    if (sinClasificar) return;
+    const cargado = onCargarAlCuadre({
       puntoVenta: turno.punto_venta,
       dependiente: turno.dependiente,
       fecha:
@@ -2616,13 +2352,17 @@ export function PrecuadreAdminReview({
           final: p.final,
           precio: p.precio,
           costo: 0,
+          tramos: p.tramos?.map((tramo) => ({ ...tramo, costo: 0 })),
           categoria: p.categoria,
         })
       ),
 
+      divisas: d.usdMonto && d.usdTasa ? [{
+        id: turno.id, moneda: "USD", denominacion: 1, cantidad: d.usdMonto, tasa: d.usdTasa,
+      }] : [],
       gastos: d.gastos?.map((g) => ({
         id: g.id,
-        categoria: "Local",
+        categoria: categorias[g.id],
 
         tipo:
           g.tipo === "producto"
@@ -2642,19 +2382,24 @@ export function PrecuadreAdminReview({
             : g.receptor,
 
         monto: g.monto,
-        sinClasificar: true,
+        productoId: g.productoId,
+        productoNombre: g.productoNombre,
+        cantidad: g.cantidadProducto,
+        precio: g.precioProducto,
+        fecha: g.fecha,
+        transaccion: g.transaccion,
+        importe: g.tipo === "transferencia" ? g.monto : undefined,
+        porcentaje: g.porcentaje,
+        montoRecibido: g.montoRecibido,
+        sinClasificar: false,
       })),
 
       recogidas: d.recogidas?.map(
         (r) => ({
           id: r.id,
 
-          fecha:
-            diasArray[
-              diasArray.length - 1
-            ],
-
-          quien: r.nota,
+          fecha: r.fecha ?? diasArray[diasArray.length - 1],
+          quien: r.quien ?? r.nota,
           denominaciones: emptyDen(),
           monto: r.monto,
         })
@@ -2669,7 +2414,7 @@ export function PrecuadreAdminReview({
       },
     });
 
-    onOpenChange(false);
+    if (cargado) onOpenChange(false);
   };
 
   return (
@@ -2720,10 +2465,7 @@ export function PrecuadreAdminReview({
               </span>
 
               <span className="font-bold text-primary">
-                $
-                {Math.round(
-                  d.totalVentas || 0
-                )}
+                ${dineroCUP(d.totalVentas ?? 0)}
               </span>
             </div>
 
@@ -2733,7 +2475,7 @@ export function PrecuadreAdminReview({
               </span>
 
               <span className="font-bold">
-                ${d.efectivoTotal ?? 0} CUP
+                ${dineroCUP(d.efectivoTotal ?? 0)} CUP
               </span>
             </div>
           </div>
@@ -2754,8 +2496,50 @@ export function PrecuadreAdminReview({
             </div>
           )}
 
+          <section className="space-y-2 rounded-2xl border p-3">
+            <h3 className="font-bold">Comparar inicios con un turno anterior</h3>
+            <select className="w-full rounded-lg border bg-background p-2" aria-label="Turno anterior"
+              value={anteriorId} onChange={(e) => setAnteriorId(e.target.value)}>
+              <option value="">Seleccionar turno anterior</option>
+              {anteriores.map((c) => (
+                <option key={c.id} value={c.id}>{c.fecha.slice(0, 10)} · {c.dependiente}</option>
+              ))}
+            </select>
+            {anterior && (d.productos ?? []).map((p) => {
+              const previo = anterior.productos.find((item) => item.id === p.id ||
+                item.nombre.trim().toLowerCase() === p.nombre.trim().toLowerCase());
+              return (
+                <div key={p.id} className={previo && previo.final === p.inicio ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"}>
+                  {p.nombre} · Inicio {p.inicio} · Final anterior {previo?.final ?? "sin registro"}
+                  {previo && (previo.final === p.inicio ? " · Coincide" : " · Diferencia")}
+                </div>
+              );
+            })}
+          </section>
+          {!!d.gastos?.length && (
+            <section className="space-y-2 rounded-2xl border p-3">
+              <h3 className="font-bold">Clasificar gastos</h3>
+              {d.gastos.map((g) => (
+                <div key={g.id} className="space-y-1 border-b pb-2">
+                  <p className="font-semibold">{g.receptor} · ${dineroCUP(g.monto)} CUP</p>
+                  {g.tipo === "producto" && <p>{g.productoNombre} · {g.cantidadProducto} × ${dineroCUP(g.precioProducto ?? (g.cantidadProducto ? g.monto / g.cantidadProducto : 0))}</p>}
+                  {g.tipo === "transferencia" && <p>{g.fecha} · {g.transaccion || "Sin referencia"} · Recibido ${dineroCUP(g.montoRecibido ?? g.monto)} CUP</p>}
+                  <select className="w-full rounded-lg border bg-background p-2" aria-label={`Asignar categoría a ${g.receptor}`}
+                    value={categorias[g.id] ?? ""}
+                    onChange={(e) => {
+                      const categoria = e.target.value as GastoCategoria;
+                      setCategorias((prev) => ({ ...prev, [g.id]: categoria }));
+                    }}>
+                    <option value="">Sin categoría · Asignar categoría</option>
+                    {categoriasDisponibles.map((c) => <option key={c} value={c}>{catLabel(c)}</option>)}
+                  </select>
+                </div>
+              ))}
+            </section>
+          )}
           <Button
             className="w-full rounded-2xl font-bold mt-2"
+            disabled={sinClasificar}
             onClick={handleAplicar}
           >
             Cargar al Cuadre Oficial
