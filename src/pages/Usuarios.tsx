@@ -575,6 +575,28 @@ function EditarDependienteModal({
             </Select>
           </div>
         </div>
+          {/* Permiso especial de Cobros (Solo Abonos) */}
+          <div className="flex items-center justify-between p-3 rounded-xl border border-border bg-muted/20">
+            <div>
+              <span className="text-xs font-semibold block text-foreground">Permitir Cobrar (solo abonos)</span>
+              <span className="text-[11px] text-muted-foreground">
+                Acceso para registrar pagos de clientes sin crear deudas ni editar clientes
+              </span>
+            </div>
+            <input
+              type="checkbox"
+              checked={(settings.dependientesPermisoCobrar ?? []).includes(form.nombreOriginal)}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                const actuales = settings.dependientesPermisoCobrar ?? [];
+                const nuevo = checked
+                  ? [...actuales, form.nombreOriginal]
+                  : actuales.filter((n) => n !== form.nombreOriginal);
+                updateSettings({ dependientesPermisoCobrar: nuevo });
+              }}
+              className="h-4 w-4 rounded accent-primary cursor-pointer"
+            />
+          </div>
 
         <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between pt-2">
           <Button
