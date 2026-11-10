@@ -1,3 +1,4 @@
+import { marcarPrecuadreConciliado } from "@/lib/turnos";
 import { supabase } from "@/integrations/supabase/client";
 import { CatalogoItem, Cuadre, Settings, normalizeCatalogoOrden, useCuadreStore } from "@/store/cuadreStore";
 import { ensureCloudSession } from "@/lib/cloudBootstrap";
@@ -348,6 +349,9 @@ export async function pushCuadre(c: Cuadre) {
     deleted_at: null,
   });
   if (error) throw error;
+  if (c.finalizado && c.precuadre?.turnoId) {
+    await marcarPrecuadreConciliado(c.precuadre.turnoId);
+  }
 }
 
 async function upsertCuadres(cuadres: Cuadre[]) {
