@@ -1,7 +1,9 @@
 import { useState, useMemo } from "react";
-import { useCuadreStore, calcCuadre, puntoHabitual } from "@/store/cuadreStore";
+import { useCuadreStore, calcCuadre, sortProductos } from "@/store/cuadreStore";
+import { useQuery } from "@tanstack/react-query";
+import { listarPrecuadresEnviados } from "@/lib/turnos";
 import { useAuth } from "@/hooks/useAuth";
-import { Calendar, Scale, Clock, Send, Wallet, ArrowLeft } from "lucide-react";
+import { Calendar, Scale, Clock, Send, Wallet, Store } from "lucide-react";
 import { formatDiasTrabajados } from "@/lib/dias";
 import Avatar from "@/components/Avatar";
 import { Button } from "@/components/ui/button";
@@ -13,10 +15,17 @@ export default function PortalDependiente() {
   const { history, currents, activePunto, catalogo, settings } = useCuadreStore();
 
   // 1. Inicia directamente en "historial" (Mis Liquidaciones)
-  const [tab, setTab] = useState<"historial" | "turno">("historial");
+  const [tab, setTab] = useState<"historial" | "turno" | "enviados">("historial");
 
   // 2. Control de página completa para el pre-cuadre (sin modal flotante)
   const [entregandoTurno, setEntregandoTurno] = useState(false);
+
+  const enviados = useQuery({
+    queryKey: ["precuadres-enviados", nombre],
+    queryFn: () => listarPrecuadresEnviados(nombre!),
+    enabled: Boolean(nombre) && tab === "enviados",
+    refetchOnMount: "always",
+  });
 
   const cuadreActual = currents[activePunto];
 
@@ -103,8 +112,8 @@ export default function PortalDependiente() {
     }
 
     // Solo los productos con existencias al inicio del turno
-    return prods.filter((p) => (p.inicio || 0) > 0);
-  }, [cuadreActual, catalogo, activePunto, ultimoCuadre]);
+    return sortProductos(prods.filter((p) => p.inicio > 0), settings.categorias);
+  }, [cuadreActual, catalogo, activePunto, ultimoCuadre, settings.categorias]);
 
   // Página completa de entrega del turno
   if (entregandoTurno) {
@@ -123,7 +132,8 @@ export default function PortalDependiente() {
         }}
         onFinalizado={() => {
           setEntregandoTurno(false);
-          setTab("historial");
+          setTab("enviados");
+          void enviados.refetch();
         }}
       />
     );
@@ -131,38 +141,21 @@ export default function PortalDependiente() {
 
   return (
     <div className="space-y-6 pb-6">
-      {/* Cabecera */}
-      <div className="rounded-3xl border border-border bg-card p-5 shadow-soft">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3.5">
-            <Avatar
-              nombre={nombre || "Dependiente"}
-              size={64}
-              className="rounded-2xl shadow-sm"
-            />
-
-            <div>
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Portal del Dependiente
-              </span>
-
-              <h1 className="text-2xl font-bold">
-                {nombre || "Dependiente"}
-              </h1>
-            </div>
-          </div>
-
-          <Badge
-            variant="outline"
-            className="text-xs px-3 py-1 font-bold"
-          >
-            📍 {activePunto}
-          </Badge>
+      <header className="flex items-center gap-4 rounded-3xl border bg-card p-4 shadow-soft">
+        <Avatar nombre={nombre || "Dependiente"} size={80} className="shrink-0 rounded-2xl" />
+        <div className="min-w-0">
+          <p className="whitespace-nowrap text-[11px] font-bold uppercase text-muted-foreground">
+            Portal de dependienta
+          </p>
+          <h1 className="text-xl font-bold">{nombre || "Dependiente"}</h1>
+          <span className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+            <Store className="h-3.5 w-3.5" /> {activePunto}
+          </span>
         </div>
-      </div>
+      </header>
 
       {/* Pestañas */}
-      <div className="flex rounded-2xl border border-border bg-muted/40 p-1">
+      <div className="flex flex-wrap rounded-2xl border border-border bg-muted/40 p-1">
         <button
           onClick={() => setTab("historial")}
           className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${
@@ -186,7 +179,31 @@ export default function PortalDependiente() {
           <Clock className="h-4 w-4" />
           Turno en Curso
         </button>
+        <button
+          onClick={() => setTab("enviados")}
+          className={`flex-1 rounded-xl px-2 py-2.5 text-xs font-bold ${tab === "enviados" ? "bg-card shadow-sm" : "text-muted-foreground"}`}
+        >
+          Precuadres enviados
+        </button>
       </div>
+
+      {tab === "enviados" && (
+        <section className="space-y-2 rounded-2xl border bg-card p-4">
+          {enviados.isLoading && <p>Buscando precuadres…</p>}
+          {enviados.isError && <p>No se pudo consultar el historial.</p>}
+          {enviados.isSuccess && !enviados.data.length && <p>Todavía no hay precuadres enviados.</p>}
+          {enviados.data?.map((turno) => (
+            <div key={turno.id} className="flex items-center justify-between gap-2 border-b py-2 text-xs">
+              <span>{turno.punto_venta} · {turno.enviado_en ? new Date(turno.enviado_en).toLocaleDateString("es-CU") : "Sin fecha"}</span>
+              <Badge variant="outline">
+                {turno.estado === "conciliado" ? "Conciliado" : turno.estado === "descartado"
+                  ? turno.data?.descartadoComo === "eliminado" ? "Eliminado" : "Cancelado"
+                  : "En espera"}
+              </Badge>
+            </div>
+          ))}
+        </section>
+      )}
 
       {/* Historial y liquidaciones */}
       {tab === "historial" && (
@@ -341,10 +358,13 @@ export default function PortalDependiente() {
                 en este turno.
               </div>
             ) : (
-              productosTurno.map((p) => {
+              productosTurno.map((p, i) => {
                 return (
+                  <div key={p.id}>
+                    {(i === 0 || productosTurno[i - 1].categoria !== p.categoria) && (
+                      <h3 className="pb-2 pt-1 text-xs font-bold text-muted-foreground">{p.categoria || "Sin categoría"}</h3>
+                    )}
                   <div
-                    key={p.id}
                     className="flex items-center justify-between p-3.5 rounded-2xl border border-border bg-card shadow-soft"
                   >
                     <div>
@@ -369,6 +389,7 @@ export default function PortalDependiente() {
                         ${p.precio}
                       </span>
                     </div>
+                  </div>
                   </div>
                 );
               })
