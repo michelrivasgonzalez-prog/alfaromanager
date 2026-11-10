@@ -178,7 +178,7 @@ export default function ClienteDetalle() {
         >
           <Wallet className="mr-2 h-4 w-4" /> Registrar abono
         </Button>
-        <Button variant="outline" className="h-11 rounded-xl" onClick={() => setNuevaDeuda(true)}>
+   Button variant="outline" onClick={() => setNuevaDeuda(true)}> si role === "dependiente"
           <Plus className="mr-2 h-4 w-4" /> Nueva deuda
         </Button>
         {totalDeuda > 0 && (
