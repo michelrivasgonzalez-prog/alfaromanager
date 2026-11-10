@@ -1,5 +1,5 @@
 import { puntoHabitual, sortProductos, catLabel, type GastoCategoria } from "@/store/cuadreStore";
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import type { PrecioTramo } from "@/store/cuadreStore";
 import { useCuadreStore, PuntoVenta, Cuadre, Denominaciones } from "@/store/cuadreStore";
 import { usePinStore, hashPin } from "@/store/pinStore";
@@ -26,6 +26,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+} from "@/components/ui/command";
 import { toast } from "sonner";
 import {
   Lock,
@@ -250,10 +263,11 @@ export function PrecuadreDependiente({
   const [gastoMontoEfectivo, setGastoMontoEfectivo] = useState("");
   const porcentajeTransferencia = settings.porcentajeTransferencia;
   const cargoTransferencia = Math.round((Number(gastoMontoEfectivo) || 0) * porcentajeTransferencia) / 100;
-  const [gastoItems, setGastoItems] = useState<{ productoId: string; productoNombre: string; cantidad: number; precio: number }[]>([]);
+    const [gastoItems, setGastoItems] = useState<{ productoId: string; productoNombre: string; cantidad: number; precio: number }[]>([]);
   const [gastoProdSelId, setGastoProdSelId] = useState("");
   const [gastoProdCant, setGastoProdCant] = useState("");
   const [gastoProdPrecio, setGastoProdPrecio] = useState("");
+  const [gastoProdOpen, setGastoProdOpen] = useState(false);
   const [editingGastoId, setEditingGastoId] = useState<string | null>(null);
 
   // Paso 8: Recogidas y arqueo
@@ -1678,9 +1692,9 @@ export function PrecuadreDependiente({
                       />
                     </label>
 
-                                        {/* Precios Mixtos bajo demanda */}
+                                                            {/* Precios Mixtos bajo demanda */}
                     {p.tramos.length === 0 ? (
-                      <div className="pt-1">
+                      <div className="flex justify-end pt-1">
                         <Button
                           type="button"
                           variant="outline"
@@ -1690,9 +1704,10 @@ export function PrecuadreDependiente({
                             const tramo = { id: crypto.randomUUID(), cantidad: 0, precio: p.precioActual };
                             cambiarTramos(p.id, () => [tramo]);
                           }}
-                          className="h-8 text-xs rounded-xl w-full border-dashed"
+                          className="h-7 px-2.5 text-[11px] font-semibold text-muted-foreground hover:text-primary rounded-lg border-dashed gap-1"
                         >
-                          + Declarar precio mixto para {p.nombre}
+                          <Plus className="h-3 w-3" />
+                          <span>Precio mixto</span>
                         </Button>
                       </div>
                     ) : (
@@ -1943,29 +1958,62 @@ export function PrecuadreDependiente({
                     </div>
                   )}
 
-                  {/* Selector y agregado a la canasta */}
+                                    {/* Selector y buscador integrado en el mismo campo */}
                   <div className="space-y-2 pt-1">
-                    <Select
-                      value={gastoProdSelId}
-                      onValueChange={(id) => {
-                        setGastoProdSelId(id);
-                        const p = resumenProductos.find((x) => x.id === id);
-                        if (p) {
-                          setGastoProdPrecio(String(p.precioActual));
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="h-9 rounded-xl text-xs">
-                        <SelectValue placeholder="Seleccionar producto con existencia..." />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-56">
-                        {resumenProductos.filter((p) => p.disponible > 0).map((p) => (
-                          <SelectItem key={p.id} value={p.id} className="text-xs">
-                            {p.nombre} (disp: {p.disponible}) · ${dineroCUP(p.precioActual)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Popover open={gastoProdOpen} onOpenChange={setGastoProdOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          className="h-10 w-full justify-between rounded-xl font-normal text-xs bg-background"
+                        >
+                          <span className="flex items-center gap-2 truncate">
+                            <Search className="h-3.5 w-3.5 opacity-60 shrink-0" />
+                            {gastoProdSelId ? (
+                              <span className="truncate font-medium">
+                                {resumenProductos.find((x) => x.id === gastoProdSelId)?.nombre} · disp:{" "}
+                                {resumenProductos.find((x) => x.id === gastoProdSelId)?.disponible} · $
+                                {dineroCUP(resumenProductos.find((x) => x.id === gastoProdSelId)?.precioActual ?? 0)}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">Buscar producto con existencia…</span>
+                            )}
+                          </span>
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                        <Command>
+                          <CommandInput placeholder="Escribe para buscar…" className="h-9 text-xs" />
+                          <CommandList>
+                            <CommandEmpty className="p-2 text-xs text-muted-foreground text-center">
+                              Sin productos con existencia
+                            </CommandEmpty>
+                            <CommandGroup className="max-h-56 overflow-y-auto">
+                              {resumenProductos
+                                .filter((p) => p.disponible > 0)
+                                .map((p) => (
+                                  <CommandItem
+                                    key={p.id}
+                                    value={p.nombre}
+                                    onSelect={() => {
+                                      setGastoProdSelId(p.id);
+                                      setGastoProdPrecio(String(p.precioActual));
+                                      if (!gastoProdCant) setGastoProdCant("1");
+                                      setGastoProdOpen(false);
+                                    }}
+                                    className="text-xs cursor-pointer flex justify-between"
+                                  >
+                                    <span className="truncate font-medium">{p.nombre}</span>
+                                    <span className="text-muted-foreground shrink-0 ml-2">
+                                      disp: {p.disponible} · ${dineroCUP(p.precioActual)}
+                                    </span>
+                                  </CommandItem>
+                                ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
 
                     <div className="grid grid-cols-2 gap-2">
                       <Input
@@ -2459,6 +2507,25 @@ export function PrecuadreAdminReview({
 
   const d = turno.data as PrecuadreData;
 
+  // Precargar las categorías declaradas por la dependienta al abrir la revisión
+  useEffect(() => {
+    if (d.gastos?.length) {
+      setCategorias((prev) => {
+        const next = { ...prev };
+        d.gastos.forEach((g) => {
+          if (!next[g.id]) {
+            if (g.categoriaSugerida) {
+              next[g.id] = g.categoriaSugerida;
+            } else if (g.tipo === "transferencia") {
+              next[g.id] = "Transferencia";
+            }
+          }
+        });
+        return next;
+      });
+    }
+  }, [d.gastos]);
+
   const anteriores = history.filter((cuadre) =>
     cuadre.finalizado && cuadre.puntoVenta === turno.punto_venta &&
     (!turno.enviado_en || new Date(cuadre.fecha) <= new Date(turno.enviado_en))
@@ -2704,23 +2771,124 @@ export function PrecuadreAdminReview({
              );
            })}
           </section>
-          {!!d.gastos?.length && (
-            <section className="space-y-2 rounded-2xl border p-3">
-              <h3 className="font-bold">Clasificar gastos</h3>
+                    {!!d.gastos?.length && (
+            <section className="space-y-2.5 rounded-2xl border p-3 bg-card">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">
+                  Gastos y transferencias declarados ({d.gastos.length})
+                </h3>
+                {sinClasificar && (
+                  <Badge variant="outline" className="text-[10px] border-amber-500 text-amber-600">
+                    Pendientes de clasificar
+                  </Badge>
+                )}
+              </div>
+
               {d.gastos.map((g) => (
-                <div key={g.id} className="space-y-1 border-b pb-2">
-                  <p className="font-semibold">{g.receptor} · ${dineroCUP(g.monto)} CUP</p>
-                  {g.tipo === "producto" && <p>{g.productoNombre} · {g.cantidadProducto} × ${dineroCUP(g.precioProducto ?? (g.cantidadProducto ? g.monto / g.cantidadProducto : 0))}</p>}
-                  {g.tipo === "transferencia" && <p>{g.fecha} · {g.transaccion || "Sin referencia"} · Recibido ${dineroCUP(g.montoRecibido ?? g.monto)} CUP</p>}
-                  <select className="w-full rounded-lg border bg-background p-2" aria-label={`Asignar categoría a ${g.receptor}`}
-                    value={categorias[g.id] ?? ""}
-                    onChange={(e) => {
-                      const categoria = e.target.value as GastoCategoria;
-                      setCategorias((prev) => ({ ...prev, [g.id]: categoria }));
-                    }}>
-                    <option value="">Sin categoría · Asignar categoría</option>
-                    {categoriasDisponibles.map((c) => <option key={c} value={c}>{catLabel(c)}</option>)}
-                  </select>
+                <div key={g.id} className="p-2.5 rounded-xl border border-border/80 bg-muted/20 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Badge
+                          variant="secondary"
+                          className="text-[10px] font-semibold uppercase px-1.5 py-0"
+                        >
+                          {g.tipo === "transferencia"
+                            ? "Transferencia"
+                            : g.tipo === "producto"
+                            ? "Salida Producto"
+                            : "Efectivo"}
+                        </Badge>
+                        {g.categoriaSugerida && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-primary/40 text-primary">
+                            Declaró: {g.categoriaSugerida}
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="font-bold text-sm text-foreground mt-1">
+                        {g.receptor || "—"}
+                      </p>
+                    </div>
+
+                    <strong className="text-sm font-black text-foreground shrink-0">
+                      ${dineroCUP(g.monto)} CUP
+                    </strong>
+                  </div>
+
+                  {/* Descripción / nota si existe */}
+                  {g.descripcion && (
+                    <p className="text-[11px] text-muted-foreground italic bg-background/60 p-1.5 rounded-lg border border-border/40">
+                      "{g.descripcion}"
+                    </p>
+                  )}
+
+                  {/* Detalles de productos si es salida de producto */}
+                  {g.tipo === "producto" && (
+                    <div className="space-y-1 text-[11px] bg-background/80 p-2 rounded-lg border border-border/50">
+                      {g.items && g.items.length > 0 ? (
+                        g.items.map((it, idx) => (
+                          <div key={idx} className="flex justify-between items-center text-muted-foreground">
+                            <span>• {it.productoNombre}</span>
+                            <span>
+                              {it.cantidad} × ${dineroCUP(it.precio)} ={" "}
+                              <strong className="text-foreground">${dineroCUP(it.cantidad * it.precio)}</strong>
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="flex justify-between items-center text-muted-foreground">
+                          <span>• {g.productoNombre}</span>
+                          <span>
+                            {g.cantidadProducto} × ${dineroCUP(g.precioProducto ?? (g.cantidadProducto ? g.monto / g.cantidadProducto : 0))}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Detalles si es transferencia */}
+                  {g.tipo === "transferencia" && (
+                    <div className="grid grid-cols-2 gap-1 text-[11px] bg-background/80 p-2 rounded-lg border border-border/50 text-muted-foreground">
+                      <div>
+                        Fecha: <span className="font-semibold text-foreground">{g.fecha || "—"}</span>
+                      </div>
+                      <div>
+                        Ref: <span className="font-semibold text-foreground">{g.transaccion || "Sin referencia"}</span>
+                      </div>
+                      <div>
+                        Comisión: <span className="font-semibold text-foreground">{g.porcentaje ?? 0}%</span>
+                      </div>
+                      <div>
+                        Recibido:{" "}
+                        <span className="font-bold text-primary">
+                          ${dineroCUP(g.montoRecibido ?? g.monto)} CUP
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Selector para confirmar o reasignar categoría */}
+                  <div className="pt-1">
+                    <label className="text-[10px] font-semibold text-muted-foreground block mb-1">
+                      Categoría para el cuadre oficial:
+                    </label>
+                    <select
+                      className="w-full rounded-lg border bg-background p-1.5 text-xs font-medium"
+                      aria-label={`Asignar categoría a ${g.receptor}`}
+                      value={categorias[g.id] ?? ""}
+                      onChange={(e) => {
+                        const categoria = e.target.value as GastoCategoria;
+                        setCategorias((prev) => ({ ...prev, [g.id]: categoria }));
+                      }}
+                    >
+                      <option value="">⚠️ Sin categoría · Selecciona una categoría</option>
+                      {categoriasDisponibles.map((c) => (
+                        <option key={c} value={c}>
+                          {catLabel(c)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               ))}
             </section>
