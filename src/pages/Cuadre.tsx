@@ -2750,20 +2750,19 @@ function Step9() {
             </Button>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {DENOMINACIONES.map((d) => (
-              <div key={d} className="rounded-xl border border-border/60 bg-muted/20 p-2 text-center">
-                <div className="text-xs font-semibold text-muted-foreground">${d}</div>
-                <Input
-                  type="number"
-                  min={0}
-                  value={current.salarioDenominaciones[d] || ""}
-                  onChange={(e) => setSalarioDen(String(d), Number(e.target.value) || 0)}
-                  className="mt-1 h-9 text-center text-sm font-bold rounded-lg"
-                  placeholder="0"
-                />
-              </div>
-            ))}
+          <div className="space-y-2">
+            {DENOMINACIONES.map((d) => {
+              const cantidad = current.salarioDenominaciones[d] || 0;
+              return (
+                <label key={d} className="grid grid-cols-[1fr_4.5rem_1fr] items-center gap-2 rounded-xl border p-2 text-xs">
+                  <span>${fmt(d)} ×</span>
+                  <Input type="number" min={0} value={cantidad || ""} placeholder="0"
+                    onChange={(e) => setSalarioDen(String(d), Number(e.target.value) || 0)}
+                    className="h-9 text-right" />
+                  <strong className="text-right">= ${fmt(d * cantidad)}</strong>
+                </label>
+              );
+            })}
           </div>
 
           <div className="flex items-center justify-between text-xs pt-1 border-t border-border/40">
