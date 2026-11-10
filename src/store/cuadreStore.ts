@@ -623,9 +623,11 @@ export const useCuadreStore = create<State>()(
                 c.nombre.trim().toLowerCase() === p.nombre.trim().toLowerCase() &&
                 (!c.punto || c.punto === punto)
             );
+            const costo = p.costo || catItem?.costo || 0;
             return {
               ...p,
-              costo: p.costo || catItem?.costo || 0,
+              costo,
+              tramos: p.tramos?.map((tramo) => ({ ...tramo, costo: tramo.costo || costo })),
             };
           });
 
