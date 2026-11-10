@@ -2729,7 +2729,6 @@ function Step9() {
             )}
           </div>
         )}
-        )}
       </div>
 
       <div className="grid grid-cols-3 gap-2">
