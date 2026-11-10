@@ -246,22 +246,17 @@ export function PrecuadreDependiente({
       "efectivo"
     );
 
-  const [gastoReceptor, setGastoReceptor] = useState("");
-  const [gastoMontoEfectivo, setGastoMontoEfectivo] =
-    useState("");
-  const [gastoFecha, setGastoFecha] = useState(fechaTurno);
-  const [gastoTransaccion, setGastoTransaccion] = useState("");
-  const [gastoPrecio, setGastoPrecio] = useState("");
-  const porcentaje = settings.porcentajeTransferencia;
-  const importeTransferencia = Number(gastoMontoEfectivo) || 0;
-  const cargoTransferencia = Math.round(importeTransferencia * porcentaje) / 100;
-  const [gastoProductoId, setGastoProductoId] = useState("");
-  const [gastoCantidadProd, setGastoCantidadProd] =
-    useState("");
-  const [busquedaProdSalida, setBusquedaProdSalida] =
-    useState("");
-  const [gastoEditandoId, setGastoEditandoId] =
-    useState<string | null>(null);
+    // Estados para gastos con canasta idéntica al admin
+  const [gastoCat, setGastoCat] = useState<GastoCategoria>("Local");
+  const [gastoTipo, setGastoTipo] = useState<"Efectivo" | "Producto">("Efectivo");
+  const [gastoNombre, setGastoNombre] = useState("");
+  const [gastoDesc, setGastoDesc] = useState("");
+  const [gastoMontoEfectivo, setGastoMontoEfectivo] = useState("");
+  const [gastoItems, setGastoItems] = useState<{ productoId: string; productoNombre: string; cantidad: number; precio: number }[]>([]);
+  const [gastoProdSelId, setGastoProdSelId] = useState("");
+  const [gastoProdCant, setGastoProdCant] = useState("");
+  const [gastoProdPrecio, setGastoProdPrecio] = useState("");
+  const [editingGastoId, setEditingGastoId] = useState<string | null>(null);
 
   // Paso 8: Recogidas y arqueo
   const [recogidas, setRecogidas] =
@@ -269,7 +264,7 @@ export function PrecuadreDependiente({
 
   const [recogidaMonto, setRecogidaMonto] = useState("");
   const [recogidaReceptor, setRecogidaReceptor] =
-    useState("Dueña");
+    useState("Yanitza");
   const [recogidaFecha, setRecogidaFecha] = useState(fechaTurno);
   const [denoms, setDenoms] =
     useState<Denominaciones>(emptyDen());
@@ -678,6 +673,8 @@ export function PrecuadreDependiente({
       const payload: PrecuadreData = {
         diasTrabajados,
         iniciosDeTurnoAnterior: true,
+        importadoDe: anteriorId || undefined,
+
 
         iniciosModificados:
           Object.values(desbloqueados).some(
@@ -1894,194 +1891,263 @@ export function PrecuadreDependiente({
           </div>
         )}
 
-        {/* PASO 7 */}
+                {/* PASO 7 */}
         {paso === 7 && (
           <div className="space-y-4 pt-1">
-            <p className="text-xs text-muted-foreground">
-              Añade gastos, transferencias o salidas en líneas sueltas:
-            </p>
+            <div className="p-4 bg-card rounded-2xl border border-border shadow-soft space-y-3">
+              {/* Categoría */}
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground block mb-1">Categoría</label>
+                <Select value={gastoCat} onValueChange={(v) => setGastoCat(v as GastoCategoria)}>
+                  <SelectTrigger className="h-10 rounded-xl text-xs font-medium">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Local">Local</SelectItem>
+                    <SelectItem value="Yanitza">Yanitza</SelectItem>
+                    <SelectItem value="Salida de efectivo">Salida de efectivo</SelectItem>
+                    <SelectItem value="Cuentas por Cobrar">Cuentas por Cobrar</SelectItem>
+                    <SelectItem value="Transferencia">Transferencia</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <div className="p-4 bg-muted/40 rounded-2xl space-y-3">
-              <div className="grid grid-cols-3 gap-1.5">
+              {/* Tipo: Efectivo o Producto */}
+              <div className="grid grid-cols-2 gap-2">
                 <Button
-                  size="sm"
-                  variant={gastoTipo === "efectivo" ? "default" : "outline"}
-                  className="text-xs rounded-xl h-8 px-1"
-                  onClick={() => setGastoTipo("efectivo")}
+                  type="button"
+                  variant={gastoTipo === "Efectivo" ? "default" : "outline"}
+                  onClick={() => setGastoTipo("Efectivo")}
+                  className="h-9 rounded-xl text-xs font-bold"
                 >
                   <DollarSign className="h-3.5 w-3.5 mr-1" /> Efectivo
                 </Button>
-
                 <Button
-                  size="sm"
-                  variant={gastoTipo === "transferencia" ? "default" : "outline"}
-                  className="text-xs rounded-xl h-8 px-1"
-                  onClick={() => setGastoTipo("transferencia")}
-                >
-                  <CreditCard className="h-3.5 w-3.5 mr-1" /> Transfer.
-                </Button>
-
-                <Button
-                  size="sm"
-                  variant={gastoTipo === "producto" ? "default" : "outline"}
-                  className="text-xs rounded-xl h-8 px-1"
-                  onClick={() => setGastoTipo("producto")}
+                  type="button"
+                  variant={gastoTipo === "Producto" ? "default" : "outline"}
+                  onClick={() => setGastoTipo("Producto")}
+                  className="h-9 rounded-xl text-xs font-bold"
                 >
                   <Package className="h-3.5 w-3.5 mr-1" /> Producto
                 </Button>
               </div>
 
-              <Input
-                placeholder={
-                  gastoTipo === "transferencia"
-                    ? "Receptor o Banco (Ej. Transferencia Pedro)"
-                    : "Receptor o concepto (Ej. Juan, Compra hielo...)"
-                }
-                value={gastoReceptor}
-                onChange={(e) => setGastoReceptor(e.target.value)}
-                className="rounded-xl text-xs font-medium"
-              />
+              {/* Nombre (quién recibe) - Texto libre */}
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground block mb-1">
+                  Nombre (quién recibe)
+                </label>
+                <Input
+                  placeholder={gastoCat === "Cuentas por Cobrar" ? "Nombre del cliente" : "Nombre de quien recibe"}
+                  value={gastoNombre}
+                  onChange={(e) => setGastoNombre(e.target.value)}
+                  className="h-10 rounded-xl text-xs"
+                />
+              </div>
 
-              {gastoTipo !== "producto" ? (
-                <div className="space-y-2">
+              {/* Descripción opcional */}
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground block mb-1">
+                  Descripción (opcional)
+                </label>
+                <Input
+                  placeholder="Detalle o motivo"
+                  value={gastoDesc}
+                  onChange={(e) => setGastoDesc(e.target.value)}
+                  className="h-10 rounded-xl text-xs"
+                />
+              </div>
+
+              {/* Si es Efectivo: Monto */}
+              {gastoTipo === "Efectivo" ? (
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Monto en CUP</label>
                   <Input
                     type="number"
-                    placeholder="Monto en CUP"
+                    placeholder="0"
                     value={gastoMontoEfectivo}
                     onChange={(e) => setGastoMontoEfectivo(e.target.value)}
-                    className="rounded-xl text-xs font-bold"
+                    className="h-10 rounded-xl text-xs font-bold text-right"
                   />
-
-                  {gastoTipo === "transferencia" && (
-                    <div className="space-y-2 text-xs">
-                      <label className="block">Fecha de transferencia
-                        <Input type="date" value={gastoFecha} onChange={(e) => setGastoFecha(e.target.value)} />
-                      </label>
-                      <Input aria-label="Número de transacción" placeholder="N.º de transacción (opcional)"
-                        value={gastoTransaccion} onChange={(e) => setGastoTransaccion(e.target.value)} />
-                      <p>Cargo ({porcentaje} %): ${dineroCUP(cargoTransferencia)} CUP</p>
-                      <p className="font-bold">Monto recibido: ${dineroCUP(importeTransferencia + cargoTransferencia)} CUP</p>
-                    </div>
-                  )}
                 </div>
               ) : (
-                <div className="space-y-2 text-xs">
-                  <Input aria-label="Buscar producto" placeholder="Buscar producto..."
-                    value={busquedaProdSalida} onChange={(e) => {
-                      setBusquedaProdSalida(e.target.value);
-                      setGastoProductoId("");
-                      setGastoPrecio("");
-                    }} />
-                  {!gastoProductoId && (
-                    <ul className="max-h-36 overflow-y-auto rounded-lg border border-border">
-                      {productosDisponiblesSalida.map((p) => (
-                        <li key={p.id}>
-                          <button type="button" className="block w-full p-2 text-left hover:bg-muted"
-                            onClick={() => {
-                              setGastoProductoId(p.id);
-                              setBusquedaProdSalida(p.nombre);
-                              setGastoPrecio(String(p.precioActual));
-                            }}
-                          >{p.nombre}</button>
-                        </li>
+                /* Canasta de Productos (igual que el admin) */
+                <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-2">
+                  <div className="text-[11px] font-semibold text-primary">Cesta de productos de esta salida</div>
+                  {gastoItems.length > 0 && (
+                    <div className="space-y-1">
+                      {gastoItems.map((it, idx) => (
+                        <div key={idx} className="flex justify-between items-center bg-card p-2 rounded-lg text-xs border">
+                          <span className="truncate flex-1 font-medium">{it.productoNombre}</span>
+                          <span className="text-muted-foreground mx-2">{it.cantidad} × ${dineroCUP(it.precio)}</span>
+                          <strong className="mr-2">${dineroCUP(it.cantidad * it.precio)}</strong>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-destructive"
+                            onClick={() => setGastoItems((prev) => prev.filter((_, i) => i !== idx))}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
                       ))}
-                      {!productosDisponiblesSalida.length && <li className="p-2">Sin resultados</li>}
-                    </ul>
+                    </div>
                   )}
-                  <div className="grid grid-cols-2 gap-2">
-                    <label>Cantidad
-                      <Input type="number" step="any" value={gastoCantidadProd}
-                        onChange={(e) => setGastoCantidadProd(e.target.value)} />
-                    </label>
-                    <label>Precio CUP
-                      <Input type="number" step="any" value={gastoPrecio}
-                        onChange={(e) => setGastoPrecio(e.target.value)} />
-                    </label>
+
+                  {/* Selector y agregado a la canasta */}
+                  <div className="space-y-2 pt-1">
+                    <Select
+                      value={gastoProdSelId}
+                      onValueChange={(id) => {
+                        setGastoProdSelId(id);
+                        const p = resumenProductos.find((x) => x.id === id);
+                        if (p) {
+                          setGastoProdPrecio(String(p.precioActual));
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-9 rounded-xl text-xs">
+                        <SelectValue placeholder="Seleccionar producto con existencia..." />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-56">
+                        {resumenProductos.filter((p) => p.disponible > 0).map((p) => (
+                          <SelectItem key={p.id} value={p.id} className="text-xs">
+                            {p.nombre} (disp: {p.disponible}) · ${dineroCUP(p.precioActual)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        type="number"
+                        placeholder="Cantidad"
+                        value={gastoProdCant}
+                        onChange={(e) => setGastoProdCant(e.target.value)}
+                        className="h-9 rounded-xl text-xs"
+                      />
+                      <Input
+                        type="number"
+                        placeholder="Precio unitario"
+                        value={gastoProdPrecio}
+                        onChange={(e) => setGastoProdPrecio(e.target.value)}
+                        className="h-9 rounded-xl text-xs font-semibold"
+                      />
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="w-full h-8 rounded-xl text-xs font-bold"
+                      onClick={() => {
+                        const cant = Number(gastoProdCant);
+                        const prec = Number(gastoProdPrecio);
+                        const p = resumenProductos.find((x) => x.id === gastoProdSelId);
+                        if (!p || cant <= 0 || prec <= 0) {
+                          return toast.error("Selecciona producto, cantidad y precio");
+                        }
+                        setGastoItems((prev) => [
+                          ...prev,
+                          { productoId: p.id, productoNombre: p.nombre, cantidad: cant, precio: prec },
+                        ]);
+                        setGastoProdSelId("");
+                        setGastoProdCant("");
+                        setGastoProdPrecio("");
+                      }}
+                    >
+                      + Agregar producto a la cesta
+                    </Button>
                   </div>
-                  <p className="font-bold">Importe: ${dineroCUP(Number(gastoCantidadProd) * Number(gastoPrecio))} CUP</p>
                 </div>
               )}
 
+              {/* Botón Guardar Gasto */}
               <Button
-                size="sm"
-                className="w-full rounded-xl font-bold h-10"
-                onClick={agregarOGuardarGasto}
+                type="button"
+                className="w-full h-10 rounded-xl font-bold"
+                onClick={() => {
+                  if (!gastoNombre.trim()) {
+                    return toast.error("Indica el nombre de quien recibe o cliente");
+                  }
+                  if (gastoTipo === "Efectivo") {
+                    const m = Number(gastoMontoEfectivo);
+                    if (m <= 0) return toast.error("Indica un monto válido");
+                    const nuevo: GastoPrecuadre = {
+                      id: editingGastoId || crypto.randomUUID(),
+                      tipo: "efectivo",
+                      receptor: gastoNombre.trim(),
+                      descripcion: gastoDesc.trim(),
+                      monto: m,
+                      fecha: fechaTurno,
+                    };
+                    setGastos((prev) => (editingGastoId ? prev.map((g) => (g.id === editingGastoId ? nuevo : g)) : [...prev, nuevo]));
+                  } else {
+                    if (gastoItems.length === 0) return toast.error("Añade al menos un producto a la cesta");
+                    const montoTotal = gastoItems.reduce((acc, it) => acc + it.cantidad * it.precio, 0);
+                    const primer = gastoItems[0];
+                    const nuevo: GastoPrecuadre = {
+                      id: editingGastoId || crypto.randomUUID(),
+                      tipo: "producto",
+                      receptor: gastoNombre.trim(),
+                      descripcion: gastoDesc.trim(),
+                      monto: montoTotal,
+                      productoId: primer.productoId,
+                      productoNombre: gastoItems.length === 1 ? primer.productoNombre : gastoItems.map((i) => i.productoNombre).join(", "),
+                      cantidadProducto: primer.cantidad,
+                      precioProducto: primer.precio,
+                      fecha: fechaTurno,
+                    };
+                    setGastos((prev) => (editingGastoId ? prev.map((g) => (g.id === editingGastoId ? nuevo : g)) : [...prev, nuevo]));
+                  }
+                  // Resetear formulario
+                  setEditingGastoId(null);
+                  setGastoNombre("");
+                  setGastoDesc("");
+                  setGastoMontoEfectivo("");
+                  setGastoItems([]);
+                  toast.success("Salida registrada");
+                }}
               >
-                {gastoEditandoId
-                  ? "Actualizar Línea"
-                  : "+ Añadir Línea de Salida"}
+                {editingGastoId ? "Actualizar Salida" : "+ Registrar Salida"}
               </Button>
             </div>
 
+            {/* Lista de gastos registrados con Editar y Eliminar */}
             <div className="space-y-2">
-              {gastos.map((g) => (
-                <div
-                  key={g.id}
-                  className="flex justify-between items-center p-3 rounded-2xl border border-border bg-card text-xs shadow-soft"
-                >
-                  <div className="flex-1 pr-2">
-                    <span className="font-semibold text-sm">
-                      {g.receptor}
-                    </span>
-
-                    <span className="text-[10px] text-muted-foreground block">
-                      {g.tipo === "producto"
-                        ? `Producto: ${g.productoNombre} (${g.cantidadProducto} u.)`
-                        : g.tipo === "transferencia" ? `Transferencia · ${g.fecha} · Recibido: ${dineroCUP(g.montoRecibido ?? g.monto)} CUP` : "Efectivo"}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-destructive">
-                      -${dineroCUP(g.monto)}
-                    </span>
-
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                      onClick={() => iniciarEdicionGasto(g)}
-                    >
-                      <Edit2 className="h-3.5 w-3.5" />
-                    </Button>
-
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-destructive"
-                      onClick={() => eliminarGasto(g.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
+              <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+                Salidas registradas ({gastos.length})
+              </span>
+              {gastos.length === 0 ? (
+                <div className="p-4 text-center text-xs text-muted-foreground border border-dashed rounded-2xl bg-card">
+                  No hay salidas ni gastos registrados en este turno.
                 </div>
-              ))}
-
-              {gastos.length === 0 && (
-                <p className="text-center text-xs text-muted-foreground py-2">
-                  No se han declarado salidas.
-                </p>
+              ) : (
+                gastos.map((g) => (
+                  <div key={g.id} className="p-3 bg-card border rounded-2xl flex justify-between items-center text-xs shadow-soft">
+                    <div className="min-w-0 flex-1 pr-2">
+                      <div className="font-bold truncate text-foreground">{g.receptor}</div>
+                      <div className="text-muted-foreground text-[11px] truncate">
+                        {g.tipo === "producto" ? (g.productoNombre || "Producto") : "Efectivo"}
+                        {g.descripcion ? ` · ${g.descripcion}` : ""}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-destructive font-mono">-${dineroCUP(g.monto)}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive"
+                        onClick={() => setGastos((prev) => prev.filter((x) => x.id !== g.id))}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                ))
               )}
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <Button
-                variant="outline"
-                className="rounded-2xl flex-1 h-12"
-                onClick={() => setPaso(6)}
-              >
-                <ArrowLeft className="mr-1 h-4 w-4" /> Atrás
-              </Button>
-
-              <Button
-                className="rounded-2xl flex-1 font-bold h-12"
-                onClick={() => setPaso(8)}
-              >
-                Arqueo de Efectivo
-                <ArrowRight className="ml-1 h-4 w-4" />
-              </Button>
             </div>
           </div>
         )}
@@ -2489,13 +2555,8 @@ export function PrecuadreAdminReview({
           g.receptor ||
           turno.dependiente,
 
-        descripcion:
-          g.tipo === "producto"
-            ? `${g.cantidadProducto}x ${
-                g.productoNombre ||
-                "Producto"
-              } (${g.receptor})`
-            : g.receptor,
+             // Dejar limpia la descripción original para que gastoLineas() no duplique el detalle
+     descripcion: g.descripcion || "",
 
         monto: g.monto,
         productoId: g.productoId,
@@ -2621,16 +2682,38 @@ export function PrecuadreAdminReview({
                 <option key={c.id} value={c.id}>{c.fecha.slice(0, 10)} · {c.dependiente}</option>
               ))}
             </select>
-            {anterior && (d.productos ?? []).map((p) => {
-              const previo = anterior.productos.find((item) => item.id === p.id ||
-                item.nombre.trim().toLowerCase() === p.nombre.trim().toLowerCase());
-              return (
-                <div key={p.id} className={previo && previo.final === p.inicio ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"}>
-                  {p.nombre} · Inicio {p.inicio} · Final anterior {previo?.final ?? "sin registro"}
-                  {previo && (previo.final === p.inicio ? " · Coincide" : " · Diferencia")}
-                </div>
-              );
-            })}
+                     {anterior && (d.productos ?? [])
+           .filter((p) => {
+             const previo = anterior.productos.find(
+               (item) => item.id === p.id || item.nombre.trim().toLowerCase() === p.nombre.trim().toLowerCase()
+             );
+             // Mostrar únicamente productos que tienen existencias de inicio o final anterior
+             return (p.inicio ?? 0) > 0 || (previo?.final ?? 0) > 0;
+           })
+           .map((p) => {
+             const previo = anterior.productos.find(
+               (item) => item.id === p.id || item.nombre.trim().toLowerCase() === p.nombre.trim().toLowerCase()
+             );
+             const coincide = previo && previo.final === p.inicio;
+             return (
+               <div
+                 key={p.id}
+                 className={`p-2 rounded-xl border text-xs flex justify-between items-center ${
+                   coincide ? "border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400" : "border-amber-500/40 bg-amber-500/5 text-amber-700 dark:text-amber-400"
+                 }`}
+               >
+                 <div>
+                   <span className="font-bold">{p.nombre}</span>
+                   <span className="block text-[11px] opacity-80">
+                     Inicio reportado: {p.inicio} · Final turno anterior: {previo?.final ?? "0"}
+                   </span>
+                 </div>
+                 <Badge variant={coincide ? "default" : "outline"} className={coincide ? "bg-emerald-600 text-white text-[10px]" : "border-amber-500 text-amber-600 text-[10px]"}>
+                   {coincide ? "Coincide" : "Diferencia"}
+                 </Badge>
+               </div>
+             );
+           })}
           </section>
           {!!d.gastos?.length && (
             <section className="space-y-2 rounded-2xl border p-3">
