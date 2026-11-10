@@ -1,10 +1,15 @@
 import { supabase } from "@/integrations/supabase/client";
-import { PuntoVenta, Denominaciones } from "@/store/cuadreStore";
+import { PuntoVenta, Denominaciones, PrecioTramo } from "@/store/cuadreStore";
 
 export type GastoPrecuadre = {
   id: string;
   receptor: string;
-  tipo: "efectivo" | "producto";
+  tipo: "efectivo" | "producto" | "transferencia";
+  fecha?: string;
+  transaccion?: string;
+  porcentaje?: number;
+  montoRecibido?: number;
+  precioProducto?: number;
   productoId?: string;
   productoNombre?: string;
   cantidadProducto?: number;
@@ -14,12 +19,15 @@ export type GastoPrecuadre = {
 
 export type RecogidaPrecuadre = {
   id: string;
-  hora: string;
+  hora?: string;
+  fecha?: string;
+  quien?: string;
   monto: number;
   nota?: string;
 };
 
 export type PrecuadreData = {
+  descartadoComo?: "cancelado" | "eliminado";
   // Paso 1
   diasTrabajados: number;
   // Paso 2: Inicios
@@ -38,6 +46,7 @@ export type PrecuadreData = {
     categoria?: string;
     vendidas?: number;
     importe?: number;
+    tramos?: Omit<PrecioTramo, "costo">[];
   }[];
   // Paso 5: Relevo & Firma
   tipoRelevo: "dependiente" | "admin";
@@ -96,7 +105,7 @@ export async function syncOfflineTurnos(): Promise<void> {
     try {
       const { error } = await supabase
         .from("turnos_dependiente" as any)
-        .upsert(item);
+        .upsert(item, { onConflict: "id", ignoreDuplicates: true });
       if (error) rest.push(item);
     } catch {
       rest.push(item);
@@ -139,7 +148,7 @@ export async function enviarPrecuadre(
   try {
     const { error } = await supabase
       .from("turnos_dependiente" as any)
-      .upsert(payload);
+      .upsert(payload, { onConflict: "id", ignoreDuplicates: true });
     if (error) throw error;
     return true;
   } catch {
@@ -159,22 +168,39 @@ export async function listarPrecuadresPendientes(): Promise<TurnoDependiente[]> 
       .order("enviado_en", { ascending: false });
 
     if (error) return [];
-    return (data as TurnoDependiente[]) || [];
+    return (data as unknown as TurnoDependiente[]) || [];
   } catch {
     return [];
   }
 }
 
-export async function marcarPrecuadreConciliado(id: string): Promise<void> {
-  await supabase
+export async function listarPrecuadresEnviados(dependiente: string): Promise<TurnoDependiente[]> {
+  const { data, error } = await supabase
     .from("turnos_dependiente" as any)
-    .update({ estado: "conciliado", updated_at: new Date().toISOString() })
-    .eq("id", id);
+    .select("id, punto_venta, dependiente, estado, enviado_en, data")
+    .eq("dependiente", dependiente)
+    .neq("estado", "en_curso")
+    .order("enviado_en", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as unknown as TurnoDependiente[];
 }
 
-export async function marcarPrecuadreDescartado(id: string): Promise<void> {
-  await supabase
-    .from("turnos_dependiente" as any)
-    .update({ estado: "descartado", updated_at: new Date().toISOString() })
-    .eq("id", id);
+export async function marcarPrecuadreConciliado(id: string): Promise<void> {
+  const { error } = await supabase.from("turnos_dependiente" as any)
+    .update({ estado: "conciliado", updated_at: new Date().toISOString() })
+    .eq("id", id).eq("estado", "precuadrado");
+  if (error) throw error;
+}
+
+export async function marcarPrecuadreDescartado(
+  turno: TurnoDependiente, estado: "cancelado" | "eliminado"
+): Promise<void> {
+  const { error } = await supabase.from("turnos_dependiente" as any)
+    .update({
+      estado: "descartado",
+      data: { ...turno.data, descartadoComo: estado },
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", turno.id).eq("estado", "precuadrado").select("id").single();
+  if (error) throw error;
 }
