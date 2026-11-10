@@ -241,17 +241,15 @@ export function PrecuadreDependiente({
   // Paso 7: Gastos, salidas y transferencias
   const [gastos, setGastos] = useState<GastoPrecuadre[]>([]);
 
-  const [gastoTipo, setGastoTipo] =
-    useState<"efectivo" | "producto" | "transferencia">(
-      "efectivo"
-    );
-
-    // Estados para gastos con canasta idéntica al admin
   const [gastoCat, setGastoCat] = useState<GastoCategoria>("Local");
   const [gastoTipo, setGastoTipo] = useState<"Efectivo" | "Producto">("Efectivo");
   const [gastoNombre, setGastoNombre] = useState("");
   const [gastoDesc, setGastoDesc] = useState("");
+  const [gastoFecha, setGastoFecha] = useState(fechaTurno);
+  const [gastoTransaccion, setGastoTransaccion] = useState("");
   const [gastoMontoEfectivo, setGastoMontoEfectivo] = useState("");
+  const porcentajeTransferencia = settings.porcentajeTransferencia;
+  const cargoTransferencia = Math.round((Number(gastoMontoEfectivo) || 0) * porcentajeTransferencia) / 100;
   const [gastoItems, setGastoItems] = useState<{ productoId: string; productoNombre: string; cantidad: number; precio: number }[]>([]);
   const [gastoProdSelId, setGastoProdSelId] = useState("");
   const [gastoProdCant, setGastoProdCant] = useState("");
@@ -388,19 +386,6 @@ export function PrecuadreDependiente({
       (p) => p.disponible > 0
     );
   }, [resumenProductos]);
-
-  // Paso 7: productos disponibles para salida
-  const productosDisponiblesSalida = useMemo(() => {
-    const q = busquedaProdSalida.toLowerCase().trim();
-
-    return resumenProductos
-      .filter((p) => p.disponible > 0)
-      .filter(
-        (p) =>
-          !q ||
-          p.nombre.toLowerCase().includes(q)
-      );
-  }, [resumenProductos, busquedaProdSalida]);
 
   // Manejo de canvas de firma
   const startDraw = (
@@ -559,81 +544,26 @@ export function PrecuadreDependiente({
     );
   };
 
-  // Agregar o editar gasto en el paso 7
-  const agregarOGuardarGasto = () => {
-    const receptor = gastoReceptor.trim();
-    const producto = resumenProductos.find((p) => p.id === gastoProductoId);
-    const cantidad = Number(gastoCantidadProd);
-    const precio = Number(gastoPrecio);
-    const esProducto = gastoTipo === "producto";
-    const esTransferencia = gastoTipo === "transferencia";
-    const monto = esProducto ? cantidad * precio : Number(gastoMontoEfectivo);
-
-    if ((!receptor && !esTransferencia) || (esTransferencia && !gastoFecha) ||
-        !Number.isFinite(monto) || monto <= 0 ||
-        (esProducto && (!producto || cantidad <= 0 || precio <= 0))) {
-      toast.error("Revisa los datos de la salida antes de guardarla.");
-      return;
-    }
-
-    const gasto: GastoPrecuadre = {
-      id: gastoEditandoId ?? crypto.randomUUID(),
-      tipo: gastoTipo,
-      receptor: receptor || "Transferencia",
-      monto,
-      sinClasificar: true,
-      ...(esProducto && producto && {
-        productoId: producto.id,
-        productoNombre: producto.nombre,
-        cantidadProducto: cantidad,
-        precioProducto: precio,
-      }),
-      ...(esTransferencia && {
-        fecha: gastoFecha,
-        transaccion: gastoTransaccion.trim() || undefined,
-        porcentaje,
-        montoRecibido: monto + cargoTransferencia,
-      }),
-    };
-
-    setGastos((prev) => gastoEditandoId
-      ? prev.map((item) => item.id === gasto.id ? gasto : item)
-      : [...prev, gasto]
-    );
-    setGastoEditandoId(null);
-    setGastoReceptor("");
-    setGastoMontoEfectivo("");
-    setGastoCantidadProd("");
-    setGastoProductoId("");
-    setBusquedaProdSalida("");
-    setGastoPrecio("");
-    setGastoFecha(fechaTurno);
-    setGastoTransaccion("");
-    toast.success("Salida guardada");
-  };
-
-  const eliminarGasto = (id: string) => {
-    setGastos((prev) =>
-      prev.filter((g) => g.id !== id)
-    );
-
-    toast.info("Línea eliminada");
-  };
-
-  const iniciarEdicionGasto = (
-    g: GastoPrecuadre
-  ) => {
-    setGastoEditandoId(g.id);
-    setGastoReceptor(g.receptor);
-
-    setGastoTipo(g.tipo);
-    setGastoProductoId(g.productoId ?? resumenProductos.find((p) => p.nombre === g.productoNombre)?.id ?? "");
-    setBusquedaProdSalida(g.productoNombre ?? "");
-    setGastoCantidadProd(String(g.cantidadProducto ?? ""));
-    setGastoPrecio(String(g.precioProducto ?? (g.cantidadProducto ? g.monto / g.cantidadProducto : "")));
-    setGastoMontoEfectivo(String(g.monto));
-    setGastoFecha(g.fecha ?? fechaTurno);
-    setGastoTransaccion(g.transaccion ?? "");
+  const iniciarEdicionGasto = (gasto: GastoPrecuadre) => {
+    setEditingGastoId(gasto.id);
+    setGastoCat(gasto.categoriaSugerida ?? (gasto.tipo === "transferencia" ? "Transferencia" : "Local"));
+    setGastoTipo(gasto.tipo === "producto" ? "Producto" : "Efectivo");
+    setGastoNombre(gasto.receptor);
+    setGastoDesc(gasto.descripcion ?? "");
+    setGastoMontoEfectivo(gasto.tipo === "producto" ? "" : String(gasto.monto));
+    setGastoFecha(gasto.fecha ?? fechaTurno);
+    setGastoTransaccion(gasto.transaccion ?? "");
+    setGastoItems(gasto.items ?? (gasto.productoId && gasto.productoNombre && gasto.cantidadProducto
+      ? [{
+          productoId: gasto.productoId,
+          productoNombre: gasto.productoNombre,
+          cantidad: gasto.cantidadProducto,
+          precio: gasto.precioProducto ?? gasto.monto / gasto.cantidadProducto,
+        }]
+      : []));
+    setGastoProdSelId("");
+    setGastoProdCant("");
+    setGastoProdPrecio("");
   };
 
   // Agregar recogida en el paso 8
@@ -673,7 +603,6 @@ export function PrecuadreDependiente({
       const payload: PrecuadreData = {
         diasTrabajados,
         iniciosDeTurnoAnterior: true,
-        importadoDe: anteriorId || undefined,
 
 
         iniciosModificados:
@@ -1898,7 +1827,10 @@ export function PrecuadreDependiente({
               {/* Categoría */}
               <div>
                 <label className="text-xs font-semibold text-muted-foreground block mb-1">Categoría</label>
-                <Select value={gastoCat} onValueChange={(v) => setGastoCat(v as GastoCategoria)}>
+                <Select value={gastoCat} onValueChange={(v) => {
+                  setGastoCat(v as GastoCategoria);
+                  if (v === "Transferencia") setGastoTipo("Efectivo");
+                }}>
                   <SelectTrigger className="h-10 rounded-xl text-xs font-medium">
                     <SelectValue />
                   </SelectTrigger>
@@ -1926,6 +1858,7 @@ export function PrecuadreDependiente({
                   type="button"
                   variant={gastoTipo === "Producto" ? "default" : "outline"}
                   onClick={() => setGastoTipo("Producto")}
+                  disabled={gastoCat === "Transferencia"}
                   className="h-9 rounded-xl text-xs font-bold"
                 >
                   <Package className="h-3.5 w-3.5 mr-1" /> Producto
@@ -1957,6 +1890,21 @@ export function PrecuadreDependiente({
                   className="h-10 rounded-xl text-xs"
                 />
               </div>
+
+              {gastoCat === "Transferencia" && (
+                <div className="space-y-2 text-xs">
+                  <label className="block">
+                    Fecha de transferencia
+                    <Input type="date" value={gastoFecha} onChange={(e) => setGastoFecha(e.target.value)} />
+                  </label>
+                  <label className="block">
+                    Número de transacción (opcional)
+                    <Input value={gastoTransaccion} onChange={(e) => setGastoTransaccion(e.target.value)} />
+                  </label>
+                  <p>Cargo ({porcentajeTransferencia} %): ${dineroCUP(cargoTransferencia)} CUP</p>
+                  <p>Monto recibido: ${dineroCUP(Number(gastoMontoEfectivo) + cargoTransferencia)} CUP</p>
+                </div>
+              )}
 
               {/* Si es Efectivo: Monto */}
               {gastoTipo === "Efectivo" ? (
@@ -2068,19 +2016,28 @@ export function PrecuadreDependiente({
                 type="button"
                 className="w-full h-10 rounded-xl font-bold"
                 onClick={() => {
-                  if (!gastoNombre.trim()) {
+                  const esTransferencia = gastoCat === "Transferencia";
+                  if (esTransferencia && !gastoFecha) return toast.error("Indica la fecha de transferencia");
+                  if (!gastoNombre.trim() && !esTransferencia) {
                     return toast.error("Indica el nombre de quien recibe o cliente");
                   }
                   if (gastoTipo === "Efectivo") {
                     const m = Number(gastoMontoEfectivo);
-                    if (m <= 0) return toast.error("Indica un monto válido");
+                    if (!Number.isFinite(m) || m <= 0) return toast.error("Indica un monto válido");
                     const nuevo: GastoPrecuadre = {
                       id: editingGastoId || crypto.randomUUID(),
-                      tipo: "efectivo",
-                      receptor: gastoNombre.trim(),
+                      tipo: esTransferencia ? "transferencia" : "efectivo",
+                      receptor: gastoNombre.trim() || "Transferencia",
+                      categoriaSugerida: gastoCat,
+                      sinClasificar: true,
                       descripcion: gastoDesc.trim(),
                       monto: m,
-                      fecha: fechaTurno,
+                      fecha: esTransferencia ? gastoFecha : fechaTurno,
+                      ...(esTransferencia && {
+                        transaccion: gastoTransaccion.trim() || undefined,
+                        porcentaje: porcentajeTransferencia,
+                        montoRecibido: m + cargoTransferencia,
+                      }),
                     };
                     setGastos((prev) => (editingGastoId ? prev.map((g) => (g.id === editingGastoId ? nuevo : g)) : [...prev, nuevo]));
                   } else {
@@ -2091,6 +2048,9 @@ export function PrecuadreDependiente({
                       id: editingGastoId || crypto.randomUUID(),
                       tipo: "producto",
                       receptor: gastoNombre.trim(),
+                      categoriaSugerida: gastoCat,
+                      sinClasificar: true,
+                      items: gastoItems,
                       descripcion: gastoDesc.trim(),
                       monto: montoTotal,
                       productoId: primer.productoId,
@@ -2107,6 +2067,11 @@ export function PrecuadreDependiente({
                   setGastoDesc("");
                   setGastoMontoEfectivo("");
                   setGastoItems([]);
+                  setGastoProdSelId("");
+                  setGastoProdCant("");
+                  setGastoProdPrecio("");
+                  setGastoFecha(fechaTurno);
+                  setGastoTransaccion("");
                   toast.success("Salida registrada");
                 }}
               >
@@ -2129,12 +2094,15 @@ export function PrecuadreDependiente({
                     <div className="min-w-0 flex-1 pr-2">
                       <div className="font-bold truncate text-foreground">{g.receptor}</div>
                       <div className="text-muted-foreground text-[11px] truncate">
-                        {g.tipo === "producto" ? (g.productoNombre || "Producto") : "Efectivo"}
+                        {g.tipo === "producto" ? (g.productoNombre || "Producto") : g.tipo === "transferencia" ? "Transferencia" : "Efectivo"}
                         {g.descripcion ? ` · ${g.descripcion}` : ""}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-destructive font-mono">-${dineroCUP(g.monto)}</span>
+                      <Button type="button" variant="ghost" size="icon" aria-label="Editar salida" onClick={() => iniciarEdicionGasto(g)}>
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </Button>
                       <Button
                         type="button"
                         variant="ghost"
@@ -2576,7 +2544,8 @@ export function PrecuadreAdminReview({
           turno.dependiente,
 
              // Dejar limpia la descripción original para que gastoLineas() no duplique el detalle
-     descripcion: g.descripcion || "",
+        descripcion: g.descripcion || "",
+        items: g.items,
 
         monto: g.monto,
         productoId: g.productoId,
