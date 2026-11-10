@@ -61,6 +61,7 @@ import { hashPin, useCurrentPinUser } from "@/store/pinStore";
 export default function ClienteDetalle() {
   const { id = "" } = useParams();
   const nav = useNavigate();
+  const { role } = useAuth();
   const qc = useQueryClient();
   const clientes = useQuery({ queryKey: ["clientes"], queryFn: listClientes });
   const deudas = useQuery({ queryKey: ["deudas", id], queryFn: () => listDeudas(id) });
@@ -171,16 +172,18 @@ export default function ClienteDetalle() {
       )}
 
       <div className="grid grid-cols-2 gap-2">
-        <Button
+                <Button
           className="h-11 rounded-xl gradient-primary text-primary-foreground"
           onClick={() => nav(`/cobrar/clientes/${id}/abonar`)}
           disabled={pend.length === 0}
         >
           <Wallet className="mr-2 h-4 w-4" /> Registrar abono
         </Button>
-   Button variant="outline" onClick={() => setNuevaDeuda(true)}> si role === "dependiente"
-          <Plus className="mr-2 h-4 w-4" /> Nueva deuda
-        </Button>
+        {role !== "dependiente" && (
+          <Button variant="outline" className="h-11 rounded-xl" onClick={() => setNuevaDeuda(true)}>
+            <Plus className="mr-2 h-4 w-4" /> Nueva deuda
+          </Button>
+        )}
         {totalDeuda > 0 && (
           <Button
             variant="outline"
