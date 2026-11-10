@@ -414,6 +414,7 @@ function EditarDependienteModal({
   onOpenPinModal: (u: PinUser) => void;
   onCrearPin: (nombre: string) => void;
 }) {
+  const { settings, updateSettings } = useCuadreStore();
   const [form, setForm] = useState({ ...dep });
   const cuentaPin = users.find(
     (u) => u.nombre.trim().toLowerCase() === form.nombreOriginal.trim().toLowerCase()
