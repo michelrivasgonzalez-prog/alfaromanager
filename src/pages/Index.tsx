@@ -29,7 +29,6 @@ import { PrecuadreAdminReview } from "@/components/cuadre/Precuadre";
 import {
   TurnoDependiente,
   listarPrecuadresPendientes,
-  marcarPrecuadreConciliado,
   marcarPrecuadreDescartado,
 } from "@/lib/turnos";
 
@@ -105,12 +104,22 @@ export default function Index() {
     nav(`/cuadre/${step}`);
   };
 
-  const handleDescartarPrecuadre = async (e: React.MouseEvent, id: string) => {
+  const handleDescartarPrecuadre = async (
+    e: React.MouseEvent, turno: TurnoDependiente, estado: "cancelado" | "eliminado"
+  ) => {
     e.stopPropagation();
-    if (!confirm("¿Deseas descartar este pre-cuadre?")) return;
-    await marcarPrecuadreDescartado(id);
-    setPrecuadres((prev) => prev.filter((p) => p.id !== id));
-    toast.info("Pre-cuadre descartado");
+    if (currents[turno.punto_venta]?.precuadre?.turnoId === turno.id) {
+      toast.error("Cierra primero el borrador oficial vinculado a este precuadre.");
+      return;
+    }
+    if (!confirm(estado === "eliminado" ? "¿Eliminar este precuadre?" : "¿Cancelar este precuadre?")) return;
+    try {
+      await marcarPrecuadreDescartado(turno, estado);
+      setPrecuadres((prev) => prev.filter((p) => p.id !== turno.id));
+      toast.info(estado === "eliminado" ? "Precuadre eliminado" : "Precuadre cancelado");
+    } catch {
+      toast.error("No se pudo actualizar el precuadre. Actualiza la bandeja e inténtalo de nuevo.");
+    }
   };
 
   return (
@@ -154,7 +163,7 @@ export default function Index() {
       </button>
 
       {/* BANDEJA DE PRE-CUADRES PENDIENTES (Dueña / Admin) */}
-      {canStart && precuadres.length > 0 && (
+      {canStart && (
         <div className="rounded-3xl border border-primary/30 bg-primary/5 p-4 shadow-soft space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -182,6 +191,7 @@ export default function Index() {
           </div>
 
           <div className="space-y-2">
+            {!precuadres.length && <p className="text-xs text-muted-foreground">Sin precuadres pendientes.</p>}
             {precuadres.map((p) => {
               const d = p.data;
               return (
@@ -191,7 +201,7 @@ export default function Index() {
                     setTurnoSeleccionado(p);
                     setModalRevision(true);
                   }}
-                  className="flex items-center justify-between p-3.5 rounded-2xl border border-border bg-card shadow-soft hover:border-primary/50 transition-all cursor-pointer group"
+                  className="flex flex-wrap items-center justify-between gap-2 p-3.5 rounded-2xl border border-border bg-card shadow-soft hover:border-primary/50 transition-all cursor-pointer group"
                 >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
@@ -229,10 +239,13 @@ export default function Index() {
                     >
                       Revisar <ArrowRight className="ml-1 h-3.5 w-3.5" />
                     </Button>
+                    <Button variant="ghost" size="sm" onClick={(e) => handleDescartarPrecuadre(e, p, "cancelado")}>
+                      Cancelar
+                    </Button>
                     <button
-                      onClick={(e) => handleDescartarPrecuadre(e, p.id)}
+                      onClick={(e) => handleDescartarPrecuadre(e, p, "eliminado")}
                       className="p-1.5 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                      title="Descartar pre-cuadre"
+                      title="Eliminar precuadre" aria-label="Eliminar precuadre"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -246,21 +259,27 @@ export default function Index() {
 
       {/* Modal de Revisión de Pre-cuadre */}
       <PrecuadreAdminReview
+        key={turnoSeleccionado?.id}
         turno={turnoSeleccionado}
         open={modalRevision}
         onOpenChange={setModalRevision}
-        onCargarAlCuadre={async (cuadreData) => {
-          cargarPrecuadre(cuadreData);
-          if (turnoSeleccionado) {
-            await marcarPrecuadreConciliado(turnoSeleccionado.id);
-            setPrecuadres((prev) =>
-              prev.filter((p) => p.id !== turnoSeleccionado.id)
-            );
+        onCargarAlCuadre={(cuadreData) => {
+          const punto = cuadreData.puntoVenta;
+          const borrador = punto ? currents[punto] : undefined;
+          if (borrador) {
+            if (borrador.precuadre?.turnoId === turnoSeleccionado?.id) {
+              onStart(punto!);
+              return true;
+            }
+            toast.error("Ya hay un cuadre abierto en ese punto. Ciérralo antes de cargar otro.");
+            return false;
           }
+          cargarPrecuadre(cuadreData);
           toast.success(
             `Pre-cuadre de ${turnoSeleccionado?.dependiente} cargado al Cuadre oficial`
           );
           nav("/cuadre/1");
+          return true;
         }}
       />
 
