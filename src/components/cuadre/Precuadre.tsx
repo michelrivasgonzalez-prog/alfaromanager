@@ -2144,10 +2144,29 @@ export function PrecuadreDependiente({
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
-                    </div>
+                                        </div>
                   </div>
                 ))
               )}
+            </div>
+
+            {/* BOTONES DE NAVEGACIÓN PASO 7 */}
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="outline"
+                className="rounded-2xl flex-1 h-12"
+                onClick={() => setPaso(6)}
+              >
+                <ArrowLeft className="mr-1 h-4 w-4" /> Atrás
+              </Button>
+
+              <Button
+                className="rounded-2xl flex-1 font-bold h-12"
+                onClick={() => setPaso(8)}
+              >
+                Arqueo de Efectivo
+                <ArrowRight className="ml-1 h-4 w-4" />
+              </Button>
             </div>
           </div>
         )}
@@ -2511,10 +2530,11 @@ export function PrecuadreAdminReview({
         }
       );
 
-    if (sinClasificar) return;
+        if (sinClasificar) return;
     const cargado = onCargarAlCuadre({
       puntoVenta: turno.punto_venta,
       dependiente: turno.dependiente,
+      importadoDe: anteriorId || undefined,
       fecha:
         diasArray[
           diasArray.length - 1
