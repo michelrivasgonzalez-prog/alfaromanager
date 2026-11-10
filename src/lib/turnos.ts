@@ -1,9 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
-import { PuntoVenta, Denominaciones, PrecioTramo } from "@/store/cuadreStore";
+import { PuntoVenta, Denominaciones, PrecioTramo, type GastoCategoria, type GastoItem } from "@/store/cuadreStore";
 
 export type GastoPrecuadre = {
   id: string;
   receptor: string;
+  descripcion?: string;
+  categoriaSugerida?: GastoCategoria;
+  items?: (GastoItem & { productoId: string })[];
   tipo: "efectivo" | "producto" | "transferencia";
   fecha?: string;
   transaccion?: string;
