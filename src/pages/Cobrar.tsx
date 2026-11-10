@@ -51,8 +51,10 @@ export default function Cobrar() {
   const clientes = useQuery({ queryKey: ["clientes"], queryFn: listClientes });
   const deudas = useQuery({ queryKey: ["deudas-all"], queryFn: () => listDeudas() });
 
-  // Redirección o filtrado para el dependiente
   const esDependiente = role === "dependiente";
+  const { settings } = useCuadreStore();
+  const tienePermisoCobrar = esDependiente && Boolean(nombre && settings.dependientesPermisoCobrar?.includes(nombre));
+
   const miCliente = useMemo(() => {
     if (!esDependiente || !nombre || !clientes.data) return null;
     return clientes.data.find(
@@ -61,10 +63,11 @@ export default function Cobrar() {
   }, [esDependiente, nombre, clientes.data]);
 
   useEffect(() => {
-    if (esDependiente && miCliente) {
+    // Si es dependiente pero NO tiene permiso de cobro general, redirigir a su propio cliente
+    if (esDependiente && !tienePermisoCobrar && miCliente) {
       nav(`/cobrar/clientes/${miCliente.id}`, { replace: true });
     }
-  }, [esDependiente, miCliente, nav]);
+  }, [esDependiente, tienePermisoCobrar, miCliente, nav]);
 
   const pendienteTotal = (deudas.data ?? [])
     .filter((d) => d.estado !== "pagada")
@@ -181,7 +184,24 @@ export default function Cobrar() {
             <Receipt className="mr-1.5 h-3.5 w-3.5" /> Deudas
           </TabsTrigger>
         </TabsList>
-
+          {!esDependiente && (
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="outline"
+                className="h-10 w-full rounded-xl"
+                onClick={() => setCliDialog({ nombre: "", telefono: "", observaciones: "" })}
+              >
+                <Plus className="mr-2 h-4 w-4" /> Nuevo cliente
+              </Button>
+              <Button
+                variant="outline"
+                className="h-10 w-full rounded-xl"
+                onClick={() => setDeudaLibre(true)}
+              >
+                <Plus className="mr-2 h-4 w-4" /> Nueva deuda
+              </Button>
+            </div>
+          )}
         <TabsContent value="clientes" className="mt-3 space-y-3">
           <div className="grid grid-cols-2 gap-2">
             <Button
