@@ -62,10 +62,14 @@ export default function Cobrar() {
     );
   }, [esDependiente, nombre, clientes.data]);
 
-  useEffect(() => {
-    // Si es dependiente pero NO tiene permiso de cobro general, redirigir a su propio cliente
-    if (esDependiente && !tienePermisoCobrar && miCliente) {
-      nav(`/cobrar/clientes/${miCliente.id}`, { replace: true });
+    useEffect(() => {
+    // Si es dependiente pero NO tiene permiso de cobro general
+    if (esDependiente && !tienePermisoCobrar) {
+      if (miCliente) {
+        nav(`/cobrar/clientes/${miCliente.id}`, { replace: true });
+      } else {
+        nav(`/portal-dependiente`, { replace: true });
+      }
     }
   }, [esDependiente, tienePermisoCobrar, miCliente, nav]);
 
@@ -175,7 +179,7 @@ export default function Cobrar() {
         <KpiCard label="Clientes totales" value={clientes.data?.length ?? 0} />
       </div>
 
-      <Tabs defaultValue="clientes" className="w-full">
+            <Tabs defaultValue="clientes" className="w-full">
         <TabsList className="grid w-full grid-cols-2 rounded-xl">
           <TabsTrigger value="clientes" className="rounded-lg">
             <Users className="mr-1.5 h-3.5 w-3.5" /> Clientes
@@ -184,6 +188,8 @@ export default function Cobrar() {
             <Receipt className="mr-1.5 h-3.5 w-3.5" /> Deudas
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="clientes" className="mt-3 space-y-3">
           {!esDependiente && (
             <div className="grid grid-cols-2 gap-2">
               <Button
@@ -202,23 +208,6 @@ export default function Cobrar() {
               </Button>
             </div>
           )}
-        <TabsContent value="clientes" className="mt-3 space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              variant="outline"
-              className="h-10 w-full rounded-xl"
-              onClick={() => setCliDialog({ nombre: "", telefono: "", observaciones: "" })}
-            >
-              <Plus className="mr-2 h-4 w-4" /> Nuevo cliente
-            </Button>
-            <Button
-              variant="outline"
-              className="h-10 w-full rounded-xl"
-              onClick={() => setDeudaLibre(true)}
-            >
-              <Receipt className="mr-2 h-4 w-4" /> Nueva deuda
-            </Button>
-          </div>
           <Input
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
