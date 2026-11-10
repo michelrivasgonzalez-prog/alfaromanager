@@ -185,6 +185,8 @@ export type Settings = {
   ocultarAlmacen?: boolean;
   /** Fotos de perfil de dependientes (por nombre en Base64). */
   dependienteFotos?: Record<string, string>;
+  /** Nombres de dependientes autorizados a entrar a Cobrar solo para hacer abonos */
+  dependientesPermisoCobrar?: string[];
 };
 
 /** Punto habitual: el asignado o, si no hay, el más frecuente en su historial. */
@@ -212,6 +214,7 @@ const DEFAULT_SETTINGS: Settings = {
   diasNoTrabajados: [],
   diasNoTrabajadosPunto: { "Cafetería": [], "Mipyme": [] },
   categorias: [],
+  dependientesPermisoCobrar: [],
   dependientesInactivos: [],
   dependienteFotos: {},
   ocultarAlmacen: false,
