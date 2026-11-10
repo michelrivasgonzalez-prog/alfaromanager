@@ -2438,6 +2438,7 @@ function Step9() {
   // Estado local para agregar una nueva excepción de producto en el cuadre
   const [productoSeleccionado, setProductoSeleccionado] = useState<string>("");
   const [tarifaUnidad, setTarifaUnidad] = useState<number>(10);
+  const [mostrarFormExc, setMostrarFormExc] = useState(false);
 
   if (!current) return null;
 
@@ -2590,59 +2591,107 @@ function Step9() {
           <div>Por %: <span className="font-semibold text-foreground">${fmt(c.salarioPorPorcentaje)}</span></div>
         </div>
 
-        {/* SELECTOR Y CONFIGURACIÓN DE PRODUCTOS CON TARIFA FIJA */}
+                {/* SELECTOR Y CONFIGURACIÓN DE PRODUCTOS CON TARIFA FIJA */}
         {current.salarioModo === "comision_producto" && (
           <div className="rounded-xl border border-primary/20 bg-muted/20 p-3.5 space-y-3">
-            <div className="text-xs font-semibold text-foreground flex items-center justify-between">
-              <span>Productos con tarifa fija por unidad</span>
-              <span className="text-[10px] text-muted-foreground">Descontados del {current.porcentajeVenta}% general</span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
-              <div className="sm:col-span-6">
-                <Select
-                  value={productoSeleccionado}
-                  onValueChange={setProductoSeleccionado}
-                >
-                  <SelectTrigger className="h-10 text-xs rounded-lg">
-                    <SelectValue placeholder="Seleccionar producto..." />
-                  </SelectTrigger>
-                  <SelectContent className="bg-popover max-h-56">
-                    {productosDisponibles.map((p) => (
-                      <SelectItem key={p.id} value={p.nombre} className="text-xs">
-                        {p.nombre} ({p.venta} u. vendidas)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="sm:col-span-3">
-                <div className="relative">
-                  <Input
-                    type="number"
-                    value={tarifaUnidad}
-                    onChange={(e) => setTarifaUnidad(Number(e.target.value) || 0)}
-                    placeholder="Tarifa CUP"
-                    className="h-10 text-xs rounded-lg pr-10"
-                  />
-                  <span className="absolute right-2.5 top-2.5 text-[10px] text-muted-foreground font-medium">CUP</span>
+            {/* 1. DESGLOSE MATEMÁTICO EN VIVO SITUADO ARRIBA */}
+            {c.desgloseExcepciones && c.desgloseExcepciones.length > 0 && (
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs space-y-1.5 shadow-sm">
+                <div className="font-semibold text-primary flex items-center justify-between text-xs">
+                  <span>Venta general sujeta al {current.porcentajeVenta}%:</span>
+                  <span className="font-mono font-bold">${fmt(c.ventaGeneral)} → ${fmt(c.ventaGeneral * ((current.porcentajeVenta ?? 0) / 100))}</span>
+                </div>
+                {c.desgloseExcepciones.map((exc) => (
+                  <div key={exc.nombre} className="flex justify-between text-emerald-600 dark:text-emerald-400 text-[11px]">
+                    <span>+ {exc.nombre} ({exc.unidades} u. × ${exc.tarifa} CUP):</span>
+                    <span className="font-mono font-semibold">${fmt(exc.total)}</span>
+                  </div>
+                ))}
+                <div className="border-t border-primary/20 pt-1.5 flex justify-between font-bold text-foreground text-xs">
+                  <span>Total Comisión:</span>
+                  <span className="font-mono text-primary text-sm">${fmt(c.salarioPorPorcentaje)}</span>
                 </div>
               </div>
+            )}
 
-              <div className="sm:col-span-3">
+            {/* Cabecera y botón para añadir producto con tarifa fija */}
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-xs font-bold text-foreground">Productos con tarifa fija por unidad</span>
+              {!mostrarFormExc && (
                 <Button
                   type="button"
-                  variant="secondary"
+                  variant="outline"
                   size="sm"
-                  onClick={agregarExcepcion}
-                  disabled={!productoSeleccionado}
-                  className="w-full h-10 text-xs rounded-lg font-medium"
+                  onClick={() => setMostrarFormExc(true)}
+                  className="h-8 text-xs rounded-xl font-bold"
                 >
-                  Añadir
+                  <Plus className="h-3.5 w-3.5 mr-1 text-primary" /> Añadir producto
                 </Button>
-              </div>
+              )}
             </div>
+
+            {/* FORMULARIO DESPLEGABLE BAJO DEMANDA */}
+            {mostrarFormExc && (
+              <div className="p-3 bg-card border border-border rounded-xl space-y-2.5 animate-in fade-in-50">
+                <div className="text-[11px] font-semibold text-muted-foreground">
+                  Selecciona el producto y la tarifa fija por unidad vendida:
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                  <div className="sm:col-span-6">
+                    <Select value={productoSeleccionado} onValueChange={setProductoSeleccionado}>
+                      <SelectTrigger className="h-9 text-xs rounded-lg">
+                        <SelectValue placeholder="Seleccionar producto..." />
+                      </SelectTrigger>
+                      <SelectContent className="bg-popover max-h-56">
+                        {productosDisponibles.map((p) => (
+                          <SelectItem key={p.id} value={p.nombre} className="text-xs">
+                            {p.nombre} ({p.venta} u. vendidas)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="sm:col-span-3">
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        value={tarifaUnidad}
+                        onChange={(e) => setTarifaUnidad(Number(e.target.value) || 0)}
+                        placeholder="Tarifa CUP"
+                        className="h-9 text-xs rounded-lg pr-9"
+                      />
+                      <span className="absolute right-2 top-2 text-[10px] text-muted-foreground font-medium">CUP</span>
+                    </div>
+                  </div>
+
+                  <div className="sm:col-span-3 flex gap-1.5">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        agregarExcepcion();
+                        setMostrarFormExc(false);
+                      }}
+                      disabled={!productoSeleccionado}
+                      className="flex-1 h-9 text-xs rounded-lg font-bold"
+                    >
+                      Añadir
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setMostrarFormExc(false)}
+                      className="h-9 text-xs rounded-lg"
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Lista de productos configurados en este cuadre */}
             {(current.salarioExcepcionesProductos ?? []).length > 0 && (
@@ -2678,27 +2727,8 @@ function Step9() {
                 })}
               </div>
             )}
-
-            {/* Desglose matemático en vivo */}
-            {c.desgloseExcepciones && c.desgloseExcepciones.length > 0 && (
-              <div className="rounded-lg border border-primary/20 bg-primary/5 p-2.5 text-xs space-y-1 mt-2">
-                <div className="font-semibold text-primary flex items-center justify-between text-[11px]">
-                  <span>Venta general sujeta al {current.porcentajeVenta}%:</span>
-                  <span>${fmt(c.ventaGeneral)} → ${fmt(c.ventaGeneral * ((current.porcentajeVenta ?? 0) / 100))}</span>
-                </div>
-                {c.desgloseExcepciones.map((exc) => (
-                  <div key={exc.nombre} className="flex justify-between text-emerald-600 dark:text-emerald-400 text-[11px]">
-                    <span>+ {exc.nombre} ({exc.unidades} u. × ${exc.tarifa} CUP):</span>
-                    <span className="font-semibold">${fmt(exc.total)}</span>
-                  </div>
-                ))}
-                <div className="border-t border-primary/20 pt-1 flex justify-between font-bold text-foreground text-xs">
-                  <span>Total Comisión:</span>
-                  <span>${fmt(c.salarioPorPorcentaje)}</span>
-                </div>
-              </div>
-            )}
           </div>
+        )}
         )}
       </div>
 
