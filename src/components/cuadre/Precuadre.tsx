@@ -374,19 +374,18 @@ export function PrecuadreDependiente({
     setPaso(6);
     return false;
   };
-  // Paso 3: buscar sin alterar el orden de categorías
+    // Paso 3: con inicio arriba y sin inicio debajo, ambos ordenados por categoría
   const productosOrdenadosPaso3 = useMemo(() => {
     const q = busquedaPaso3.toLowerCase().trim();
-    let lista = productosBase;
+    const filtrados = q
+      ? productosBase.filter((p) => p.nombre.toLowerCase().includes(q) || (p.categoria ?? "").toLowerCase().includes(q))
+      : productosBase;
 
-    if (q) {
-      lista = lista.filter((p) =>
-        p.nombre.toLowerCase().includes(q)
-      );
-    }
+    const conInicio = filtrados.filter((p) => (inicios[p.id] ?? p.inicioDefecto) > 0);
+    const sinInicio = filtrados.filter((p) => (inicios[p.id] ?? p.inicioDefecto) <= 0);
 
-    return lista;
-  }, [productosBase, busquedaPaso3]);
+    return { conInicio, sinInicio };
+  }, [productosBase, busquedaPaso3, inicios]);
 
   // Paso 4: productos con disponibilidad
   const productosConStockPaso4 = useMemo(() => {
@@ -1181,29 +1180,31 @@ export function PrecuadreDependiente({
           </div>
         )}
 
-        {/* PASO 3 */}
+              {/* PASO 3 */}
         {paso === 3 && (
           <div className="space-y-4 pt-1">
+            {/* Nota informativa requerida */}
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3.5 text-xs text-muted-foreground leading-relaxed">
+              <p className="font-semibold text-primary mb-1">
+                Debe declarar las entradas y traslados concebidos en el turno.
+              </p>
+              <p className="text-[11px]">
+                Al igual que debe declarar algún cambio de precio y ponerlo en la casilla <strong>"Precio CUP"</strong>. Además, si hay dos precios en algún producto, se debe poner el precio nuevo aquí y más adelante, en el paso de resultados, se debe declarar cuántas unidades se vendieron al precio anterior.
+              </p>
+            </div>
+
             <div className="space-y-2">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-
                 <Input
-                  placeholder="Buscar producto por letra..."
+                  placeholder="Buscar producto por letra o categoría..."
                   value={busquedaPaso3}
-                  onChange={(e) =>
-                    setBusquedaPaso3(
-                      e.target.value
-                    )
-                  }
+                  onChange={(e) => setBusquedaPaso3(e.target.value)}
                   className="pl-9 pr-8 rounded-2xl h-10 text-xs"
                 />
-
                 {busquedaPaso3 && (
                   <button
-                    onClick={() =>
-                      setBusquedaPaso3("")
-                    }
+                    onClick={() => setBusquedaPaso3("")}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   >
                     <X className="h-3.5 w-3.5" />
@@ -1215,45 +1216,103 @@ export function PrecuadreDependiente({
                 type="button"
                 variant="outline"
                 className="w-full rounded-2xl text-xs font-bold border-dashed"
-                onClick={() =>
-                  setModalNuevoProd(true)
-                }
+                onClick={() => setModalNuevoProd(true)}
               >
                 <Plus className="mr-1.5 h-4 w-4 text-primary" />
                 Agregar Producto Nuevo
               </Button>
             </div>
 
-            <div className="space-y-2">
-              {productosOrdenadosPaso3.map((p, i) => (
-                <React.Fragment key={p.id}>
-                  {(i === 0 || productosOrdenadosPaso3[i - 1].categoria !== p.categoria) && (
-                    <h3 className="pt-2 text-xs font-bold text-muted-foreground">{p.categoria}</h3>
-                  )}
-                  <div className="space-y-2 rounded-2xl border border-border bg-card p-3">
-                    <p className="overflow-x-auto whitespace-nowrap text-sm font-bold">{p.nombre}</p>
-                    <div className="grid grid-cols-3 gap-2 text-xs">
-                      {([
-                        ["Entradas", entradas[p.id] ?? "", setEntradas],
-                        ["Traslados", traslados[p.id] ?? "", setTraslados],
-                        ["Precio CUP", preciosEditados[p.id] ?? p.precioDefecto, setPreciosEditados],
-                      ] as const).map(([etiqueta, valor, guardar]) => (
-                        <label key={etiqueta} className="min-w-0">
-                          {etiqueta}
-                          <Input type="number" step="any" value={valor} placeholder="0"
-                            onChange={(e) => {
-                              const numero = Number(e.target.value);
-                              guardar((prev) => ({ ...prev, [p.id]: numero }));
-                            }}
-                            className="mt-1 h-9 px-2 text-right"
-                          />
-                        </label>
-                      ))}
+            {/* SECCIÓN 1: PRODUCTOS CON INICIO */}
+            {productosOrdenadosPaso3.conInicio.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 border-b border-border pb-1">
+                  <span className="text-xs font-bold uppercase tracking-wider text-primary">
+                    Productos con Inicio ({productosOrdenadosPaso3.conInicio.length})
+                  </span>
+                </div>
+                {productosOrdenadosPaso3.conInicio.map((p, i) => (
+                  <React.Fragment key={p.id}>
+                    {(i === 0 || productosOrdenadosPaso3.conInicio[i - 1].categoria !== p.categoria) && (
+                      <h3 className="pt-1 text-xs font-bold text-muted-foreground">{p.categoria || "Varios"}</h3>
+                    )}
+                    <div className="space-y-2 rounded-2xl border border-border bg-card p-3 shadow-soft">
+                      <div className="flex justify-between items-center">
+                        <p className="text-sm font-bold truncate">{p.nombre}</p>
+                        <span className="text-[11px] font-semibold text-muted-foreground">
+                          Inicio: {inicios[p.id] ?? p.inicioDefecto}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-xs">
+                        {([
+                          ["Entradas", entradas[p.id] ?? "", setEntradas],
+                          ["Traslados", traslados[p.id] ?? "", setTraslados],
+                          ["Precio CUP", preciosEditados[p.id] ?? p.precioDefecto, setPreciosEditados],
+                        ] as const).map(([etiqueta, valor, guardar]) => (
+                          <label key={etiqueta} className="min-w-0">
+                            <span className="text-[10px] text-muted-foreground block truncate">{etiqueta}</span>
+                            <Input
+                              type="number"
+                              step="any"
+                              value={valor}
+                              placeholder="0"
+                              onChange={(e) => {
+                                const numero = Number(e.target.value);
+                                guardar((prev) => ({ ...prev, [p.id]: numero }));
+                              }}
+                              className="mt-0.5 h-9 px-2 text-right font-medium"
+                            />
+                          </label>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                </React.Fragment>
-              ))}
-            </div>
+                  </React.Fragment>
+                ))}
+              </div>
+            )}
+
+            {/* SECCIÓN 2: PRODUCTOS SIN INICIO */}
+            {productosOrdenadosPaso3.sinInicio.length > 0 && (
+              <div className="space-y-3 pt-3">
+                <div className="flex items-center gap-2 border-b border-border pb-1">
+                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Productos sin Inicio ({productosOrdenadosPaso3.sinInicio.length})
+                  </span>
+                </div>
+                {productosOrdenadosPaso3.sinInicio.map((p, i) => (
+                  <React.Fragment key={p.id}>
+                    {(i === 0 || productosOrdenadosPaso3.sinInicio[i - 1].categoria !== p.categoria) && (
+                      <h3 className="pt-1 text-xs font-bold text-muted-foreground">{p.categoria || "Varios"}</h3>
+                    )}
+                    <div className="space-y-2 rounded-2xl border border-dashed border-border bg-card/60 p-3">
+                      <p className="text-sm font-semibold truncate text-muted-foreground">{p.nombre}</p>
+                      <div className="grid grid-cols-3 gap-2 text-xs">
+                        {([
+                          ["Entradas", entradas[p.id] ?? "", setEntradas],
+                          ["Traslados", traslados[p.id] ?? "", setTraslados],
+                          ["Precio CUP", preciosEditados[p.id] ?? p.precioDefecto, setPreciosEditados],
+                        ] as const).map(([etiqueta, valor, guardar]) => (
+                          <label key={etiqueta} className="min-w-0">
+                            <span className="text-[10px] text-muted-foreground block truncate">{etiqueta}</span>
+                            <Input
+                              type="number"
+                              step="any"
+                              value={valor}
+                              placeholder="0"
+                              onChange={(e) => {
+                                const numero = Number(e.target.value);
+                                guardar((prev) => ({ ...prev, [p.id]: numero }));
+                              }}
+                              className="mt-0.5 h-9 px-2 text-right"
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </React.Fragment>
+                ))}
+              </div>
+            )}
 
             <div className="flex gap-2 pt-2">
               <Button
@@ -1693,50 +1752,9 @@ export function PrecuadreDependiente({
                       />
                     </label>
 
-                    <details className="rounded-xl border border-border p-2">
-                      <summary className="cursor-pointer font-semibold">Desglose y precios mixtos</summary>
-                      <div className="mt-2 space-y-2">
-                        {p.tramos.map((tramo) => (
-                          <div key={tramo.id} className="grid grid-cols-[1fr_1fr_auto] items-end gap-2">
-                            {(["cantidad", "precio"] as const).map((campo) => (
-                              <label key={campo} className="min-w-0">
-                                {campo === "cantidad" ? "Cantidad" : "Precio (CUP)"}
-                                <Input
-                                  type="number"
-                                  min={0}
-                                  step="any"
-                                  value={tramo[campo] || ""}
-                                  onChange={(e) => {
-                                    const valor = Number(e.target.value);
-                                    cambiarTramos(p.id, (actuales) => actuales.map((t) =>
-                                      t.id === tramo.id ? { ...t, [campo]: valor } : t
-                                    ));
-                                  }}
-                                  className="h-8"
-                                />
-                              </label>
-                            ))}
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              aria-label="Eliminar tramo de precio"
-                              onClick={() => cambiarTramos(p.id, (actuales) => actuales.filter((t) => t.id !== tramo.id))}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                            <p className="col-span-3">
-                              {tramo.cantidad} × ${dineroCUP(tramo.precio)} = ${dineroCUP(tramo.cantidad * tramo.precio)} CUP
-                            </p>
-                          </div>
-                        ))}
-                        {p.cantidadBase > 0 && (
-                          <p>{p.cantidadBase} × ${dineroCUP(p.precioActual)} = ${dineroCUP(p.cantidadBase * p.precioActual)} CUP</p>
-                        )}
-                        {Math.round((p.cantidadTramos - p.vendidas) * 1e8) > 0 && (
-                          <p className="text-destructive">Los tramos superan las unidades vendidas.</p>
-                        )}
+                                        {/* Precios Mixtos bajo demanda */}
+                    {p.tramos.length === 0 ? (
+                      <div className="pt-1">
                         <Button
                           type="button"
                           variant="outline"
@@ -1744,13 +1762,111 @@ export function PrecuadreDependiente({
                           disabled={p.vendidas <= 0}
                           onClick={() => {
                             const tramo = { id: crypto.randomUUID(), cantidad: 0, precio: p.precioActual };
-                            cambiarTramos(p.id, (actuales) => [...actuales, tramo]);
+                            cambiarTramos(p.id, () => [tramo]);
                           }}
+                          className="h-8 text-xs rounded-xl w-full border-dashed"
                         >
-                          + Agregar precio mixto
+                          + Declarar precio mixto para {p.nombre}
                         </Button>
                       </div>
-                    </details>
+                    ) : (
+                      <div className="rounded-xl border border-border/80 bg-muted/20 p-2.5 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-foreground">Desglose de precios mixtos</span>
+                          <span className="text-[10px] text-muted-foreground">Oficial: ${dineroCUP(p.precioActual)} CUP</span>
+                        </div>
+
+                        {/* Unidades vendidas al precio base */}
+                        <div className="p-2 bg-card rounded-lg border border-border/50 text-xs flex justify-between items-center font-medium">
+                          <span>Al precio base (${dineroCUP(p.precioActual)} CUP):</span>
+                          <strong className="text-primary">{p.cantidadBase} u. = ${dineroCUP(p.cantidadBase * p.precioActual)} CUP</strong>
+                        </div>
+
+                        {/* Tramos al precio mixto */}
+                        {p.tramos.map((tramo) => (
+                          <div key={tramo.id} className="p-2 bg-card rounded-lg border border-border/50 space-y-1.5 text-xs">
+                            <div className="grid grid-cols-[1fr_1fr_auto] items-end gap-2">
+                              <label className="min-w-0">
+                                <span className="text-[10px] text-muted-foreground">Cant. a otro precio</span>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  step="any"
+                                  value={tramo.cantidad || ""}
+                                  onChange={(e) => {
+                                    const valor = Number(e.target.value);
+                                    cambiarTramos(p.id, (actuales) =>
+                                      actuales.map((t) => (t.id === tramo.id ? { ...t, cantidad: valor } : t))
+                                    );
+                                  }}
+                                  className="h-8 text-right"
+                                />
+                              </label>
+
+                              <label className="min-w-0">
+                                <span className="text-[10px] text-muted-foreground">Precio mixto (CUP)</span>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  step="any"
+                                  value={tramo.precio || ""}
+                                  onChange={(e) => {
+                                    const valor = Number(e.target.value);
+                                    cambiarTramos(p.id, (actuales) =>
+                                      actuales.map((t) => (t.id === tramo.id ? { ...t, precio: valor } : t))
+                                    );
+                                  }}
+                                  className="h-8 text-right font-bold"
+                                />
+                              </label>
+
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive"
+                                onClick={() => cambiarTramos(p.id, (actuales) => actuales.filter((t) => t.id !== tramo.id))}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                            <div className="text-right text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                              {tramo.cantidad} × ${dineroCUP(tramo.precio)} = ${dineroCUP(tramo.cantidad * tramo.precio)} CUP
+                            </div>
+                          </div>
+                        ))}
+
+                        {Math.round((p.cantidadTramos - p.vendidas) * 1e8) > 0 && (
+                          <p className="text-[11px] font-semibold text-destructive">
+                            ⚠️ Los tramos ({p.cantidadTramos}) superan las unidades vendidas ({p.vendidas}).
+                          </p>
+                        )}
+
+                        <div className="flex gap-2 pt-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const tramo = { id: crypto.randomUUID(), cantidad: 0, precio: p.precioActual };
+                              cambiarTramos(p.id, (actuales) => [...actuales, tramo]);
+                            }}
+                            className="text-xs h-7 rounded-lg"
+                          >
+                            + Otro tramo
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => cambiarTramos(p.id, () => [])}
+                            className="text-xs h-7 text-muted-foreground hover:text-destructive"
+                          >
+                            Eliminar precios mixtos
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
             </div>
