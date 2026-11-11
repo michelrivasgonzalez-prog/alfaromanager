@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
@@ -10,8 +11,9 @@ import { useAuth } from "@/hooks/useAuth";
 export default function AbonosPendientesAprobacion() {
   const { role, user, nombre } = useAuth();
   const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
 
-  const { data: solicitudes = [] } = useQuery({
+  const { data: solicitudes = [], error } = useQuery({
     queryKey: ["abonos-pendientes"],
     queryFn: listarAbonosPendientes,
     enabled: role === "admin" || role === "duena",
@@ -19,29 +21,37 @@ export default function AbonosPendientesAprobacion() {
   });
 
   if (role !== "admin" && role !== "duena") return null;
+  if (error) return <p className="text-sm text-destructive">No se pudieron cargar los abonos pendientes: {error.message}</p>;
   if (solicitudes.length === 0) return null;
 
   const handleAprobar = async (sol: AbonoPendiente) => {
+    if (busy) return;
+    setBusy(true);
     try {
       await aprobarAbonoPendiente(sol, { id: user?.id, nombre });
       await qc.invalidateQueries({ queryKey: ["abonos-pendientes"] });
       await qc.invalidateQueries({ queryKey: ["clientes"] });
       await qc.invalidateQueries({ queryKey: ["deudas-all"] });
+      await qc.invalidateQueries({ queryKey: ["deudas"] });
+      await qc.invalidateQueries({ queryKey: ["abonos"] });
+      await qc.invalidateQueries({ queryKey: ["abonos-por-deuda"] });
       toast.success(`Abono de ${sol.cliente?.nombre || "Cliente"} confirmado`);
-    } catch {
-      toast.error("Error al confirmar abono");
-    }
+    } catch (error: any) {
+      toast.error(error.message || "Error al confirmar abono");
+    } finally { setBusy(false); }
   };
 
   const handleRechazar = async (id: string) => {
     if (!confirm("¿Deseas descartar este registro de abono?")) return;
+    if (busy) return;
+    setBusy(true);
     try {
       await rechazarAbonoPendiente(id);
       await qc.invalidateQueries({ queryKey: ["abonos-pendientes"] });
       toast.info("Abono descartado");
-    } catch {
-      toast.error("Error al descartar");
-    }
+    } catch (error: any) {
+      toast.error(error.message || "Error al descartar");
+    } finally { setBusy(false); }
   };
 
   return (
@@ -73,6 +83,7 @@ export default function AbonosPendientesAprobacion() {
 
           <div className="flex items-center gap-2 pt-1 border-t border-border/40">
             <Button
+              disabled={busy}
               size="sm"
               className="h-8 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1"
               onClick={() => handleAprobar(sol)}
@@ -80,6 +91,7 @@ export default function AbonosPendientesAprobacion() {
               <Check className="h-3.5 w-3.5" /> Aceptar (Dinero recibido)
             </Button>
             <Button
+              disabled={busy}
               size="sm"
               variant="outline"
               className="h-8 rounded-xl text-xs"
@@ -88,6 +100,7 @@ export default function AbonosPendientesAprobacion() {
               Dejar en espera
             </Button>
             <Button
+              disabled={busy}
               size="sm"
               variant="ghost"
               className="h-8 rounded-xl text-xs text-destructive hover:bg-destructive/10"
