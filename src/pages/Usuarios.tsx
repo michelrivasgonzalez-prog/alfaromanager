@@ -584,15 +584,18 @@ function EditarDependienteModal({
                 Acceso para registrar pagos de clientes sin crear deudas ni editar clientes
               </span>
             </div>
-            <input
+                        <input
               type="checkbox"
-              checked={(settings.dependientesPermisoCobrar ?? []).includes(form.nombreOriginal)}
+              checked={(settings.dependientesPermisoCobrar ?? []).some(
+                (n) => n.trim().toLowerCase() === form.nombreOriginal.trim().toLowerCase()
+              )}
               onChange={(e) => {
                 const checked = e.target.checked;
                 const actuales = settings.dependientesPermisoCobrar ?? [];
-                const nuevo = checked
-                  ? [...actuales, form.nombreOriginal]
-                  : actuales.filter((n) => n !== form.nombreOriginal);
+                const filtrados = actuales.filter(
+                  (n) => n.trim().toLowerCase() !== form.nombreOriginal.trim().toLowerCase()
+                );
+                const nuevo = checked ? [...filtrados, form.nombreOriginal] : filtrados;
                 updateSettings({ dependientesPermisoCobrar: nuevo });
               }}
               className="h-4 w-4 rounded accent-primary cursor-pointer"
