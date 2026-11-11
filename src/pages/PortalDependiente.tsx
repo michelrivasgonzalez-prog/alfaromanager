@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { useCuadreStore, calcCuadre, sortProductos } from "@/store/cuadreStore";
+import { useState, useMemo, useEffect } from "react";
+import { useCuadreStore, calcCuadre, sortProductos, puntoHabitual, PuntoVenta, PUNTOS } from "@/store/cuadreStore";
 import { useQuery } from "@tanstack/react-query";
 import { listarPrecuadresEnviados } from "@/lib/turnos";
 import { useAuth } from "@/hooks/useAuth";
@@ -27,16 +27,33 @@ export default function PortalDependiente() {
     refetchOnMount: "always",
   });
 
-  const cuadreActual = currents[activePunto];
+    // 1. Determinar el punto asignado/habitual de la dependienta conectada (ej. Cafetería para Kamila)
+  const puntoHabitualDep = useMemo<PuntoVenta>(() => {
+    if (nombre) {
+      const habitual = puntoHabitual(nombre, settings, history);
+      if (habitual) return habitual;
+    }
+    return (activePunto as PuntoVenta) || "Cafetería";
+  }, [nombre, settings, history, activePunto]);
 
+  // 2. Estado local del punto para este portal (inicia en su punto habitual)
+  const [puntoSeleccionado, setPuntoSeleccionado] = useState<PuntoVenta>(puntoHabitualDep);
+
+  useEffect(() => {
+    setPuntoSeleccionado(puntoHabitualDep);
+  }, [puntoHabitualDep]);
+
+  const cuadreActual = currents[puntoSeleccionado];
+
+  // 3. Último cuadre cerrado del punto correspondiente
   const ultimoCuadre = useMemo(() => {
     return history
-      .filter((c) => c.puntoVenta === activePunto)
+      .filter((c) => c.puntoVenta === puntoSeleccionado)
       .sort(
         (a, b) =>
           new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
       )[0];
-  }, [history, activePunto]);
+  }, [history, puntoSeleccionado]);
 
   // Cuadres trabajados históricamente por la dependienta
   const misCuadres = useMemo(() => {
@@ -69,7 +86,7 @@ export default function PortalDependiente() {
     };
   }, [misCuadres]);
 
-  // Productos del turno: únicamente los que tienen existencias al inicio
+  // Productos del turno: existencias iniciales tomadas del último turno del punto de venta correcto
   const productosTurno = useMemo(() => {
     let prods: {
       id: string;
@@ -93,7 +110,7 @@ export default function PortalDependiente() {
       }));
     } else {
       prods = catalogo
-        .filter((c) => !c.punto || c.punto === activePunto)
+        .filter((c) => !c.punto || c.punto === puntoSeleccionado)
         .map((c) => {
           const anterior = ultimoCuadre?.productos?.find(
             (p) => p.id === c.id || p.nombre === c.nombre
@@ -113,13 +130,13 @@ export default function PortalDependiente() {
 
     // Solo los productos con existencias al inicio del turno
     return sortProductos(prods.filter((p) => p.inicio > 0), settings.categorias);
-  }, [cuadreActual, catalogo, activePunto, ultimoCuadre, settings.categorias]);
+  }, [cuadreActual, catalogo, puntoSeleccionado, ultimoCuadre, settings.categorias]);
 
   // Página completa de entrega del turno
   if (entregandoTurno) {
     return (
       <PrecuadreDependiente
-        puntoInicial={activePunto}
+        puntoInicial={puntoSeleccionado}
         dependienteInicial={nombre || ""}
         onCancelar={() => {
           if (
@@ -148,9 +165,25 @@ export default function PortalDependiente() {
             Portal de dependienta
           </p>
           <h1 className="text-xl font-bold">{nombre || "Dependiente"}</h1>
-          <span className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
-            <Store className="h-3.5 w-3.5" /> {activePunto}
-          </span>
+                    <div className="mt-1 flex items-center gap-1.5">
+            {PUNTOS.map((p) => {
+              const activo = puntoSeleccionado === p;
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPuntoSeleccionado(p)}
+                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold transition-all ${
+                    activo
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  }`}
+                  title={activo ? `Punto asignado: ${p}` : `Cambiar a ${p} (suplencia)`}
+                >
+                  <Store className="h-3 w-3" /> {p}
+                </button>
+              );
+            })}
         </div>
       </header>
 
