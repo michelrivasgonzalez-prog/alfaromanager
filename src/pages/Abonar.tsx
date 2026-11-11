@@ -1,3 +1,4 @@
+import { useCuadreStore } from "@/store/cuadreStore";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -26,7 +27,12 @@ export default function Abonar() {
   const { id = "" } = useParams();
   const nav = useNavigate();
   const qc = useQueryClient();
-  const { nombre, user } = useAuth();
+  const { nombre, user, role } = useAuth();
+  const esDependiente = role === "dependiente";
+  const permisosCobrar = useCuadreStore((s) => s.settings.dependientesPermisoCobrar);
+  const tienePermisoCobrar = !!nombre && (permisosCobrar ?? []).some(
+    (n) => n.trim().toLowerCase() === nombre.trim().toLowerCase()
+  );
   const clientes = useQuery({ queryKey: ["clientes"], queryFn: listClientes });
   const deudasQ = useQuery({ queryKey: ["deudas", id], queryFn: () => listDeudas(id) });
 
@@ -117,15 +123,19 @@ export default function Abonar() {
   const totalSaldo = pendientes.reduce((s, d) => s + Number(d.saldo), 0);
 
   const submit = async () => {
-    if (!monto || monto <= 0) return toast.error("Monto > 0");
+    if (busy || comprobante) return;
+    if (!user) return toast.error("Inicia sesión para registrar el abono");
+    if (esDependiente && !tienePermisoCobrar &&
+        cliente?.nombre.trim().toLowerCase() !== nombre?.trim().toLowerCase()) {
+      return toast.error("El administrador debe activar tu permiso para cobrar a otros clientes");
+    }
+    if (!Number.isFinite(monto) || monto <= 0) return toast.error("Monto > 0");
     if (excede) return toast.error("La distribución supera el monto");
     const apps = pendientes
       .map((d) => ({ deuda_id: d.id, monto: Number((aplicaciones[d.id] || 0).toFixed(2)) }))
       .filter((a) => a.monto > 0);
     if (apps.length === 0) return toast.error("Distribuye el pago en al menos una deuda");
     setBusy(true);
-        const { role } = useAuth();
-    const esDependiente = role === "dependiente";
 
     try {
       if (esDependiente) {
@@ -159,10 +169,12 @@ export default function Abonar() {
         deuda: pendientes.find((d) => d.id === a.deuda_id)!,
         monto: a.monto,
       }));
+      setMonto(0);
+      setNota("");
       setComprobante({
         monto,
         aplicaciones: detalle,
-        saldoRestante: totalSaldo - apps.reduce((s, a) => s + a.monto, 0),
+        saldoRestante: esDependiente ? totalSaldo : totalSaldo - apps.reduce((s, a) => s + a.monto, 0),
       });
       qc.invalidateQueries({ queryKey: ["deudas", id] });
       qc.invalidateQueries({ queryKey: ["deudas-all"] });
@@ -178,13 +190,14 @@ export default function Abonar() {
     if (!cliente || !comprobante) return "";
     const lines = [
       `📋 Comprobante de abono — AlFaroCafé`,
+      esDependiente ? "PENDIENTE DE APROBACIÓN — El saldo se actualiza al confirmar la entrega." : "",
       `Cliente: ${cliente.nombre}`,
       `Fecha: ${format(new Date(), "dd MMM yyyy HH:mm", { locale: es })}`,
       `Monto abonado: ${fmt(comprobante.monto)}`,
       ``,
       `Distribución:`,
       ...comprobante.aplicaciones.map(
-        (a) => `• ${a.deuda.cuadre_label ?? format(new Date(a.deuda.fecha), "dd/MM", { locale: es })}: ${fmt(a.monto)}  (saldo ${fmt(Number(a.deuda.saldo) - a.monto)})`
+        (a) => `• ${a.deuda.cuadre_label ?? format(new Date(a.deuda.fecha), "dd/MM", { locale: es })}: ${fmt(a.monto)}  (saldo ${fmt(Number(a.deuda.saldo) - (esDependiente ? 0 : a.monto))})`
       ),
       ``,
       `Saldo pendiente total: ${fmt(comprobante.saldoRestante)}`,
@@ -294,7 +307,7 @@ export default function Abonar() {
                 >
                   <div style={{ borderBottom: "2px solid #4B3621", paddingBottom: 8, marginBottom: 10 }}>
                     <div style={{ fontSize: 18, fontWeight: 800, color: "#4B3621" }}>AlFaroCafé</div>
-                    <div style={{ fontSize: 11, color: "#666" }}>Comprobante de abono</div>
+                    <div style={{ fontSize: 11, color: "#666" }}>{esDependiente ? "Abono pendiente de aprobación" : "Comprobante de abono"}</div>
                   </div>
                   <div style={{ fontSize: 12, marginBottom: 4 }}><strong>Cliente:</strong> {cliente.nombre}</div>
                   <div style={{ fontSize: 12, marginBottom: 4 }}><strong>Fecha:</strong> {format(new Date(), "dd MMM yyyy HH:mm", { locale: es })}</div>
