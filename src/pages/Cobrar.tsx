@@ -52,9 +52,16 @@ export default function Cobrar() {
   const clientes = useQuery({ queryKey: ["clientes"], queryFn: listClientes });
   const deudas = useQuery({ queryKey: ["deudas-all"], queryFn: () => listDeudas() });
 
-  const esDependiente = role === "dependiente";
+    const esDependiente = role === "dependiente";
   const { settings } = useCuadreStore();
-  const tienePermisoCobrar = esDependiente && Boolean(nombre && settings.dependientesPermisoCobrar?.includes(nombre));
+  const tienePermisoCobrar =
+    esDependiente &&
+    Boolean(
+      nombre &&
+      settings.dependientesPermisoCobrar?.some(
+        (n) => n.trim().toLowerCase() === nombre.trim().toLowerCase()
+      )
+    );
 
   const miCliente = useMemo(() => {
     if (!esDependiente || !nombre || !clientes.data) return null;
