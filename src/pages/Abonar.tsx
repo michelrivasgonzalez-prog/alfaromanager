@@ -18,7 +18,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { listClientes, listDeudas, registrarAbono, fmt, Deuda } from "@/lib/cobrar";
+import { listClientes, listDeudas, registrarAbono, crearSolicitudAbono, fmt, Deuda } from "@/lib/cobrar";
+import { AlertCircle, Clock } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function Abonar() {
@@ -123,16 +124,37 @@ export default function Abonar() {
       .filter((a) => a.monto > 0);
     if (apps.length === 0) return toast.error("Distribuye el pago en al menos una deuda");
     setBusy(true);
+        const { role } = useAuth();
+    const esDependiente = role === "dependiente";
+
     try {
-      await registrarAbono({
-        cliente_id: id,
-        monto,
-        aplicaciones: apps,
-        usuario_id: user?.id ?? null,
-        usuario_nombre: nombre ?? null,
-        nota: nota.trim() || null,
-      });
-      toast.success("Abono registrado");
+      if (esDependiente) {
+        await crearSolicitudAbono({
+          cliente_id: id,
+          monto,
+          aplicaciones: apps,
+          dependiente_id: user?.id ?? null,
+          dependiente_nombre: nombre ?? "Dependiente",
+          nota: nota.trim() || undefined,
+        });
+        await qc.invalidateQueries({ queryKey: ["abonos-pendientes"] });
+        toast.warning("Abono enviado a aprobación. Tienes 24h para entregar el efectivo a la dueña o admin.");
+      } else {
+        await registrarAbono({
+          cliente_id: id,
+          monto,
+          aplicaciones: apps,
+          usuario_id: user?.id ?? null,
+          usuario_nombre: nombre ?? null,
+          nota: nota.trim() || undefined,
+        });
+        await qc.invalidateQueries({ queryKey: ["clientes"] });
+        await qc.invalidateQueries({ queryKey: ["deudas", id] });
+        await qc.invalidateQueries({ queryKey: ["abonos", id] });
+        await qc.invalidateQueries({ queryKey: ["abonos-por-deuda", id] });
+        await qc.invalidateQueries({ queryKey: ["deudas-all"] });
+        toast.success("Abono registrado con éxito");
+      }
       const detalle = apps.map((a) => ({
         deuda: pendientes.find((d) => d.id === a.deuda_id)!,
         monto: a.monto,
