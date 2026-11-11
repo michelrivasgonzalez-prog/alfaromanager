@@ -597,6 +597,8 @@ function EditarDependienteModal({
                 );
                 const nuevo = checked ? [...filtrados, form.nombreOriginal] : filtrados;
                 updateSettings({ dependientesPermisoCobrar: nuevo });
+                pushSettings().then(() => toast.success("Permiso sincronizado"))
+                  .catch((error) => toast.error("No se pudo sincronizar el permiso: " + error.message));
               }}
               className="h-4 w-4 rounded accent-primary cursor-pointer"
             />
