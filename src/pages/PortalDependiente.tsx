@@ -180,10 +180,11 @@ export default function PortalDependiente() {
                   }`}
                   title={activo ? `Punto asignado: ${p}` : `Cambiar a ${p} (suplencia)`}
                 >
-                  <Store className="h-3 w-3" /> {p}
+                                    <Store className="h-3 w-3" /> {p}
                 </button>
               );
             })}
+          </div>
         </div>
       </header>
 
