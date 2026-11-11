@@ -28,11 +28,16 @@ export default function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
     const { role, signOut, nombre } = useAuth();
-  const settings = useCuadreStore((s) => s.settings);
+    const settings = useCuadreStore((s) => s.settings);
   const ocultarAlmacen = settings.ocultarAlmacen ?? false;
   const tienePermisoCobrar =
     role === "dependiente" &&
-    Boolean(nombre && settings.dependientesPermisoCobrar?.includes(nombre));
+    Boolean(
+      nombre &&
+      settings.dependientesPermisoCobrar?.some(
+        (n) => n.trim().toLowerCase() === nombre.trim().toLowerCase()
+      )
+    );
 
   const tabs = ALL_TABS.filter((t) => {
     if (!role) return false;
