@@ -154,9 +154,9 @@ export default function ClienteDetalle() {
             </div>
           )}
         </div>
-        <Button variant="ghost" size="icon" onClick={() => setEditing(true)} title="Editar cliente">
+        {role !== "dependiente" && <Button variant="ghost" size="icon" onClick={() => setEditing(true)} title="Editar cliente">
           <Pencil className="h-4 w-4" />
-        </Button>
+        </Button>}
       </div>
 
       <div className="grid grid-cols-3 gap-2">
@@ -296,7 +296,7 @@ export default function ClienteDetalle() {
                   >
                     <Printer className="h-3.5 w-3.5" />
                   </Button>
-                  {!a.reversa_de && Number(a.monto) > 0 && (
+                  {role !== "dependiente" && !a.reversa_de && Number(a.monto) > 0 && (
                     <Button
                       size="icon"
                       variant="outline"
@@ -399,6 +399,8 @@ function DeudaCard({
 }) {
   const [open, setOpen] = useState(false);
   const [abonando, setAbonando] = useState(false);
+  const { role } = useAuth();
+  const nav = useNavigate();
 
   const apps = [...aplicaciones].sort(
     (a, b) =>
@@ -466,7 +468,7 @@ function DeudaCard({
               size="icon"
               className="h-9 w-9 shrink-0 rounded-xl gradient-primary text-primary-foreground"
               title="Abonar a esta deuda"
-              onClick={() => setAbonando(true)}
+              onClick={() => role === "dependiente" ? nav(`/cobrar/clientes/${d.cliente_id}/abonar`) : setAbonando(true)}
             >
               <Plus className="h-4 w-4" />
             </Button>
