@@ -1,3 +1,4 @@
+import AbonosPendientesAprobacion from "@/components/AbonosPendientesAprobacion";
 import { useMemo, useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -170,6 +171,7 @@ export default function Cobrar() {
 
   return (
     <div className="space-y-4 pb-24">
+      <AbonosPendientesAprobacion />
       <header className="flex items-center gap-3">
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl gradient-primary text-primary-foreground shadow-soft">
           <Wallet className="h-5 w-5" />
