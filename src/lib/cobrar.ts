@@ -248,3 +248,93 @@ export async function revertirAbono(input: {
 
 export const fmt = (n: number) =>
   `$${Number(n || 0).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+export interface AbonoPendiente {
+  id: string;
+  cliente_id: string;
+  monto: number;
+  aplicaciones: { deuda_id: string; monto: number }[];
+  dependiente_id?: string | null;
+  dependiente_nombre: string;
+  nota?: string | null;
+  estado: "pendiente" | "aprobado" | "rechazado";
+  creado_at: string;
+  limite_entrega_at: string;
+  aprobado_por_id?: string | null;
+  aprobado_por_nombre?: string | null;
+  aprobado_at?: string | null;
+  cliente?: { nombre: string; alias?: string | null };
+}
+
+export async function crearSolicitudAbono(input: {
+  cliente_id: string;
+  monto: number;
+  aplicaciones: { deuda_id: string; monto: number }[];
+  dependiente_id?: string | null;
+  dependiente_nombre: string;
+  nota?: string | null;
+}) {
+  const { data, error } = await supabase
+    .from("abonos_pendientes" as any)
+    .insert({
+      cliente_id: input.cliente_id,
+      monto: input.monto,
+      aplicaciones: input.aplicaciones,
+      dependiente_id: input.dependiente_id ?? null,
+      dependiente_nombre: input.dependiente_nombre,
+      nota: input.nota ?? null,
+      estado: "pendiente",
+    } as any)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function listarAbonosPendientes(): Promise<AbonoPendiente[]> {
+  const { data, error } = await supabase
+    .from("abonos_pendientes" as any)
+    .select("*, cliente:clientes(nombre, alias)")
+    .eq("estado", "pendiente")
+    .order("creado_at", { ascending: false });
+
+  if (error) throw error;
+  return (data as any) ?? [];
+}
+
+export async function aprobarAbonoPendiente(
+  solicitud: AbonoPendiente,
+  admin: { id?: string | null; nombre?: string | null }
+) {
+  // 1. Aplica formalmente el abono y descuenta las deudas
+  await registrarAbono({
+    cliente_id: solicitud.cliente_id,
+    monto: Number(solicitud.monto),
+    aplicaciones: solicitud.aplicaciones,
+    usuario_id: admin.id ?? null,
+    usuario_nombre: `${admin.nombre ?? "Admin"} (Cobrado por ${solicitud.dependiente_nombre})`,
+    nota: solicitud.nota ?? undefined,
+  });
+
+  // 2. Marca la solicitud como aprobada
+  const { error } = await supabase
+    .from("abonos_pendientes" as any)
+    .update({
+      estado: "aprobado",
+      aprobado_por_id: admin.id ?? null,
+      aprobado_por_nombre: admin.nombre ?? null,
+      aprobado_at: new Date().toISOString(),
+    } as any)
+    .eq("id", solicitud.id);
+
+  if (error) throw error;
+}
+
+export async function rechazarAbonoPendiente(id: string) {
+  const { error } = await supabase
+    .from("abonos_pendientes" as any)
+    .update({ estado: "rechazado" } as any)
+    .eq("id", id);
+
+  if (error) throw error;
+}
