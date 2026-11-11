@@ -294,7 +294,7 @@ export async function crearSolicitudAbono(input: {
 export async function listarAbonosPendientes(): Promise<AbonoPendiente[]> {
   const { data, error } = await supabase
     .from("abonos_pendientes" as any)
-    .select("*, cliente:clientes(nombre, alias)")
+    .select("*, cliente:clientes(nombre)")
     .eq("estado", "pendiente")
     .order("creado_at", { ascending: false });
 
@@ -306,27 +306,11 @@ export async function aprobarAbonoPendiente(
   solicitud: AbonoPendiente,
   admin: { id?: string | null; nombre?: string | null }
 ) {
-  // 1. Aplica formalmente el abono y descuenta las deudas
-  await registrarAbono({
-    cliente_id: solicitud.cliente_id,
-    monto: Number(solicitud.monto),
-    aplicaciones: solicitud.aplicaciones,
-    usuario_id: admin.id ?? null,
-    usuario_nombre: `${admin.nombre ?? "Admin"} (Cobrado por ${solicitud.dependiente_nombre})`,
-    nota: solicitud.nota ?? undefined,
-  });
-
-  // 2. Marca la solicitud como aprobada
-  const { error } = await supabase
-    .from("abonos_pendientes" as any)
-    .update({
-      estado: "aprobado",
-      aprobado_por_id: admin.id ?? null,
-      aprobado_por_nombre: admin.nombre ?? null,
-      aprobado_at: new Date().toISOString(),
-    } as any)
-    .eq("id", solicitud.id);
-
+  const { error } = await supabase.rpc("aprobar_abono_pendiente" as any, {
+    _solicitud_id: solicitud.id,
+    _admin_id: admin.id ?? null,
+    _admin_nombre: admin.nombre ?? null,
+  } as any);
   if (error) throw error;
 }
 
@@ -334,7 +318,8 @@ export async function rechazarAbonoPendiente(id: string) {
   const { error } = await supabase
     .from("abonos_pendientes" as any)
     .update({ estado: "rechazado" } as any)
-    .eq("id", id);
+    .eq("id", id)
+    .eq("estado", "pendiente");
 
   if (error) throw error;
 }
