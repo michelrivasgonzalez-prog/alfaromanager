@@ -140,8 +140,8 @@ export default function Cobrar() {
     });
   }, [clientesOrdenados, busqueda, soloDeuda, deudas.data]);
 
-  // Si es dependiente pero aún no tiene ficha de cliente registrada
-  if (esDependiente && !miCliente && !clientes.isLoading) {
+    // Si es dependiente SIN permiso y aún no tiene ficha de cliente registrada
+  if (esDependiente && !tienePermisoCobrar && !miCliente && !clientes.isLoading) {
     return (
       <div className="space-y-4 pb-24">
         <header className="flex items-center gap-3">
