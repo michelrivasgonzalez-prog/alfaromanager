@@ -27,10 +27,12 @@ const ALL_TABS: { to: string; icon: any; label: string; allow: AppRole[] }[] = [
 export default function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { role, signOut, nombre } = useAuth();
-  const ocultarAlmacen = useCuadreStore(
-    (s) => s.settings.ocultarAlmacen ?? false
-  );
+    const { role, signOut, nombre } = useAuth();
+  const settings = useCuadreStore((s) => s.settings);
+  const ocultarAlmacen = settings.ocultarAlmacen ?? false;
+  const tienePermisoCobrar =
+    role === "dependiente" &&
+    Boolean(nombre && settings.dependientesPermisoCobrar?.includes(nombre));
 
   const tabs = ALL_TABS.filter((t) => {
     if (!role) return false;
@@ -38,9 +40,14 @@ export default function AppLayout() {
       return t.to === "/" || t.to === "/cobrar";
     }
     return t.allow.includes(role) && !(t.to === "/almacen" && ocultarAlmacen);
-  }).map((t) => ({
+    }).map((t) => ({
     ...t,
-    label: t.to === "/cobrar" && role === "dependiente" ? "Mis Deudas" : t.label,
+    label:
+      t.to === "/cobrar" && role === "dependiente"
+        ? tienePermisoCobrar
+          ? "Cobrar"
+          : "Mis Deudas"
+        : t.label,
   }));
 
   const qc = useQueryClient();
@@ -153,8 +160,8 @@ export default function AppLayout() {
         transition={{ duration: 0.25 }}
         className="mx-auto max-w-2xl px-4 pt-4 safe-bottom"
       >
-        {/* Si el usuario es dependiente y está en la ruta de cobros, mostramos su pantalla segura de solo lectura */}
-        {role === "dependiente" && location.pathname === "/cobrar" ? (
+                {/* Si es dependiente con permiso ve Cobrar (<Outlet />), si no tiene permiso ve solo Mis Deudas */}
+        {role === "dependiente" && location.pathname === "/cobrar" && !tienePermisoCobrar ? (
           <MisDeudasDependiente />
         ) : (
           <Outlet />
