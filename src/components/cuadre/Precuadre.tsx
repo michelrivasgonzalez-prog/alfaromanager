@@ -1,7 +1,7 @@
 import { puntoHabitual, sortProductos, catLabel, type GastoCategoria } from "@/store/cuadreStore";
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import type { PrecioTramo } from "@/store/cuadreStore";
-import { useCuadreStore, PuntoVenta, Cuadre, Denominaciones } from "@/store/cuadreStore";
+import { useCuadreStore, PuntoVenta, Cuadre, Denominaciones, PUNTOS } from "@/store/cuadreStore";
 import { usePinStore, hashPin } from "@/store/pinStore";
 import { 
   enviarPrecuadre, 
