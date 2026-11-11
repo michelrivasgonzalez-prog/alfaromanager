@@ -783,13 +783,8 @@ export function PrecuadreDependiente({
                   Punto de Venta
                 </label>
 
-                <div className="grid grid-cols-2 gap-2">
-                  {(
-                    [
-                      "Cafetería",
-                      "Mipyme",
-                    ] as PuntoVenta[]
-                  ).map((p) => (
+                                <div className="flex gap-2">
+                  {PUNTOS.map((p) => (
                     <Button
                       key={p}
                       type="button"
@@ -799,9 +794,12 @@ export function PrecuadreDependiente({
                           : "outline"
                       }
                       className="rounded-xl h-10 font-bold text-xs"
-                      onClick={() =>
-                        setPunto(p)
-                      }
+                      onClick={() => {
+                        setPunto(p);
+                        setInicios({});
+                        setDesbloqueados({});
+                        setMotivosPorProducto({});
+                      }}
                     >
                       {p}
                     </Button>
