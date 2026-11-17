@@ -57,8 +57,10 @@ export default function ReporteMensualCards({ rep }: { rep: ReporteMensual }) {
           <Kpi label="Ganancia neta" value={fmt(t.gananciaNeta)} tone="ok" />
         </div>
         <div className="mt-2">
-          <Row label="Salarios" value={fmt(t.salarios)} />
-          <Row label="Propinas" value={fmt(t.propinas)} />
+          <Row label="Salarios brutos" value={fmt(t.salarios)} />
+          <Row label="Salarios calculados" value={fmt(t.salariosCalculados)} />
+          <Row label="Pagos con registro" value={fmt(t.salariosPagados)} />
+          <Row label="Sobrantes de caja" value={fmt(t.sobrantes)} />
           <Row label="Faltantes" value={fmt(t.faltantes)} />
         </div>
       </div>
@@ -87,8 +89,10 @@ export default function ReporteMensualCards({ rep }: { rep: ReporteMensual }) {
           </div>
           <div className="mt-2">
             <Row label="Gastos" value={fmt(p.gastos)} />
-            <Row label="Salarios" value={fmt(p.salarios)} />
-            <Row label="Propinas" value={fmt(p.propinas)} />
+            <Row label="Salarios brutos" value={fmt(p.salarios)} />
+            <Row label="Salarios calculados" value={fmt(p.salariosCalculados)} />
+            <Row label="Pagos con registro" value={fmt(p.salariosPagados)} />
+            <Row label="Sobrantes de caja" value={fmt(p.sobrantes)} />
             <Row label="Faltantes" value={fmt(p.faltantes)} />
           </div>
           <div className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">

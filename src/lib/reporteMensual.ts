@@ -37,7 +37,9 @@ export type ResumenPunto = {
   gananciaNeta: number;
   gastos: number;
   salarios: number;
-  propinas: number;
+  salariosCalculados: number;
+  salariosPagados: number;
+  sobrantes: number;
   faltantes: number;
   topProductos: ProductoTop[];
 };
@@ -54,7 +56,9 @@ export type ReporteMensual = {
     gananciaNeta: number;
     gastos: number;
     salarios: number;
-    propinas: number;
+    salariosCalculados: number;
+    salariosPagados: number;
+    sobrantes: number;
     faltantes: number;
   };
   gastosPorCategoria: Record<string, number>;
@@ -95,7 +99,9 @@ function resumirPunto(punto: PuntoVenta, cuadres: Cuadre[]): ResumenPunto {
     gananciaNeta: rs.reduce((s, r) => s + r.gananciaNeta, 0),
     gastos: rs.reduce((s, r) => s + r.totalGastos, 0),
     salarios: rs.reduce((s, r) => s + r.salarioBruto, 0),
-    propinas: rs.reduce((s, r) => s + r.propina, 0),
+    salariosCalculados: rs.reduce((s, r) => s + r.salarioReal, 0),
+    salariosPagados: rs.reduce((s, r) => s + (r.salarioPagado ?? 0), 0),
+    sobrantes: rs.reduce((s, r) => s + r.sobrante, 0),
     faltantes: rs.reduce((s, r) => s + r.descuentoFalta + r.deudaDependiente, 0),
     topProductos: [...prod.values()]
       .sort((a, b) => b.importe - a.importe)
@@ -137,7 +143,9 @@ export function construirReporteMensual(
       gananciaNeta: rs.reduce((s, r) => s + r.gananciaNeta, 0),
       gastos: rs.reduce((s, r) => s + r.totalGastos, 0),
       salarios: rs.reduce((s, r) => s + r.salarioBruto, 0),
-      propinas: rs.reduce((s, r) => s + r.propina, 0),
+      salariosCalculados: rs.reduce((s, r) => s + r.salarioReal, 0),
+      salariosPagados: rs.reduce((s, r) => s + (r.salarioPagado ?? 0), 0),
+      sobrantes: rs.reduce((s, r) => s + r.sobrante, 0),
       faltantes: rs.reduce((s, r) => s + r.descuentoFalta + r.deudaDependiente, 0),
     },
     gastosPorCategoria,
@@ -174,8 +182,10 @@ export function generarPDFMensual(rep: ReporteMensual) {
       </div>
       <div class="card avoid">
         ${row("Gastos", fmt(p.gastos))}
-        ${row("Salarios", fmt(p.salarios))}
-        ${row("Propinas", fmt(p.propinas))}
+        ${row("Salarios brutos", fmt(p.salarios))}
+    ${row("Salarios calculados", fmt(p.salariosCalculados))}
+    ${row("Pagos con registro", fmt(p.salariosPagados))}
+        ${row("Sobrantes de caja", fmt(p.sobrantes))}
         ${row("Faltantes", fmt(p.faltantes))}
       </div>
       <h3>Productos más vendidos</h3>
@@ -258,8 +268,10 @@ export function generarPDFMensual(rep: ReporteMensual) {
     ${kpi("Ganancia neta", fmt(rep.totales.gananciaNeta), "ok")}
   </div>
   <div class="card">
-    ${row("Salarios", fmt(rep.totales.salarios))}
-    ${row("Propinas", fmt(rep.totales.propinas))}
+    ${row("Salarios brutos", fmt(rep.totales.salarios))}
+    ${row("Salarios calculados", fmt(rep.totales.salariosCalculados))}
+    ${row("Pagos con registro", fmt(rep.totales.salariosPagados))}
+    ${row("Sobrantes de caja", fmt(rep.totales.sobrantes))}
     ${row("Faltantes", fmt(rep.totales.faltantes))}
     ${row("Ganancia neta", fmt(rep.totales.gananciaNeta), "total ok")}
   </div>

@@ -135,6 +135,12 @@ export type Cuadre = {
   salarioModo: SalarioModo;
   porcentajeVenta: number;
   salarioDenominaciones: Denominaciones;
+  regimenSobrantes?: boolean;
+  sobranteGestion?: {
+    importe?: number;
+    estadoFisico?: string;
+    salarioPagadoReal?: number | null;
+  };
   salarioExcepcionesProductos?: SalarioProductoExcepcion[]; // <-- AGREGAR ESTA LÍNEA
   finalizado: boolean;
   deudaDependienteId?: string | null;
@@ -284,6 +290,11 @@ export const normalizeCatalogoOrden = (items: CatalogoItem[]) => {
   });
 };
 
+
+const iniciaEnRegimenSobrantes = (cuadre: Cuadre) => {
+  const inicioTurno = [...cuadre.diasTrabajados].sort()[0] || cuadre.fecha;
+  return inicioTurno.slice(0, 10) >= "2026-11-10";
+};
 
 export const newCuadre = (
   punto: PuntoVenta,
@@ -787,7 +798,12 @@ export const useCuadreStore = create<State>()(
           // Se elimina cualquier versión previa con el mismo id (p. ej. al
           // editar un cuadre) para que nunca se duplique en el historial.
           history: [
-            { ...c, finalizado: true, fecha: c.fecha || new Date().toISOString() },
+            {
+              ...c,
+              regimenSobrantes: c.regimenSobrantes ?? iniciaEnRegimenSobrantes(c),
+              finalizado: true,
+              fecha: c.fecha || new Date().toISOString(),
+            },
             ...s.history.filter((h) => h.id !== c.id),
           ].sort((a, b) => {
             const fA = a.diasTrabajados?.[a.diasTrabajados.length - 1] ?? a.fecha;
@@ -880,7 +896,7 @@ export const useCuadreStore = create<State>()(
           const p = src.puntoVenta;
           return {
             activePunto: p,
-            currents: { ...s.currents, [p]: { ...src, finalizado: false } },
+            currents: { ...s.currents, [p]: { ...src, regimenSobrantes: src.regimenSobrantes ?? false, finalizado: false } },
             history: s.history.filter((h) => h.id !== cuadreId),
             lastStep: { ...s.lastStep, [p]: 1 },
           };
@@ -943,7 +959,7 @@ export const calcCuadre = (c: Cuadre) => {
   const efectivoEnCaja = efectivoCajaFinal + efectivoRecogido;
 
   const efectivoADepositar = totalVenta - totalGastos;
-  // Diferencia simple: en caja - a depositar  (positivo = sobrante / propina, negativo = faltante)
+  // Diferencia simple: en caja - a depositar  (positivo = sobrante, negativo = faltante)
   const diferencia = efectivoEnCaja - efectivoADepositar;
 
     const diasCount = c.diasTrabajados.length;
@@ -991,7 +1007,14 @@ export const calcCuadre = (c: Cuadre) => {
       ? Math.max(salarioBasePeriodo, salarioPorPorcentaje)
       : salarioBasePeriodo;
   const faltanteBruto = diferencia < 0 ? Math.abs(diferencia) : 0;
-  const propina = diferencia > 0 ? diferencia : 0;
+  const sobranteDetectado = Math.max(0, diferencia);
+  const reclasificado = c.sobranteGestion != null && typeof c.sobranteGestion === "object";
+  const importeRevisado = c.sobranteGestion?.importe;
+  const sobrante = typeof importeRevisado === "number" && Number.isFinite(importeRevisado) && importeRevisado > 0
+    ? importeRevisado
+    : sobranteDetectado;
+  const aplicaRegimenSobrantes = reclasificado || (c.regimenSobrantes ?? (!c.finalizado && iniciaEnRegimenSobrantes(c)));
+  const propina = aplicaRegimenSobrantes ? 0 : sobranteDetectado;
   // El faltante primero se descuenta del salario. Si aún queda faltante
   // por cubrir después de agotar el salario, ESE excedente es deuda real
   // del dependiente. Si el salario cubre el faltante, no hay deuda.
@@ -1004,6 +1027,13 @@ export const calcCuadre = (c: Cuadre) => {
     Math.max(0, salarioAntesDeudas)
   );
   const salarioReal = salarioAntesDeudas - descuentoDeudas;
+  const billetesPagados = Object.entries(c.salarioDenominaciones ?? {});
+  const pagoRevisado = c.sobranteGestion?.salarioPagadoReal;
+  const salarioPagado = billetesPagados.some(([, cantidad]) => cantidad > 0)
+    ? billetesPagados.reduce((total, [billete, cantidad]) => total + Number(billete) * cantidad, 0)
+    : typeof pagoRevisado === "number" && Number.isFinite(pagoRevisado) && pagoRevisado >= 0
+      ? pagoRevisado
+      : c.finalizado && salarioReal === 0 ? 0 : null;
 
   // Ganancia Neta = Ganancia Bruta - Gastos Local - Gastos Yanitza - Salario Base
   const gananciaNeta = gananciaTotal - gastosNeta - salarioBruto;
@@ -1033,6 +1063,10 @@ export const calcCuadre = (c: Cuadre) => {
     comisionFijaTotal,
     desgloseExcepciones,
     salarioReal,
+    salarioPagado,
+    sobrante,
+    sobranteDetectado,
+    reclasificado,
     salarioAntesDeudas,
     descuentoDeudas,
     descuentoFalta,

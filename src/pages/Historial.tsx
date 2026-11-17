@@ -23,7 +23,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { generarPDF } from "@/lib/pdf";
-import { deleteCuadreRemote, flushPendingCuadres } from "@/lib/sync";
+import { deleteCuadreRemote, flushPendingCuadres, pullCuadre } from "@/lib/sync";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import {
@@ -40,12 +40,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { listClientes, listDeudas, crearDeuda, upsertCliente, actualizarDeuda, eliminarDeuda, type Deuda } from "@/lib/cobrar";
 import { ajustarDeuda } from "@/lib/corregirDeudas";
 import { formatDiasTrabajados, formatGastoDetalle, gastoLineas, ordenarGastos } from "@/lib/dias";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SesionCaja } from "@/components/SesionCaja";
+import { confirmarSobrante, consultarSobrante, fechaCaja, montoCaja, reclasificarSobrante, useSesionCaja } from "@/lib/cajaSobrantes";
 
 import { fmtDinero, fmtCant } from "@/lib/format";
 
@@ -162,6 +164,7 @@ export default function Historial() {
   const canPDF = role === "admin" || role === "duena";
   const canDeuda = role === "admin" || role === "duena";
   const canEdit = role === "admin" || role === "duena";
+  const [sobranteFor, setSobranteFor] = useState<Cuadre | null>(null);
   const [detalle, setDetalle] = useState<Cuadre | null>(null);
   const [deudaFor, setDeudaFor] = useState<{ cuadre: Cuadre; pagada: boolean } | null>(null);
   const [corregirFor, setCorregirFor] = useState<Cuadre | null>(null);
@@ -357,9 +360,14 @@ export default function Historial() {
               {r.deudaDependiente > 0 ? (
                 <Mini label="Deuda" value={fmt(r.deudaDependiente)} tone="danger" />
               ) : (
-                <Mini label="Salario pagado" value={fmt(r.salarioReal)} />
+                <Mini label="Salario pagado" value={r.salarioPagado === null ? "Sin desglose" : fmt(r.salarioPagado)} />
               )}
             </div>
+            {canEdit && r.sobrante > 0 && (
+              <Button size="sm" variant="outline" className="mt-2 w-full" onClick={() => setSobranteFor(c)}>
+                Gestionar sobrante
+              </Button>
+            )}
             {(() => {
               const credito = totalCredito(c);
               const yaLinked = deudaByCuadre.get(c.id);
@@ -496,6 +504,14 @@ export default function Historial() {
           deudasAll.refetch();
         }}
       />
+      {canEdit && sobranteFor && (
+        <Dialog open onOpenChange={(open) => !open && setSobranteFor(null)}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Gestionar sobrante</DialogTitle></DialogHeader>
+            <SesionCaja><ConsultaSobrante cuadre={sobranteFor} /></SesionCaja>
+          </DialogContent>
+        </Dialog>
+      )}
       <Dialog open={!!detalle} onOpenChange={handleCloseDetalle}>
         <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
@@ -664,12 +680,78 @@ function RegistrarDeudaDialog({
 }
 
 
+function ConsultaSobrante({ cuadre }: { cuadre: Cuadre }) {
+  const actual = useCuadreStore((s) => s.history.find((c) => c.id === cuadre.id)) ?? cuadre;
+  const r = calcCuadre(actual);
+  const cuenta = useSesionCaja((s) => s.cuenta);
+  const qc = useQueryClient();
+  const queryKey = ["caja-sobrantes", cuenta, actual.id];
+  const consulta = useQuery({ queryKey, queryFn: () => consultarSobrante(actual.id), retry: false });
+  const [motivo, setMotivo] = useState("");
+  const [confirmarFisico, setConfirmarFisico] = useState(false);
+  const movimiento = consulta.data?.movimiento;
+  const operacion = useMutation({
+    mutationFn: (accion: "reclasificar" | "confirmar") => {
+      if (accion === "confirmar") {
+        if (!movimiento) throw new Error("El movimiento ya no está disponible.");
+        return confirmarSobrante(movimiento.id);
+      }
+      return reclasificarSobrante(actual, Math.round(r.sobrante * 100) / 100, r.salarioBruto, r.salarioPagado, motivo.trim());
+    },
+    onSuccess: async () => {
+      setConfirmarFisico(false);
+      await qc.invalidateQueries({ queryKey: ["caja-sobrantes"] });
+      void pullCuadre(actual.id).catch(console.warn);
+    },
+  });
+  return (
+    <div className="max-h-[65vh] space-y-3 overflow-y-auto text-sm">
+      <p>{actual.dependiente} · {formatDiasTrabajados(actual.diasTrabajados)}</p>
+      <Row label="Sobrante de caja" value={montoCaja(movimiento?.monto ?? r.sobrante)} />
+      <Row label="Salario calculado" value={fmt(r.salarioReal)} />
+      <Row label="Salario pagado" value={r.salarioPagado === null ? "Sin desglose" : fmt(r.salarioPagado)} />
+      {consulta.isPending && <p role="status">Consultando caja…</p>}
+      {consulta.error && <p role="alert" className="text-destructive">{consulta.error.message}</p>}
+      {consulta.data && (
+        <Row label="Ingreso físico" value={movimiento?.estado ?? (r.reclasificado ? "Requiere conciliación" : "Sin registrar")} />
+      )}
+      {consulta.data && !movimiento && !r.reclasificado && r.sobrante > 0 && (
+        <form className="space-y-2" onSubmit={(event) => { event.preventDefault(); operacion.mutate("reclasificar"); }}>
+          <Label htmlFor="motivo-sobrante">Motivo</Label>
+          <Input id="motivo-sobrante" value={motivo} onChange={(e) => setMotivo(e.target.value)} required />
+          <Button type="submit" disabled={!motivo.trim() || operacion.isPending}>Registrar sobrante pendiente</Button>
+        </form>
+      )}
+      {movimiento?.estado === "pendiente" && (
+        confirmarFisico ? (
+          <div className="space-y-2">
+            <p>Confirma solo si recibiste físicamente {montoCaja(movimiento.monto)}.</p>
+            <Button disabled={operacion.isPending} onClick={() => operacion.mutate("confirmar")}>Confirmar ingreso</Button>
+            <Button variant="ghost" disabled={operacion.isPending} onClick={() => setConfirmarFisico(false)}>Cancelar</Button>
+          </div>
+        ) : <Button variant="outline" onClick={() => setConfirmarFisico(true)}>Registrar ingreso</Button>
+      )}
+      {operacion.error && <p role="alert" className="text-destructive">{operacion.error.message}</p>}
+      {!!consulta.data?.auditoria.length && (
+        <section className="space-y-2 border-t pt-2">
+          <h3 className="font-semibold">Auditoría</h3>
+          {consulta.data.auditoria.map((a) => {
+            const actor = a.estado_nuevo?.confirmado_por ?? a.estado_nuevo?.realizado_por ?? a.estado_anterior?.realizado_por;
+            return (
+              <div key={a.id} className="rounded-lg bg-muted/50 p-2">
+                <p>{fechaCaja(a.fecha)}{actor && ` · ${actor}`}</p>
+                <p>{a.estado_anterior?.estado ?? "Creación"} → {a.estado_nuevo?.estado ?? a.tipo_accion}</p>
+              </div>
+            );
+          })}
+        </section>
+      )}
+    </div>
+  );
+}
+
 function CuadreDetalle({ c }: { c: Cuadre }) {
   const r = calcCuadre(c);
-  const totalPagado = Object.entries(c.salarioDenominaciones).reduce(
-    (s, [b, n]) => s + Number(b) * n,
-    0
-  );
   return (
     <div className="space-y-4 text-sm">
       <div className="text-xs text-muted-foreground">
@@ -779,7 +861,7 @@ function CuadreDetalle({ c }: { c: Cuadre }) {
               r.diferencia < 0
                 ? "Faltante"
                 : r.diferencia > 0
-                ? "Sobrante / propina"
+                ? "Sobrante de caja"
                 : "Cuadrado"
             }
             value={fmt(r.diferencia)}
@@ -813,7 +895,7 @@ function CuadreDetalle({ c }: { c: Cuadre }) {
           )}
           <Row label="Salario bruto" value={fmt(r.salarioBruto)} />
           {r.propina > 0 && (
-            <Row label="+ Propina" value={fmt(r.propina)} tone="ok" />
+            <Row label="Propina histórica" value={fmt(r.propina)} tone="ok" />
           )}
           {r.descuentoFalta > 0 && (
             <Row
@@ -832,13 +914,13 @@ function CuadreDetalle({ c }: { c: Cuadre }) {
           {r.deudaDependiente > 0 ? (
             <Row label="Deuda" value={fmt(r.deudaDependiente)} bold tone="danger" />
           ) : (
-            <Row label="Salario real (pagado)" value={fmt(r.salarioReal)} bold tone="ok" />
+            <Row label="Salario calculado" value={fmt(r.salarioReal)} bold tone="ok" />
           )}
 
         </Section>
         <Section title="Pago — billetes entregados">
-          <DenomList den={c.salarioDenominaciones} />
-          <Row label="Total entregado" value={fmt(totalPagado)} bold />
+          <DenomList den={c.salarioDenominaciones ?? {}} />
+          <Row label="Total entregado" value={r.salarioPagado === null ? "Sin desglose" : fmt(r.salarioPagado)} bold />
         </Section>
       </div>
 

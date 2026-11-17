@@ -678,7 +678,7 @@ export default function Reportes() {
 
               <div className="rounded-xl border border-border bg-muted/30 p-2.5">
                 <div className="text-[10px] text-muted-foreground uppercase font-semibold">
-                  Sobrantes / Propina
+                  Sobrantes de caja
                 </div>
                 <div className="font-mono text-base font-bold tabular-nums text-secondary mt-0.5">
                   {fmt(metricasDependientes.reduce((s, d) => s + d.sobranteTotal, 0))}

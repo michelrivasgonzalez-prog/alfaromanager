@@ -2449,7 +2449,7 @@ export function PrecuadreDependiente({
                     Sobrante de {dineroCUP(diferencia)} CUP
                   </p>
                   <p className="mt-1 text-muted-foreground">
-                    El sobrante se agrega a tu salario al conciliar el cuadre.
+                    El sobrante se registra por separado al conciliar el cuadre.
                   </p>
                 </>
               ) : (

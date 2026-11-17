@@ -78,7 +78,7 @@ export default function DashboardMetricas({ history }: DashboardMetricasProps) {
   const difUnidades = unidadesAnteriores !== null ? unidadesVendidas - unidadesAnteriores : 0;
 
   // 3. Eficiencia en Caja
-  const diferenciaCaja = resUltimo.diferencia; // > 0 propina/sobrante, < 0 faltante
+  const diferenciaCaja = resUltimo.diferencia; // > 0 sobrante, < 0 faltante
   const esFaltante = diferenciaCaja < -1;
   const esSobrante = diferenciaCaja > 1;
   const efectividadArqueo = ventaUltima > 0

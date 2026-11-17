@@ -299,7 +299,7 @@ async function syncCuadres(isAdmin: boolean) {
   const remoteRows: any[] = remote ?? [];
 
   if (remoteRows.length === 0 && isAdmin && state.history.length > 0) {
-    await upsertCuadres(state.history);
+    await upsertCuadres(state.history.filter((cuadre) => !cuadre.sobranteGestion));
     return;
   }
 
@@ -337,9 +337,19 @@ export async function flushPendingCuadres() {
   }
 }
 
+export async function pullCuadre(id: string) {
+  await ensureCloudSession();
+  const { data, error } = await supabase.from("cuadres").select("data").eq("id", id).single();
+  if (error) throw error;
+  const cuadre = data.data as unknown as Cuadre;
+  useCuadreStore.setState((state) => ({
+    history: state.history.map((item) => item.id === id ? cuadre : item),
+  }));
+}
+
 export async function pushCuadre(c: Cuadre) {
   await ensureCloudSession();
-  const { error } = await supabase.from("cuadres").upsert({
+  const { data: persisted, error } = await supabase.from("cuadres").upsert({
     id: c.id,
     punto_venta: c.puntoVenta,
     fecha: c.fecha,
@@ -347,8 +357,14 @@ export async function pushCuadre(c: Cuadre) {
     finalizado: c.finalizado,
     data: c as any,
     deleted_at: null,
-  });
+  }).select("data").single();
   if (error) throw error;
+  const remote = persisted.data as unknown as Cuadre;
+  if (remote.sobranteGestion) {
+    useCuadreStore.setState((state) => ({
+      history: state.history.map((item) => item === c ? remote : item),
+    }));
+  }
   if (c.finalizado && c.precuadre?.turnoId) {
     await marcarPrecuadreConciliado(c.precuadre.turnoId);
   }

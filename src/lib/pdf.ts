@@ -310,7 +310,7 @@ export function generarPDF(c: Cuadre) {
         r.diferencia < 0 ? "bad" : r.diferencia > 0 ? "ok" : ""
       }">
         <span>${
-          r.diferencia < 0 ? "Faltante" : r.diferencia > 0 ? "Sobrante / propina" : "Cuadrado"
+          r.diferencia < 0 ? "Faltante" : r.diferencia > 0 ? "Sobrante de caja" : "Cuadrado"
         }</span>
         <span class="v">${fmt(r.diferencia)}</span>
       </div>
@@ -348,7 +348,7 @@ export function generarPDF(c: Cuadre) {
       )}</span></div>
       ${
         r.propina > 0
-          ? `<div class="row ok"><span>+ Propina</span><span class="v">${fmt(
+          ? `<div class="row ok"><span>Propina histórica</span><span class="v">${fmt(
               r.propina
             )}</span></div>`
           : ""
@@ -363,10 +363,12 @@ export function generarPDF(c: Cuadre) {
       ${
         r.deudaDependiente > 0
           ? ""
-          : `<div class="row total ok"><span>Salario real (pagado)</span><span class="v">${fmt(
+          : `<div class="row total ok"><span>Salario calculado</span><span class="v">${fmt(
               Math.max(0, r.salarioReal)
             )}</span></div>`
       }
+
+      <div class="row"><span>Salario pagado</span><span class="v">${r.salarioPagado === null ? "Sin desglose" : fmt(r.salarioPagado)}</span></div>
 
       ${
         r.deudaDependiente > 0

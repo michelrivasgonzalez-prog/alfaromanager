@@ -60,6 +60,7 @@ import StepShell from "@/components/cuadre/StepShell";
 import { NumberInput } from "@/components/NumberInput";
 import {
   DENOMINACIONES,
+  type Cuadre as DatosCuadre,
   Gasto,
   GastoItem,
   GastoCategoria,
@@ -2419,7 +2420,7 @@ function Step8() {
           )}
           <div className="flex-1">
             <div className="text-xs font-semibold uppercase tracking-widest opacity-80">
-              {falta ? "Falta dinero" : sobra ? "Sobrante (propina)" : "Caja cuadrada"}
+              {falta ? "Falta dinero" : sobra ? "Sobrante de caja" : "Caja cuadrada"}
             </div>
             <div className="text-3xl font-bold">{fmt(Math.abs(c.diferencia))}</div>
           </div>
@@ -2532,7 +2533,7 @@ function Step9() {
             value={current.salarioModo ?? "base"}
             onValueChange={(v) => {
               const nuevoModo = v as SalarioModo;
-              const patch: Partial<Cuadre> = { salarioModo: nuevoModo };
+              const patch: Partial<DatosCuadre> = { salarioModo: nuevoModo };
               // Si cambia a comisión por producto y el porcentaje está en 0 o 3, sugerir 2.5
               if (nuevoModo === "comision_producto" && (!current.porcentajeVenta || current.porcentajeVenta === 3)) {
                 patch.porcentajeVenta = 2.5;
@@ -2740,8 +2741,8 @@ function Step9() {
           </div>
         ) : (
           <div className="rounded-2xl gradient-emerald p-3 text-secondary-foreground shadow-soft">
-            <div className="text-[10px] font-semibold uppercase opacity-80">Propina</div>
-            <div className="text-lg font-bold">{fmt(c.propina)}</div>
+            <div className="text-[10px] font-semibold uppercase opacity-80">Sobrante de caja</div>
+            <div className="text-lg font-bold">{fmt(c.sobrante)}</div>
           </div>
         )}
         {c.deudaDependiente > 0 ? (
@@ -2906,7 +2907,7 @@ function Step10({ onClose }: { onClose: () => void }) {
           icon={c.diferencia < 0 ? TrendingDown : c.diferencia > 0 ? TrendingUp : undefined}
         />
         <Row label="Salario bruto" value={fmt(c.salarioBruto)} />
-        {c.propina > 0 && <Row label="+ Propina" value={fmt(c.propina)} highlight="emerald" />}
+        {c.propina > 0 && <Row label="Propina histórica" value={fmt(c.propina)} highlight="emerald" />}
         {c.descuentoFalta > 0 && (
           <Row
             label="− Descuento por faltante"
@@ -2924,8 +2925,9 @@ function Step10({ onClose }: { onClose: () => void }) {
         {c.deudaDependiente > 0 ? (
           <Row label="Deuda" value={fmt(c.deudaDependiente)} highlight="destructive" />
         ) : (
-          <Row label="Salario real (pagado)" value={fmt(c.salarioReal)} highlight="emerald" />
+          <Row label="Salario calculado" value={fmt(c.salarioReal)} highlight="emerald" />
         )}
+        <Row label="Salario pagado" value={c.salarioPagado === null ? "Sin desglose" : fmt(c.salarioPagado)} />
       </div>
 
       {current.productos.some((p) => p.notaDesbloqueo) && (
