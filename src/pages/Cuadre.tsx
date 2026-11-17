@@ -60,6 +60,7 @@ import StepShell from "@/components/cuadre/StepShell";
 import { NumberInput } from "@/components/NumberInput";
 import {
   DENOMINACIONES,
+  type Cuadre as DatosCuadre,
   Gasto,
   GastoItem,
   GastoCategoria,
@@ -2532,7 +2533,7 @@ function Step9() {
             value={current.salarioModo ?? "base"}
             onValueChange={(v) => {
               const nuevoModo = v as SalarioModo;
-              const patch: Partial<Cuadre> = { salarioModo: nuevoModo };
+              const patch: Partial<DatosCuadre> = { salarioModo: nuevoModo };
               // Si cambia a comisión por producto y el porcentaje está en 0 o 3, sugerir 2.5
               if (nuevoModo === "comision_producto" && (!current.porcentajeVenta || current.porcentajeVenta === 3)) {
                 patch.porcentajeVenta = 2.5;

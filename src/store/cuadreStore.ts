@@ -136,7 +136,11 @@ export type Cuadre = {
   porcentajeVenta: number;
   salarioDenominaciones: Denominaciones;
   regimenSobrantes?: boolean;
-  sobranteGestion?: Record<string, unknown>;
+  sobranteGestion?: {
+    importe?: number;
+    estadoFisico?: string;
+    salarioPagadoReal?: number | null;
+  };
   salarioExcepcionesProductos?: SalarioProductoExcepcion[]; // <-- AGREGAR ESTA LÍNEA
   finalizado: boolean;
   deudaDependienteId?: string | null;
@@ -1003,10 +1007,14 @@ export const calcCuadre = (c: Cuadre) => {
       ? Math.max(salarioBasePeriodo, salarioPorPorcentaje)
       : salarioBasePeriodo;
   const faltanteBruto = diferencia < 0 ? Math.abs(diferencia) : 0;
-  const sobrante = Math.max(0, diferencia);
+  const sobranteDetectado = Math.max(0, diferencia);
   const reclasificado = c.sobranteGestion != null && typeof c.sobranteGestion === "object";
+  const importeRevisado = c.sobranteGestion?.importe;
+  const sobrante = typeof importeRevisado === "number" && Number.isFinite(importeRevisado) && importeRevisado > 0
+    ? importeRevisado
+    : sobranteDetectado;
   const aplicaRegimenSobrantes = reclasificado || (c.regimenSobrantes ?? (!c.finalizado && iniciaEnRegimenSobrantes(c)));
-  const propina = aplicaRegimenSobrantes ? 0 : sobrante;
+  const propina = aplicaRegimenSobrantes ? 0 : sobranteDetectado;
   // El faltante primero se descuenta del salario. Si aún queda faltante
   // por cubrir después de agotar el salario, ESE excedente es deuda real
   // del dependiente. Si el salario cubre el faltante, no hay deuda.
@@ -1020,9 +1028,12 @@ export const calcCuadre = (c: Cuadre) => {
   );
   const salarioReal = salarioAntesDeudas - descuentoDeudas;
   const billetesPagados = Object.entries(c.salarioDenominaciones ?? {});
+  const pagoRevisado = c.sobranteGestion?.salarioPagadoReal;
   const salarioPagado = billetesPagados.some(([, cantidad]) => cantidad > 0)
     ? billetesPagados.reduce((total, [billete, cantidad]) => total + Number(billete) * cantidad, 0)
-    : c.finalizado && salarioReal === 0 ? 0 : null;
+    : typeof pagoRevisado === "number" && Number.isFinite(pagoRevisado) && pagoRevisado >= 0
+      ? pagoRevisado
+      : c.finalizado && salarioReal === 0 ? 0 : null;
 
   // Ganancia Neta = Ganancia Bruta - Gastos Local - Gastos Yanitza - Salario Base
   const gananciaNeta = gananciaTotal - gastosNeta - salarioBruto;
@@ -1054,6 +1065,7 @@ export const calcCuadre = (c: Cuadre) => {
     salarioReal,
     salarioPagado,
     sobrante,
+    sobranteDetectado,
     reclasificado,
     salarioAntesDeudas,
     descuentoDeudas,

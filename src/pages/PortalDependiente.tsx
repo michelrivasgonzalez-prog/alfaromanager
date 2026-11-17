@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useCuadreStore, calcCuadre, sortProductos, puntoHabitual, PuntoVenta, PUNTOS } from "@/store/cuadreStore";
 import { useQuery } from "@tanstack/react-query";
+import { listClientes, listDeudas } from "@/lib/cobrar";
 import { listarPrecuadresEnviados } from "@/lib/turnos";
 import { useAuth } from "@/hooks/useAuth";
 import { Calendar, Clock, Send, Wallet, Store } from "lucide-react";
@@ -71,6 +72,17 @@ export default function PortalDependiente() {
     );
   }, [history, nombre]);
 
+  const clientes = useQuery({ queryKey: ["clientes"], queryFn: listClientes, enabled: Boolean(nombre) });
+  const cliente = clientes.data?.find((item) =>
+    nombre && normalizarDependiente(item.nombre) === normalizarDependiente(nombre)
+  );
+  const deudas = useQuery({
+    queryKey: ["deudas", cliente?.id],
+    queryFn: () => listDeudas(cliente!.id),
+    enabled: Boolean(cliente),
+  });
+  const saldoDeudas = deudas.data?.reduce((total, deuda) => total + Number(deuda.saldo), 0);
+
   const metricas = useMemo(() => {
     const totales = {
       calculado: 0,
@@ -92,7 +104,7 @@ export default function PortalDependiente() {
       totales.descuentosFalta += r.descuentoFalta;
       totales.descuentosDeudas += r.descuentoDeudas;
       totales.deudaGenerada += r.deudaDependiente;
-      totales.sobrantes += r.sobrante;
+      totales.sobrantes += r.sobranteDetectado;
       totales.reclasificados += r.reclasificado ? r.sobrante : 0;
     }
     return totales;
@@ -299,6 +311,14 @@ export default function PortalDependiente() {
                 <div className="mt-2 text-lg font-bold">{monto(value)}</div>
               </div>
             ))}
+            <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+              <div className="text-xs font-medium text-muted-foreground">Deudas pendientes</div>
+              <div className="mt-2 text-lg font-bold">
+                {clientes.isError || deudas.isError ? "Sin conexión"
+                  : clientes.isPending || (cliente && deudas.isPending) ? "Consultando…"
+                  : monto(saldoDeudas ?? 0)}
+              </div>
+            </div>
           </div>
 
           <div className="space-y-3">
@@ -371,7 +391,12 @@ export default function PortalDependiente() {
                         <div className="font-semibold">{monto(value)}</div>
                       </div>
                     ))}
-                    {res.reclasificado && <Badge variant="outline">Sobrante reclasificado</Badge>}
+                    {res.reclasificado && (
+                      <Badge variant="outline">
+                        Reclasificado · {monto(res.sobrante)}
+                        {c.sobranteGestion?.estadoFisico === "confirmado" && " · Ingreso confirmado"}
+                      </Badge>
+                    )}
                   </div>
                 </div>
               );

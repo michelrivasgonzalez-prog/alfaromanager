@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Home, History, BarChart3, Package, Users, Settings, LogOut, Warehouse, Wallet, Cloud, CloudOff, RefreshCw, CalendarDays } from "lucide-react";
+import { Home, History, BarChart3, Package, Users, Settings, LogOut, Warehouse, Wallet, Cloud, CloudOff, RefreshCw, CalendarDays, Banknote } from "lucide-react";
 import { useCuadreStore } from "@/store/cuadreStore";
 import { motion } from "framer-motion";
 import { useAuth, AppRole } from "@/hooks/useAuth";
@@ -16,6 +16,7 @@ const ALL_TABS: { to: string; icon: any; label: string; allow: AppRole[] }[] = [
   { to: "/", icon: Home, label: "Inicio", allow: ["admin", "duena", "dependiente"] },
   { to: "/calendario", icon: CalendarDays, label: "Calendario", allow: ["admin", "duena"] },
   { to: "/historial", icon: History, label: "Historial", allow: ["admin", "duena"] },
+  { to: "/caja-sobrantes", icon: Banknote, label: "Caja de Sobrantes", allow: ["admin", "duena"] },
   { to: "/almacen", icon: Warehouse, label: "Almacén", allow: ["admin", "duena"] },
   { to: "/cobrar", icon: Wallet, label: "Cobrar", allow: ["admin", "duena", "dependiente"] },
   { to: "/reportes", icon: BarChart3, label: "Reportes", allow: ["admin", "duena"] },
