@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calcCuadre, newCuadre } from "./cuadreStore";
+import { calcCuadre, esTurnoFondoSobrantes, newCuadre } from "./cuadreStore";
 
 const turno = () => ({
   ...newCuadre("Cafetería", []),
@@ -32,5 +32,22 @@ describe("Sobrantes en liquidaciones", () => {
       sobranteGestion: {},
     });
     expect(r).toMatchObject({ sobrante, propina: 0, salarioPagado: pagado, reclasificado: true });
+  });
+});
+
+describe("Reglas por punto de venta", () => {
+  it("limita la caja a Cafetería desde el inicio del turno del 10 de noviembre", () => {
+    expect(esTurnoFondoSobrantes(turno())).toBe(true);
+    expect(esTurnoFondoSobrantes({ ...turno(), diasTrabajados: ["2026-11-09", "2026-11-10"] })).toBe(false);
+    expect(esTurnoFondoSobrantes({ ...turno(), puntoVenta: "Mipyme" })).toBe(false);
+  });
+
+  it("suma el sobrante de Mipyme al pago solo al elegir entregarlo en un turno nuevo", () => {
+    const cuadre = { ...turno(), ...newCuadre("Mipyme", []), diasTrabajados: turno().diasTrabajados,
+      denominaciones: { "100": 10 } };
+    expect(calcCuadre(cuadre)).toMatchObject({ salarioReal: 3000, sobranteEntregado: 0, propina: 0 });
+    expect(calcCuadre({ ...cuadre, entregarSobranteMipyme: true })).toMatchObject({
+      salarioReal: 4000, sobranteEntregado: 1000, propina: 0,
+    });
   });
 });

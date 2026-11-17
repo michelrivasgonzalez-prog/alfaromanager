@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   useCuadreStore,
   calcCuadre,
+  esTurnoFondoSobrantes,
   Cuadre,
   DENOMINACIONES,
   catLabel,
@@ -363,7 +364,7 @@ export default function Historial() {
                 <Mini label="Salario pagado" value={r.salarioPagado === null ? "Sin desglose" : fmt(r.salarioPagado)} />
               )}
             </div>
-            {canEdit && r.sobrante > 0 && (
+            {canEdit && esTurnoFondoSobrantes(c) && r.sobrante > 0 && (
               <Button size="sm" variant="outline" className="mt-2 w-full" onClick={() => setSobranteFor(c)}>
                 Gestionar sobrante
               </Button>
@@ -894,6 +895,9 @@ function CuadreDetalle({ c }: { c: Cuadre }) {
             </>
           )}
           <Row label="Salario bruto" value={fmt(r.salarioBruto)} />
+          {c.entregarSobranteMipyme && r.sobranteEntregado > 0 && (
+            <Row label="Sobrante entregado" value={fmt(r.sobranteEntregado)} tone="ok" />
+          )}
           {r.propina > 0 && (
             <Row label="Propina histórica" value={fmt(r.propina)} tone="ok" />
           )}

@@ -136,6 +136,7 @@ export type Cuadre = {
   porcentajeVenta: number;
   salarioDenominaciones: Denominaciones;
   regimenSobrantes?: boolean;
+  entregarSobranteMipyme?: boolean;
   sobranteGestion?: {
     importe?: number;
     estadoFisico?: string;
@@ -291,9 +292,9 @@ export const normalizeCatalogoOrden = (items: CatalogoItem[]) => {
 };
 
 
-const iniciaEnRegimenSobrantes = (cuadre: Cuadre) => {
-  const inicioTurno = [...cuadre.diasTrabajados].sort()[0] || cuadre.fecha;
-  return inicioTurno.slice(0, 10) >= "2026-11-10";
+export const esTurnoFondoSobrantes = (cuadre: Cuadre) => {
+  const inicioTurno = [...(cuadre.diasTrabajados ?? [])].sort()[0] || cuadre.fecha;
+  return cuadre.puntoVenta === "Cafetería" && inicioTurno.slice(0, 10) >= "2026-11-10";
 };
 
 export const newCuadre = (
@@ -332,6 +333,7 @@ export const newCuadre = (
     { id: "mayabe", productoNombre: "Cerveza Mayabe", tarifaPorUnidad: 10 },
   ],
   salarioDenominaciones: emptyDen(),
+  ...(punto === "Mipyme" ? { entregarSobranteMipyme: false } : {}),
   finalizado: false,
 });
 
@@ -800,7 +802,7 @@ export const useCuadreStore = create<State>()(
           history: [
             {
               ...c,
-              regimenSobrantes: c.regimenSobrantes ?? iniciaEnRegimenSobrantes(c),
+              regimenSobrantes: c.regimenSobrantes ?? esTurnoFondoSobrantes(c),
               finalizado: true,
               fecha: c.fecha || new Date().toISOString(),
             },
@@ -1013,14 +1015,16 @@ export const calcCuadre = (c: Cuadre) => {
   const sobrante = typeof importeRevisado === "number" && Number.isFinite(importeRevisado) && importeRevisado > 0
     ? importeRevisado
     : sobranteDetectado;
-  const aplicaRegimenSobrantes = reclasificado || (c.regimenSobrantes ?? (!c.finalizado && iniciaEnRegimenSobrantes(c)));
-  const propina = aplicaRegimenSobrantes ? 0 : sobranteDetectado;
+  const aplicaRegimenSobrantes = reclasificado || (c.regimenSobrantes ?? (!c.finalizado && esTurnoFondoSobrantes(c)));
+  const decisionMipyme = c.puntoVenta === "Mipyme" ? c.entregarSobranteMipyme : undefined;
+  const propina = !aplicaRegimenSobrantes && decisionMipyme === undefined ? sobranteDetectado : 0;
+  const sobranteEntregado = !reclasificado && decisionMipyme ? sobranteDetectado : 0;
   // El faltante primero se descuenta del salario. Si aún queda faltante
   // por cubrir después de agotar el salario, ESE excedente es deuda real
   // del dependiente. Si el salario cubre el faltante, no hay deuda.
   const descuentoFalta = Math.min(faltanteBruto, salarioBruto);
   const deudaDependiente = Math.max(0, faltanteBruto - salarioBruto);
-  const salarioAntesDeudas = salarioBruto + propina - descuentoFalta;
+  const salarioAntesDeudas = salarioBruto + propina + sobranteEntregado - descuentoFalta;
   // Deudas propias del dependiente pagadas con su salario.
   const descuentoDeudas = Math.min(
     Math.max(0, c.descuentoDeudas ?? 0),
@@ -1072,6 +1076,7 @@ export const calcCuadre = (c: Cuadre) => {
     descuentoFalta,
     deudaDependiente,
     propina,
+    sobranteEntregado,
     gananciaNeta,
   };
 };
