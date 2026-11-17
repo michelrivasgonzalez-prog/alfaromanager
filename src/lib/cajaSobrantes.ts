@@ -1,4 +1,5 @@
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "@/integrations/supabase/client";
+import { ensureCloudSession } from "@/lib/cloudBootstrap";
 import { create } from "zustand";
 import { usePinStore } from "@/store/pinStore";
 import type { Cuadre } from "@/store/cuadreStore";
@@ -38,50 +39,61 @@ export type AuditoriaFondo = {
   estado_nuevo: MovimientoFondo | null;
 };
 
-const cajaClient = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-  { auth: { storageKey: "alfaro-caja-auth", persistSession: false, detectSessionInUrl: false } },
-);
+type SesionPin = { usuario_id: string; rol: "admin" | "duena"; token: string; vence: string };
+type RespuestaPin = SesionPin | { limitado: true } | null;
+
+const cliente = supabase as unknown as {
+  rpc: (nombre: string, args: Record<string, unknown>) =>
+    PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>;
+};
 
 export const useSesionCaja = create<{ cuenta: string | null }>(() => ({ cuenta: null }));
-
-cajaClient.auth.onAuthStateChange((event) => {
-  if (event === "SIGNED_OUT") useSesionCaja.setState({ cuenta: null });
-});
+let sesion: SesionPin | null = null;
 
 export async function salirCaja() {
+  const anterior = sesion;
+  sesion = null;
   useSesionCaja.setState({ cuenta: null });
-  await cajaClient.auth.signOut({ scope: "local" });
+  if (anterior) await cliente.rpc("cerrar_caja_con_pin", { token: anterior.token });
 }
 
 usePinStore.subscribe((actual, anterior) => {
-  if (actual.currentUserId !== anterior.currentUserId) void salirCaja();
+  if (actual.currentUserId !== anterior.currentUserId && sesion) {
+    void salirCaja().catch(console.warn);
+  }
 });
 
-async function operar<T>(accion: string, solicitud: Record<string, unknown> = {}): Promise<T> {
-  const { data, error } = await cajaClient.rpc("operar_caja_sobrantes", { accion, solicitud });
-  if (error) throw new Error(error.message);
-  return data as T;
+export async function entrarConPinDeCaja(pin: string) {
+  if (!await ensureCloudSession()) throw new Error("Conéctate a internet para verificar el PIN de caja.");
+  const { data, error } = await cliente.rpc("iniciar_caja_con_pin", { pin });
+  // Durante el despliegue, los PIN locales siguen disponibles aunque todavía
+  // falte la migración de la caja.
+  if (error?.code === "PGRST202") return null;
+  if (error) throw new Error("No se pudo verificar el PIN de caja.");
+  const respuesta = data as RespuestaPin;
+  if (!respuesta) return null;
+  if ("limitado" in respuesta) throw new Error("Demasiados intentos. Espera unos minutos y vuelve a probar.");
+
+  const perfil = usePinStore.getState().activarPerfilVerificado(respuesta.usuario_id, respuesta.rol);
+  if (!perfil) {
+    await cliente.rpc("cerrar_caja_con_pin", { token: respuesta.token });
+    throw new Error("Este perfil de caja no está disponible en el dispositivo. Sincroniza los usuarios e inténtalo de nuevo.");
+  }
+  sesion = respuesta;
+  useSesionCaja.setState({ cuenta: respuesta.usuario_id });
+  return perfil;
 }
 
-export async function entrarCaja(email: string, password: string) {
-  const pinId = usePinStore.getState().currentUserId;
-  const { data, error } = await cajaClient.auth.signInWithPassword({ email, password });
-  if (error) throw new Error(error.message);
-
-  try {
-    await listarCaja();
-    const pin = usePinStore.getState();
-    const role = pin.users.find(({ id }) => id === pin.currentUserId)?.role;
-    if (pin.currentUserId !== pinId || (role !== "admin" && role !== "duena")) {
-      throw new Error("La sesión por PIN cambió. Vuelve a iniciar sesión.");
-    }
-    useSesionCaja.setState({ cuenta: data.user.id });
-  } catch (error) {
-    await salirCaja();
-    throw error;
+async function operar<T>(accion: string, solicitud: Record<string, unknown> = {}): Promise<T> {
+  const actual = sesion;
+  if (!actual || Date.parse(actual.vence) <= Date.now()) {
+    void salirCaja().catch(console.warn);
+    throw new Error("Vuelve a entrar a la aplicación con tu PIN de caja.");
   }
+  const { data, error } = await cliente.rpc("operar_caja_sobrantes", { accion, solicitud, token: actual.token });
+  if (error?.code === "42501" && sesion === actual) void salirCaja().catch(console.warn);
+  if (error) throw new Error(error.message);
+  return data as T;
 }
 
 export const listarCaja = () => operar<ResumenFondo>("listar");

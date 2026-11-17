@@ -2755,7 +2755,7 @@ function Step9() {
         )}
       </div>
 
-      {(role === "admin" || role === "duena") && current.puntoVenta === "Mipyme" && c.sobrante > 0 && (
+      {role === "admin" && current.puntoVenta === "Mipyme" && c.sobrante > 0 && (
         <label className="flex items-center gap-2 rounded-xl border bg-card p-3 text-sm">
           <input
             type="checkbox"

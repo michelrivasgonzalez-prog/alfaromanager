@@ -32,6 +32,7 @@ interface PinState {
   updateUser: (id: string, patch: Partial<Omit<PinUser, "id" | "pinHash">>) => void;
   removeUser: (id: string) => void;
   login: (pin: string) => Promise<PinUser | null>;
+  activarPerfilVerificado: (id: string, rol: "admin" | "duena") => PinUser | null;
   logout: () => void;
 }
 
@@ -44,56 +45,61 @@ const applyRole = (role: PinRole | null) => {
 
 export const usePinStore = create<PinState>()(
   persist(
-    (set, get) => ({
-      users: [],
-      currentUserId: null,
+    (set, get) => {
+      const activar = (u: PinUser) => {
+        set({ currentUserId: u.id });
+        applyRole(u.role);
+        import("@/lib/sync").then((m) => m.fullSync(u.role)).catch(console.warn);
+        return u;
+      };
 
-      createUser: async ({ nombre, role, pin, recoveryEmail }) => {
-        const id = crypto.randomUUID();
-        const pinHash = await hashPin(pin, id);
-        const user: PinUser = { id, nombre, role, pinHash, recoveryEmail };
-        set((s) => ({ users: [...s.users, user] }));
-        return user;
-      },
+      return {
+        users: [],
+        currentUserId: null,
 
-      updatePin: async (id, newPin) => {
-        const u = get().users.find((x) => x.id === id);
-        if (!u) return false;
-        const pinHash = await hashPin(newPin, id);
-        set((s) => ({ users: s.users.map((x) => (x.id === id ? { ...x, pinHash } : x)) }));
-        return true;
-      },
+        createUser: async ({ nombre, role, pin, recoveryEmail }) => {
+          const id = crypto.randomUUID();
+          const pinHash = await hashPin(pin, id);
+          const user: PinUser = { id, nombre, role, pinHash, recoveryEmail };
+          set((s) => ({ users: [...s.users, user] }));
+          return user;
+        },
 
-      updateUser: (id, patch) =>
-        set((s) => ({ users: s.users.map((u) => (u.id === id ? { ...u, ...patch } : u)) })),
+        updatePin: async (id, newPin) => {
+          const u = get().users.find((x) => x.id === id);
+          if (!u) return false;
+          const pinHash = await hashPin(newPin, id);
+          set((s) => ({ users: s.users.map((x) => (x.id === id ? { ...x, pinHash } : x)) }));
+          return true;
+        },
 
-      removeUser: (id) =>
-        set((s) => ({
-          users: s.users.filter((u) => u.id !== id),
-          currentUserId: s.currentUserId === id ? null : s.currentUserId,
-        })),
+        updateUser: (id, patch) =>
+          set((s) => ({ users: s.users.map((u) => (u.id === id ? { ...u, ...patch } : u)) })),
 
-      login: async (pin) => {
-        for (const u of get().users) {
-          const h = await hashPin(pin, u.id);
-          if (h === u.pinHash) {
-            set({ currentUserId: u.id });
-            applyRole(u.role);
-            // Sincroniza en segundo plano tras el login para reflejar
-            // cambios de otros dispositivos de inmediato.
-            import("@/lib/sync")
-              .then((m) => m.fullSync(u.role))
-              .catch(console.warn);
-            return u;
+        removeUser: (id) =>
+          set((s) => ({
+            users: s.users.filter((u) => u.id !== id),
+            currentUserId: s.currentUserId === id ? null : s.currentUserId,
+          })),
+
+        login: async (pin) => {
+          for (const u of get().users) {
+            const h = await hashPin(pin, u.id);
+            if (h === u.pinHash) return activar(u);
           }
-        }
-        return null;
-      },
+          return null;
+        },
 
-      logout: () => {
-        set({ currentUserId: null });
-      },
-    }),
+        activarPerfilVerificado: (id, rol) => {
+          const perfil = get().users.find((u) => u.id === id && u.role === rol);
+          return perfil ? activar(perfil) : null;
+        },
+
+        logout: () => {
+          set({ currentUserId: null });
+        },
+      };
+    },
     {
       name: "alfarocafe-pin",
       onRehydrateStorage: () => (state) => {

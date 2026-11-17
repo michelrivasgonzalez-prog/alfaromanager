@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SesionCaja } from "@/components/SesionCaja";
-import { confirmarSobrante, fechaCaja, listarCaja, montoCaja, retirarSobrante, salirCaja, useSesionCaja } from "@/lib/cajaSobrantes";
+import { confirmarSobrante, fechaCaja, listarCaja, montoCaja, retirarSobrante, useSesionCaja } from "@/lib/cajaSobrantes";
 import { Link } from "react-router-dom";
 import { pullCuadre } from "@/lib/sync";
 
@@ -56,13 +56,7 @@ function Fondo() {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2">
-        <Button variant="outline" size="sm" onClick={() => fondo.refetch()}>Actualizar</Button>
-        <Button variant="ghost" size="sm" onClick={() => {
-          qc.removeQueries({ queryKey: ["caja-sobrantes"] });
-          void salirCaja();
-        }}>Cerrar sesión de caja</Button>
-      </div>
+      <Button variant="outline" size="sm" onClick={() => fondo.refetch()}>Actualizar</Button>
       {fondo.isPending && <p role="status">Cargando fondo…</p>}
       {fondo.error && <p role="alert" className="text-destructive">{fondo.error.message}</p>}
       {saldo && fondo.data && (

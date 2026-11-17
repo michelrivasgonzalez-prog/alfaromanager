@@ -7,6 +7,7 @@ import { Coffee, Mail, Cloud, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { PinPad } from "@/components/PinPad";
 import { usePinStore } from "@/store/pinStore";
+import { entrarConPinDeCaja } from "@/lib/cajaSobrantes";
 import { ensureCloudSession } from "@/lib/cloudBootstrap";
 import { pullPinUsers, syncPinUsers } from "@/lib/sync";
 
@@ -175,13 +176,18 @@ export default function Auth() {
         onComplete={async (p) => {
           setBusy(true);
           setError(null);
-          const u = await login(p);
-          setBusy(false);
-          if (!u) {
-            setError("PIN incorrecto");
-            return;
+          try {
+            const u = await login(p) ?? await entrarConPinDeCaja(p);
+            if (!u) {
+              setError("PIN incorrecto");
+              return;
+            }
+            toast.success(`Hola, ${u.nombre}`);
+          } catch (error) {
+            setError(error instanceof Error ? error.message : "No se pudo verificar el PIN.");
+          } finally {
+            setBusy(false);
           }
-          toast.success(`Hola, ${u.nombre}`);
         }}
       />
       <button
