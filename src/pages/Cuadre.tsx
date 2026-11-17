@@ -2432,7 +2432,7 @@ function Step8() {
 
 /* ================== Step 9: Salario ================== */
 function Step9() {
-  const { currents, activePunto, updateCurrent, setSalarioDen, settings } =
+  const { currents, activePunto, updateCurrent, setSalarioDen, settings, role } =
     useCuadreStore();
   const current = currents[activePunto];
   
@@ -2755,6 +2755,17 @@ function Step9() {
         )}
       </div>
 
+      {(role === "admin" || role === "duena") && current.puntoVenta === "Mipyme" && c.sobrante > 0 && (
+        <label className="flex items-center gap-2 rounded-xl border bg-card p-3 text-sm">
+          <input
+            type="checkbox"
+            checked={current.entregarSobranteMipyme ?? c.propina > 0}
+            onChange={(event) => updateCurrent({ entregarSobranteMipyme: event.target.checked })}
+          />
+          Entregar el sobrante de este turno a la dependienta
+        </label>
+      )}
+
       {c.deudaDependiente > 0 && (
         <DeudaDependientePanel monto={c.deudaDependiente} />
       )}
@@ -2907,6 +2918,9 @@ function Step10({ onClose }: { onClose: () => void }) {
           icon={c.diferencia < 0 ? TrendingDown : c.diferencia > 0 ? TrendingUp : undefined}
         />
         <Row label="Salario bruto" value={fmt(c.salarioBruto)} />
+        {current.entregarSobranteMipyme && c.sobranteEntregado > 0 && (
+          <Row label="Sobrante entregado" value={fmt(c.sobranteEntregado)} />
+        )}
         {c.propina > 0 && <Row label="Propina histórica" value={fmt(c.propina)} highlight="emerald" />}
         {c.descuentoFalta > 0 && (
           <Row

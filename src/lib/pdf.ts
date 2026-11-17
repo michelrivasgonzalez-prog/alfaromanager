@@ -346,6 +346,9 @@ export function generarPDF(c: Cuadre) {
       <div class="row"><span>Salario bruto</span><span class="v">${fmt(
         r.salarioBruto
       )}</span></div>
+      ${c.entregarSobranteMipyme && r.sobranteEntregado > 0
+        ? `<div class="row"><span>Sobrante entregado</span><span class="v">${fmt(r.sobranteEntregado)}</span></div>`
+        : ""}
       ${
         r.propina > 0
           ? `<div class="row ok"><span>Propina histórica</span><span class="v">${fmt(
