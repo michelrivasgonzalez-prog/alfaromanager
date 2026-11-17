@@ -162,6 +162,7 @@ export default function Historial() {
   const canPDF = role === "admin" || role === "duena";
   const canDeuda = role === "admin" || role === "duena";
   const canEdit = role === "admin" || role === "duena";
+  const [sobranteFor, setSobranteFor] = useState<Cuadre | null>(null);
   const [detalle, setDetalle] = useState<Cuadre | null>(null);
   const [deudaFor, setDeudaFor] = useState<{ cuadre: Cuadre; pagada: boolean } | null>(null);
   const [corregirFor, setCorregirFor] = useState<Cuadre | null>(null);
@@ -357,9 +358,14 @@ export default function Historial() {
               {r.deudaDependiente > 0 ? (
                 <Mini label="Deuda" value={fmt(r.deudaDependiente)} tone="danger" />
               ) : (
-                <Mini label="Salario pagado" value={fmt(r.salarioReal)} />
+                <Mini label="Salario pagado" value={r.salarioPagado === null ? "Sin desglose" : fmt(r.salarioPagado)} />
               )}
             </div>
+            {canEdit && r.sobrante > 0 && (
+              <Button size="sm" variant="outline" className="mt-2 w-full" onClick={() => setSobranteFor(c)}>
+                Gestionar sobrante
+              </Button>
+            )}
             {(() => {
               const credito = totalCredito(c);
               const yaLinked = deudaByCuadre.get(c.id);
@@ -496,6 +502,14 @@ export default function Historial() {
           deudasAll.refetch();
         }}
       />
+      {canEdit && sobranteFor && (
+        <Dialog open onOpenChange={(open) => !open && setSobranteFor(null)}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Gestionar sobrante</DialogTitle></DialogHeader>
+            <ConsultaSobrante cuadre={sobranteFor} />
+          </DialogContent>
+        </Dialog>
+      )}
       <Dialog open={!!detalle} onOpenChange={handleCloseDetalle}>
         <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
@@ -664,12 +678,22 @@ function RegistrarDeudaDialog({
 }
 
 
+function ConsultaSobrante({ cuadre }: { cuadre: Cuadre }) {
+  const r = calcCuadre(cuadre);
+  return (
+    <div className="space-y-2 text-sm">
+      <p>{cuadre.dependiente} · {formatDiasTrabajados(cuadre.diasTrabajados)}</p>
+      <Row label="Sobrante de caja" value={fmt(r.sobrante)} />
+      <Row label="Salario calculado" value={fmt(r.salarioReal)} />
+      <Row label="Salario pagado" value={r.salarioPagado === null ? "Sin desglose" : fmt(r.salarioPagado)} />
+      <Row label="Clasificación" value={r.reclasificado ? "Reclasificado" : "Detectado"} />
+      <p className="text-muted-foreground">La confirmación física se consulta en el registro del fondo.</p>
+    </div>
+  );
+}
+
 function CuadreDetalle({ c }: { c: Cuadre }) {
   const r = calcCuadre(c);
-  const totalPagado = Object.entries(c.salarioDenominaciones).reduce(
-    (s, [b, n]) => s + Number(b) * n,
-    0
-  );
   return (
     <div className="space-y-4 text-sm">
       <div className="text-xs text-muted-foreground">
@@ -779,7 +803,7 @@ function CuadreDetalle({ c }: { c: Cuadre }) {
               r.diferencia < 0
                 ? "Faltante"
                 : r.diferencia > 0
-                ? "Sobrante / propina"
+                ? "Sobrante de caja"
                 : "Cuadrado"
             }
             value={fmt(r.diferencia)}
@@ -813,7 +837,7 @@ function CuadreDetalle({ c }: { c: Cuadre }) {
           )}
           <Row label="Salario bruto" value={fmt(r.salarioBruto)} />
           {r.propina > 0 && (
-            <Row label="+ Propina" value={fmt(r.propina)} tone="ok" />
+            <Row label="Propina histórica" value={fmt(r.propina)} tone="ok" />
           )}
           {r.descuentoFalta > 0 && (
             <Row
@@ -832,13 +856,13 @@ function CuadreDetalle({ c }: { c: Cuadre }) {
           {r.deudaDependiente > 0 ? (
             <Row label="Deuda" value={fmt(r.deudaDependiente)} bold tone="danger" />
           ) : (
-            <Row label="Salario real (pagado)" value={fmt(r.salarioReal)} bold tone="ok" />
+            <Row label="Salario calculado" value={fmt(r.salarioReal)} bold tone="ok" />
           )}
 
         </Section>
         <Section title="Pago — billetes entregados">
-          <DenomList den={c.salarioDenominaciones} />
-          <Row label="Total entregado" value={fmt(totalPagado)} bold />
+          <DenomList den={c.salarioDenominaciones ?? {}} />
+          <Row label="Total entregado" value={r.salarioPagado === null ? "Sin desglose" : fmt(r.salarioPagado)} bold />
         </Section>
       </div>
 

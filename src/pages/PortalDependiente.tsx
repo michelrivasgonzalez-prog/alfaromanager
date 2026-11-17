@@ -3,12 +3,19 @@ import { useCuadreStore, calcCuadre, sortProductos, puntoHabitual, PuntoVenta, P
 import { useQuery } from "@tanstack/react-query";
 import { listarPrecuadresEnviados } from "@/lib/turnos";
 import { useAuth } from "@/hooks/useAuth";
-import { Calendar, Scale, Clock, Send, Wallet, Store } from "lucide-react";
+import { Calendar, Clock, Send, Wallet, Store } from "lucide-react";
 import { formatDiasTrabajados } from "@/lib/dias";
 import Avatar from "@/components/Avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PrecuadreDependiente } from "@/components/cuadre/Precuadre";
+
+const normalizarDependiente = (nombre: string) => {
+  const clave = nombre.normalize("NFD").replace(/\p{Diacritic}/gu, "").trim().toLowerCase();
+  return clave === "camila san freeman" ? "kamila sanz friman" : clave;
+};
+
+const monto = (valor: number) => `${valor.toLocaleString("es", { maximumFractionDigits: 2 })} CUP`;
 
 export default function PortalDependiente() {
   const { nombre } = useAuth();
@@ -60,30 +67,35 @@ export default function PortalDependiente() {
     if (!nombre) return [];
 
     return history.filter(
-      (c) =>
-        c.dependiente.trim().toLowerCase() ===
-        nombre.trim().toLowerCase()
+      (c) => normalizarDependiente(c.dependiente) === normalizarDependiente(nombre)
     );
   }, [history, nombre]);
 
-  // Métricas acumuladas
   const metricas = useMemo(() => {
-    let salarioTotal = 0;
-    let salarioRealTotal = 0;
-    let diferenciasSumadas = 0;
-
-    misCuadres.forEach((c) => {
-      const res = calcCuadre(c);
-      salarioTotal += res.salarioBruto;
-      salarioRealTotal += res.salarioReal;
-      diferenciasSumadas += res.diferencia;
-    });
-
-    return {
-      salarioTotal,
-      salarioRealTotal,
-      diferenciasSumadas,
+    const totales = {
+      calculado: 0,
+      pagado: 0,
+      sinDesglose: 0,
+      faltantes: 0,
+      descuentosFalta: 0,
+      descuentosDeudas: 0,
+      deudaGenerada: 0,
+      sobrantes: 0,
+      reclasificados: 0,
     };
+    for (const cuadre of misCuadres) {
+      const r = calcCuadre(cuadre);
+      totales.calculado += r.salarioReal;
+      totales.pagado += r.salarioPagado ?? 0;
+      totales.sinDesglose += Number(r.salarioPagado === null);
+      totales.faltantes += Math.max(0, -r.diferencia);
+      totales.descuentosFalta += r.descuentoFalta;
+      totales.descuentosDeudas += r.descuentoDeudas;
+      totales.deudaGenerada += r.deudaDependiente;
+      totales.sobrantes += r.sobrante;
+      totales.reclasificados += r.reclasificado ? r.sobrante : 0;
+    }
+    return totales;
   }, [misCuadres]);
 
   // Productos del turno: existencias iniciales tomadas del último turno del punto de venta correcto
@@ -261,38 +273,32 @@ export default function PortalDependiente() {
             <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
               <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 <Wallet className="h-4 w-4 text-emerald-500" />
-                Salarios Reales
+                Salarios cobrados
               </div>
 
               <div className="mt-2 text-2xl font-bold text-foreground">
-                ${Math.round(metricas.salarioRealTotal)}
+                {monto(metricas.pagado)}
               </div>
 
               <div className="text-[11px] text-muted-foreground mt-0.5">
-                cobrados
+                {metricas.sinDesglose > 0 ? `${metricas.sinDesglose} turno(s) sin desglose` : "Con pago registrado"}
               </div>
             </div>
 
-            <div className="rounded-2xl border border-border bg-card p-4 shadow-soft col-span-2">
-              <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                <Scale className="h-4 w-4 text-amber-500" />
-                Balance de Faltantes / Sobrantes
+            {([
+              ["Salario calculado", metricas.calculado],
+              ["Faltantes detectados", metricas.faltantes],
+              ["Descuentos por faltantes", metricas.descuentosFalta],
+              ["Descuentos por deudas", metricas.descuentosDeudas],
+              ["Deuda generada en los turnos", metricas.deudaGenerada],
+              ["Sobrantes detectados", metricas.sobrantes],
+              ["Sobrantes reclasificados", metricas.reclasificados],
+            ] as const).map(([label, value]) => (
+              <div key={label} className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+                <div className="text-xs font-medium text-muted-foreground">{label}</div>
+                <div className="mt-2 text-lg font-bold">{monto(value)}</div>
               </div>
-
-              <div
-                className={`mt-2 text-2xl font-bold ${
-                  metricas.diferenciasSumadas < 0
-                    ? "text-destructive"
-                    : metricas.diferenciasSumadas > 0
-                    ? "text-emerald-600"
-                    : "text-foreground"
-                }`}
-              >
-                {metricas.diferenciasSumadas > 0
-                  ? `+$${Math.round(metricas.diferenciasSumadas)}`
-                  : `$${Math.round(metricas.diferenciasSumadas)}`}
-              </div>
-            </div>
+            ))}
           </div>
 
           <div className="space-y-3">
@@ -351,9 +357,21 @@ export default function PortalDependiente() {
                       </span>
 
                       <div className="font-semibold text-sm text-primary">
-                        ${Math.round(res.salarioReal)}
+                        {res.salarioPagado === null ? "Sin desglose" : monto(res.salarioPagado)}
                       </div>
                     </div>
+                    {([
+                      ["Salario calculado", res.salarioReal],
+                      ["Descuento por faltante", res.descuentoFalta],
+                      ["Descuento por deudas", res.descuentoDeudas],
+                      ["Deuda generada", res.deudaDependiente],
+                    ] as const).map(([label, value]) => (
+                      <div key={label} className="bg-muted/40 p-2.5 rounded-xl">
+                        <span className="text-muted-foreground">{label}</span>
+                        <div className="font-semibold">{monto(value)}</div>
+                      </div>
+                    ))}
+                    {res.reclasificado && <Badge variant="outline">Sobrante reclasificado</Badge>}
                   </div>
                 </div>
               );
