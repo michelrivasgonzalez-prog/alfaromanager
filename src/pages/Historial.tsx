@@ -447,7 +447,7 @@ export default function Historial() {
                 <FileDown className="mr-1.5 h-3.5 w-3.5" /> PDF
               </Button>
               )}
-              {canEdit && (
+              {canEdit && !c.abonoDeudasId && (
               <Button
                 size="sm"
                 variant="outline"
@@ -462,7 +462,7 @@ export default function Historial() {
                 <Pencil className="h-3.5 w-3.5" />
               </Button>
               )}
-              {canDelete && (
+              {canDelete && !c.abonoDeudasId && !c.deudaDependienteId && (
               <Button
                 size="sm"
                 variant="ghost"

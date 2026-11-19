@@ -229,7 +229,7 @@ export default function Usuarios() {
                     <div className="font-semibold text-sm truncate text-foreground flex items-center gap-1.5">
                       {d}
                       {cuentaPin && (
-                        <KeyRound className="h-3 w-3 text-emerald-500" title="PIN Configurado" />
+                        <span title="PIN Configurado"><KeyRound className="h-3 w-3 text-emerald-500" /></span>
                       )}
                     </div>
                     <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">

@@ -147,6 +147,10 @@ export type Cuadre = {
   deudaDependienteId?: string | null;
   descuentoDeudas?: number;
   abonoDeudasId?: string | null;
+  planAbonoSalario?: {
+    clienteId: string;
+    aplicaciones: { deuda_id: string; monto: number }[];
+  };
   recogidas?: Recogida[];
   importadoDe?: string;
   precuadre?: {

@@ -41,6 +41,7 @@ import {
   listAbonos,
   registrarAbono,
   revertirAbono,
+  origenAbono,
   listAbonosPorDeuda,
   upsertCliente,
   softDeleteCliente,
@@ -262,7 +263,7 @@ export default function ClienteDetalle() {
                     {format(new Date(a.fecha), "dd MMM yyyy · HH:mm", { locale: es })}
                     {a.usuario_nombre ? ` · ${a.usuario_nombre}` : ""}
                   </div>
-                  <div className="text-[11px] text-muted-foreground">{label}</div>
+                  <div className="text-[11px] text-muted-foreground">{label} · {origenAbono(a)}</div>
                   {a.nota && <div className="text-[11px] italic text-muted-foreground">{a.nota}</div>}
                   {a.reversa_de && (
                     <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground">
@@ -296,7 +297,7 @@ export default function ClienteDetalle() {
                   >
                     <Printer className="h-3.5 w-3.5" />
                   </Button>
-                  {role !== "dependiente" && !a.reversa_de && Number(a.monto) > 0 && (
+                  {role !== "dependiente" && !a.origen && !a.reversa_de && Number(a.monto) > 0 && (
                     <Button
                       size="icon"
                       variant="outline"

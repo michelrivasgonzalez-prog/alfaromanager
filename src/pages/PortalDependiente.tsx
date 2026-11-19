@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useCuadreStore, calcCuadre, sortProductos, puntoHabitual, PuntoVenta, PUNTOS } from "@/store/cuadreStore";
 import { useQuery } from "@tanstack/react-query";
-import { listClientes, listDeudas } from "@/lib/cobrar";
+import { listClientes, listDeudas, listAbonos, normalizarDependiente, resumirAbonos } from "@/lib/cobrar";
 import { listarPrecuadresEnviados } from "@/lib/turnos";
 import { useAuth } from "@/hooks/useAuth";
 import { Calendar, Clock, Send, Wallet, Store } from "lucide-react";
@@ -10,11 +10,6 @@ import Avatar from "@/components/Avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PrecuadreDependiente } from "@/components/cuadre/Precuadre";
-
-const normalizarDependiente = (nombre: string) => {
-  const clave = nombre.normalize("NFD").replace(/\p{Diacritic}/gu, "").trim().toLowerCase();
-  return clave === "camila san freeman" ? "kamila sanz friman" : clave;
-};
 
 const monto = (valor: number) => `${valor.toLocaleString("es", { maximumFractionDigits: 2 })} CUP`;
 
@@ -81,6 +76,12 @@ export default function PortalDependiente() {
     queryFn: () => listDeudas(cliente!.id),
     enabled: Boolean(cliente),
   });
+  const abonos = useQuery({
+    queryKey: ["abonos", cliente?.id],
+    queryFn: () => listAbonos(cliente!.id),
+    enabled: Boolean(cliente),
+  });
+  const pagos = abonos.data ? resumirAbonos(abonos.data) : null;
   const saldoDeudas = deudas.data?.reduce((total, deuda) => total + Number(deuda.saldo), 0);
 
   const metricas = useMemo(() => {
@@ -301,7 +302,7 @@ export default function PortalDependiente() {
               ["Salario calculado", metricas.calculado],
               ["Faltantes detectados", metricas.faltantes],
               ["Descuentos por faltantes", metricas.descuentosFalta],
-              ["Descuentos por deudas", metricas.descuentosDeudas],
+              ["Deuda descontada del salario", metricas.descuentosDeudas],
               ["Deuda generada en los turnos", metricas.deudaGenerada],
               ["Sobrantes detectados", metricas.sobrantes],
               ["Sobrantes reclasificados", metricas.reclasificados],
@@ -311,6 +312,13 @@ export default function PortalDependiente() {
                 <div className="mt-2 text-lg font-bold">{monto(value)}</div>
               </div>
             ))}
+            {([["Deuda compensada con el fondo", pagos?.fondo], ["Deuda pagada directamente", pagos?.directo]] as const)
+              .map(([label, value]) => (
+                <div key={label} className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+                  <div className="text-xs font-medium text-muted-foreground">{label}</div>
+                  <div className="mt-2 text-lg font-bold">{abonos.isError ? "Sin conexión" : cliente && abonos.isPending ? "Consultando…" : monto(value ?? 0)}</div>
+                </div>
+              ))}
             <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
               <div className="text-xs font-medium text-muted-foreground">Deudas pendientes</div>
               <div className="mt-2 text-lg font-bold">

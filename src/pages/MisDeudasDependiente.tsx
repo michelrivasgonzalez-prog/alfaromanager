@@ -20,7 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { listClientes, listDeudas, Deuda, Abono, fmt } from "@/lib/cobrar";
+import { listClientes, listDeudas, Deuda, Abono, fmt, origenAbono } from "@/lib/cobrar";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -300,6 +300,7 @@ function ModalVerAbonos({
                 <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
                   {abonosQuery.data?.map((abono: Abono) => (
                     <div key={abono.id} className="rounded-xl border border-border bg-card p-3 shadow-xs space-y-1 text-xs">
+                      <div className="font-medium">{origenAbono(abono)}</div>
                       <div className="flex items-center justify-between">
                         <span className="font-mono font-bold text-secondary text-sm">
                           +{fmt(abono.monto)}

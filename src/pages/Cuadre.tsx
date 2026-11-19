@@ -70,6 +70,7 @@ import {
   SALARIO_MODOS,
   SalarioModo,
   calcCuadre,
+  esTurnoFondoSobrantes,
   calcProducto,
   sugerirPagoSalario,
   totalDivisas,
@@ -85,12 +86,16 @@ import {
   upsertCliente,
   crearDeuda,
   listDeudas,
-  registrarAbono,
+  cerrarCuadreConAbono,
+  fmt as formatoCUP,
+  normalizarDependiente,
   type Cliente,
   type Deuda,
 } from "@/lib/cobrar";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { marcarPrecuadreConciliado } from "@/lib/turnos";
+import { ensureCloudSession } from "@/lib/cloudBootstrap";
 import { pushAllCatalogo, pushCuadre } from "@/lib/sync";
 import { fmtDinero, fmtCant } from "@/lib/format";
 
@@ -2755,7 +2760,7 @@ function Step9() {
         )}
       </div>
 
-      {(role === "admin" || role === "duena") && current.puntoVenta === "Mipyme" && c.sobrante > 0 && (
+      {role === "admin" && current.puntoVenta === "Mipyme" && c.sobrante > 0 && (
         <label className="flex items-center gap-2 rounded-xl border bg-card p-3 text-sm">
           <input
             type="checkbox"
@@ -2769,6 +2774,7 @@ function Step9() {
       {c.deudaDependiente > 0 && (
         <DeudaDependientePanel monto={c.deudaDependiente} />
       )}
+      <PagarDeudasDependientePanel disponible={c.salarioAntesDeudas} />
 
       {/* Selector de desglose de efectivo a pagar */}
       {c.salarioReal > 0 && !noHayEfectivo && (
@@ -2821,31 +2827,59 @@ function Step9() {
 /* ================== Step 10: Resumen ================== */
 function Step10({ onClose }: { onClose: () => void }) {
   const { currents, activePunto, finalizar, role } = useCuadreStore();
+  const qc = useQueryClient();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [cerrando, setCerrando] = useState(false);
   const current = currents[activePunto];
   if (!current) return null;
   const isAdmin = role === "admin";
   const c = calcCuadre(current);
   const sinCosto10 = productosSinCosto(current.productos);
 
-  const finalizarTurno = () => {
+  const finalizarTurno = async () => {
+    if (cerrando) return;
     if (sinCosto10.length > 0) {
       toast.error("Faltan precios de costo: no se puede finalizar");
       return;
     }
-    // Snapshot ANTES de finalizar (finalizar limpia currents)
-    const snap = { ...current, finalizado: true, fecha: new Date().toISOString() };
-    finalizar();
-    // Marcar como pendiente ANTES de subir: si no hay conexión, la próxima
-    // sincronización lo sube en vez de borrarlo.
-    const store = useCuadreStore.getState();
-    store.markPendingCuadre(snap.id);
-    pushCuadre(snap)
-      .then(() => useCuadreStore.getState().clearPendingCuadre(snap.id))
-      .catch((e) => {
-        console.error(e);
-        toast.warning("Guardado en el teléfono. Se subirá cuando haya conexión.");
-      });
+    const plan = current.planAbonoSalario;
+    if (plan) {
+      const total = plan.aplicaciones.reduce((s, item) => s + Math.round(item.monto * 100), 0);
+      if (total !== Math.round(c.descuentoDeudas * 100)) {
+        toast.error("El salario disponible cambió. Revisa los abonos en el paso Salario.");
+        return;
+      }
+      setCerrando(true);
+      try {
+        if (!await ensureCloudSession()) throw new Error("Conéctate a internet para cerrar con abonos.");
+        const snap = { ...current, finalizado: true, regimenSobrantes: current.regimenSobrantes ?? esTurnoFondoSobrantes(current) };
+        const guardado = await cerrarCuadreConAbono(snap, Math.round(c.salarioAntesDeudas * 100) / 100);
+        const store = useCuadreStore.getState();
+        if (store.currents[store.activePunto]?.id === current.id) {
+          store.updateCurrent({ ...guardado, planAbonoSalario: undefined });
+          finalizar();
+        }
+        for (const key of ["deudas", "deudas-all", "abonos", "abonos-por-deuda"]) {
+          void qc.invalidateQueries({ queryKey: [key] });
+        }
+        const turnoId = guardado.precuadre?.turnoId;
+        if (turnoId) void marcarPrecuadreConciliado(turnoId).catch(console.warn);
+      } catch (error) {
+        toast.error((error as Error).message || "No se pudo cerrar el cuadre con el abono.");
+        return;
+      } finally {
+        setCerrando(false);
+      }
+    } else {
+      finalizar();
+      const store = useCuadreStore.getState();
+      const snap = store.history.find((item) => item.id === current.id);
+      if (!snap) return;
+      store.markPendingCuadre(snap.id);
+      pushCuadre(snap)
+        .then(() => useCuadreStore.getState().clearPendingCuadre(snap.id))
+        .catch(() => toast.warning("Guardado en el teléfono. Se subirá cuando haya conexión."));
+    }
     localStorage.setItem("alfaro-catalogo-pending", "1");
     pushAllCatalogo()
       .then(() => localStorage.removeItem("alfaro-catalogo-pending"))
@@ -2976,7 +3010,7 @@ function Step10({ onClose }: { onClose: () => void }) {
         )}
         <Button
           onClick={() => setConfirmOpen(true)}
-          disabled={sinCosto10.length > 0}
+          disabled={sinCosto10.length > 0 || cerrando}
           className="h-12 rounded-xl gradient-emerald text-secondary-foreground shadow-emerald"
         >
           <CheckCircle2 className="mr-2 h-4 w-4" /> Finalizar turno
@@ -2999,10 +3033,10 @@ function Step10({ onClose }: { onClose: () => void }) {
               className="rounded-xl gradient-emerald text-secondary-foreground"
               onClick={() => {
                 setConfirmOpen(false);
-                finalizarTurno();
+                void finalizarTurno();
               }}
             >
-              Sí, finalizar
+              {cerrando ? "Guardando…" : "Sí, finalizar"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3058,7 +3092,7 @@ function DeudaDependientePanel({ monto }: { monto: number }) {
     setGuardando(true);
     try {
       let cliente: Cliente | undefined = clientes.find(
-        (c) => c.nombre.trim().toLowerCase() === nombre.toLowerCase()
+        (c) => normalizarDependiente(c.nombre) === normalizarDependiente(nombre)
       );
       if (!cliente) {
         cliente = (await upsertCliente({
@@ -3075,7 +3109,7 @@ function DeudaDependientePanel({ monto }: { monto: number }) {
           { locale: es }
         )}`,
         productos: [],
-        total: Math.round(monto),
+        total: Math.round(monto * 100) / 100,
       });
       updateCurrent({ deudaDependienteId: deuda.id });
       qc.invalidateQueries({ queryKey: ["clientes"] });
@@ -3119,15 +3153,13 @@ function DeudaDependientePanel({ monto }: { monto: number }) {
 function PagarDeudasDependientePanel({ disponible }: { disponible: number }) {
   const { currents, activePunto, updateCurrent } = useCuadreStore();
   const current = currents[activePunto];
-  const qc = useQueryClient();
   const [abierto, setAbierto] = useState(false);
-  const [guardando, setGuardando] = useState(false);
   const [sel, setSel] = useState<Record<string, number>>({});
 
   const nombre = current?.dependiente?.trim() ?? "";
   const { data: clientes = [] } = useQuery({ queryKey: ["clientes"], queryFn: listClientes });
   const cliente = clientes.find(
-    (c) => c.nombre.trim().toLowerCase() === nombre.toLowerCase()
+    (c) => normalizarDependiente(c.nombre) === normalizarDependiente(nombre)
   );
   const { data: deudas = [] } = useQuery({
     queryKey: ["deudas", cliente?.id],
@@ -3138,39 +3170,25 @@ function PagarDeudasDependientePanel({ disponible }: { disponible: number }) {
   if (!current) return null;
 
   const pendientes = (deudas as Deuda[]).filter((d) => d.saldo > 0.009);
-  const yaPagado = current.descuentoDeudas ?? 0;
-  const totalSel = Object.values(sel).reduce((s, n) => s + (n || 0), 0);
+  const yaPagado = current.abonoDeudasId ? current.descuentoDeudas ?? 0 : 0;
+  const totalSel = Object.values(sel).reduce((s, n) => s + Math.round(n * 100), 0) / 100;
   const restante = Math.max(0, disponible - yaPagado - totalSel);
-  const excede = totalSel > disponible - yaPagado + 0.009;
+  const excede = totalSel > Math.floor((disponible - yaPagado) * 100 + 1e-6) / 100;
 
-  const registrar = async () => {
-    if (!cliente || totalSel <= 0) return;
-    setGuardando(true);
-    try {
-      const aplicaciones = Object.entries(sel)
-        .filter(([, m]) => m > 0)
-        .map(([deuda_id, monto]) => ({ deuda_id, monto }));
-      const abonoId = await registrarAbono({
-        cliente_id: cliente.id,
-        monto: totalSel,
-        aplicaciones,
-        usuario_nombre: nombre,
-        nota: `Descontado del salario · ${current.puntoVenta}`,
-      });
-      updateCurrent({
-        descuentoDeudas: yaPagado + totalSel,
-        abonoDeudasId: abonoId,
-      });
-      setSel({});
-      setAbierto(false);
-      qc.invalidateQueries({ queryKey: ["deudas"] });
-      qc.invalidateQueries({ queryKey: ["clientes"] });
-      toast.success("Deudas descontadas del salario");
-    } catch (e: any) {
-      toast.error(e?.message ?? "No se pudo descontar");
-    } finally {
-      setGuardando(false);
-    }
+  const registrar = () => {
+    if (!cliente || excede || current.abonoDeudasId) return;
+    const aplicaciones = pendientes.flatMap((deuda) => {
+      const monto = Math.round((sel[deuda.id] ?? 0) * 100) / 100;
+      return monto > 0 ? [{ deuda_id: deuda.id, monto }] : [];
+    });
+    if (aplicaciones.some((item) => item.monto > pendientes.find((d) => d.id === item.deuda_id)!.saldo)) return;
+    const descuento = aplicaciones.reduce((s, item) => s + Math.round(item.monto * 100), 0) / 100;
+    updateCurrent({
+      planAbonoSalario: descuento > 0 ? { clienteId: cliente.id, aplicaciones } : undefined,
+      descuentoDeudas: descuento,
+      salarioDenominaciones: sugerirPagoSalario(disponible - descuento, current.denominaciones),
+    });
+    setAbierto(false);
   };
 
   return (
@@ -3192,18 +3210,24 @@ function PagarDeudasDependientePanel({ disponible }: { disponible: number }) {
           size="sm"
           variant="outline"
           className="h-9 rounded-xl text-xs"
-          disabled={!cliente || pendientes.length === 0 || disponible - yaPagado <= 0}
-          onClick={() => setAbierto(true)}
+          disabled={!cliente || !!current.abonoDeudasId || (pendientes.length === 0 && !current.planAbonoSalario) || (disponible <= 0 && !current.planAbonoSalario)}
+          onClick={() => {
+            setSel(Object.fromEntries((current.planAbonoSalario?.aplicaciones ?? []).map((a) => [a.deuda_id, a.monto])));
+            setAbierto(true);
+          }}
         >
           Pagar deudas
         </Button>
       </div>
 
-      {yaPagado > 0 && (
+      {current.planAbonoSalario && <p className="text-xs text-muted-foreground">El abono se registra al finalizar el cuadre.</p>}
+      <Row label="Salario disponible" value={formatoCUP(disponible)} />
+      <Row label="A entregar" value={formatoCUP(Math.max(0, disponible - (current.descuentoDeudas ?? 0)))} />
+      {(current.descuentoDeudas ?? 0) > 0 && (
         <div className="flex items-center justify-between rounded-xl bg-muted/50 px-3 py-2 text-xs">
           <span className="text-muted-foreground">Descontado del salario</span>
           <span className="font-mono font-bold tabular-nums text-destructive">
-            −{fmt(yaPagado)}
+            −{formatoCUP(current.descuentoDeudas ?? 0)}
           </span>
         </div>
       )}
@@ -3229,7 +3253,7 @@ function PagarDeudasDependientePanel({ disponible }: { disponible: number }) {
                   <NumberInput
                     value={sel[d.id] ?? 0}
                     onChange={(v) =>
-                      setSel((s) => ({ ...s, [d.id]: Math.min(v, d.saldo) }))
+                      setSel((s) => ({ ...s, [d.id]: Math.max(0, Math.min(v, d.saldo)) }))
                     }
                     className="h-9 flex-1 rounded-lg"
                     placeholder="0"
@@ -3257,17 +3281,17 @@ function PagarDeudasDependientePanel({ disponible }: { disponible: number }) {
           <div className="space-y-1 rounded-xl bg-muted/50 p-3 text-xs">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Salario disponible</span>
-              <span className="font-mono tabular-nums">{fmt(disponible - yaPagado)}</span>
+              <span className="font-mono tabular-nums">{formatoCUP(disponible - yaPagado)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">A descontar</span>
               <span className="font-mono tabular-nums text-destructive">
-                −{fmt(totalSel)}
+                −{formatoCUP(totalSel)}
               </span>
             </div>
             <div className="flex justify-between font-semibold">
               <span>Queda por pagar</span>
-              <span className="font-mono tabular-nums text-secondary">{fmt(restante)}</span>
+              <span className="font-mono tabular-nums text-secondary">{formatoCUP(restante)}</span>
             </div>
           </div>
           {excede && (
@@ -3279,8 +3303,8 @@ function PagarDeudasDependientePanel({ disponible }: { disponible: number }) {
             <Button variant="outline" onClick={() => setAbierto(false)}>
               Cancelar
             </Button>
-            <Button onClick={registrar} disabled={totalSel <= 0 || excede || guardando}>
-              {guardando ? "Guardando…" : "Descontar y pagar"}
+            <Button onClick={registrar} disabled={excede || (totalSel <= 0 && !current.planAbonoSalario)}>
+              Guardar descuento para el cierre
             </Button>
           </DialogFooter>
         </DialogContent>
