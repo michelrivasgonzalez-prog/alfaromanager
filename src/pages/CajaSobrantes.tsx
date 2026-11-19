@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import CompensarDeudaFondo from "@/components/CompensarDeudaFondo";
 import { SesionCaja } from "@/components/SesionCaja";
-import { confirmarSobrante, fechaCaja, listarCaja, montoCaja, retirarSobrante, useSesionCaja } from "@/lib/cajaSobrantes";
+import { confirmarAjusteSobrante, confirmarSobrante, fechaCaja, listarCaja, montoCaja, retirarSobrante, useSesionCaja, type MovimientoFondo } from "@/lib/cajaSobrantes";
 import { Link } from "react-router-dom";
 import { pullCuadre } from "@/lib/sync";
 
@@ -27,7 +27,12 @@ function Fondo() {
   const [porConfirmar, setPorConfirmar] = useState<string | null>(null);
 
   const confirmar = useMutation({
-    mutationFn: confirmarSobrante,
+    mutationFn: (movimiento: MovimientoFondo) => {
+      const ajuste = movimiento.detalles?.ajuste_pendiente;
+      return ajuste
+        ? confirmarAjusteSobrante(movimiento.id, Number(ajuste.total))
+        : confirmarSobrante(movimiento.id);
+    },
     onSuccess: async (movimiento) => {
       setPorConfirmar(null);
       await qc.invalidateQueries({ queryKey: ["caja-sobrantes"] });
@@ -93,33 +98,40 @@ function Fondo() {
           <CompensarDeudaFondo disponible={saldo.saldo_disponible} />
           <h2 className="font-semibold">Movimientos</h2>
           {!fondo.data.movimientos.length && <p className="text-sm text-muted-foreground">Sin movimientos registrados.</p>}
-          {fondo.data.movimientos.map((m) => (
-            <article key={m.id} className="space-y-1 rounded-xl border bg-card p-3 text-sm">
-              <div className="flex justify-between gap-2 font-semibold">
-                <span>{m.detalles?.origen === "compensacion_deuda" ? "Compensación de deuda" : m.tipo === "ingreso" ? "Ingreso" : "Retiro"} · {m.estado}</span>
-                <span className="whitespace-nowrap">{montoCaja(m.monto)}</span>
-              </div>
-              <p>
-                {m.cuadre_id
-                  ? <Link className="text-primary underline" to={`/historial?cuadreId=${m.cuadre_id}`}>{m.dependiente ?? m.punto_venta}</Link>
-                  : m.punto_venta}
-                {m.periodo_desde && ` · ${m.periodo_desde} a ${m.periodo_hasta ?? m.periodo_desde}`}
-              </p>
-              <p className="text-muted-foreground">{m.realizado_por} · {fechaCaja(m.realizado_en)}</p>
-              {m.confirmado_en && <p className="text-muted-foreground">Confirmó {m.confirmado_por} · {fechaCaja(m.confirmado_en)}</p>}
-              <p className="break-words">{m.motivo}</p>
-              {m.tipo === "ingreso" && m.estado === "pendiente" && (
-                porConfirmar === m.id ? (
-                  <div className="space-y-2">
-                    <p>Confirma solo si recibiste físicamente {montoCaja(m.monto)}.</p>
-                    <Button size="sm" disabled={confirmar.isPending} onClick={() => confirmar.mutate(m.id)}>Confirmar ingreso</Button>
-                    <Button size="sm" variant="ghost" disabled={confirmar.isPending} onClick={() => setPorConfirmar(null)}>Cancelar</Button>
-                    {confirmar.error && <p role="alert" className="text-destructive">{confirmar.error.message}</p>}
-                  </div>
-                ) : <Button size="sm" variant="outline" disabled={confirmar.isPending} onClick={() => { confirmar.reset(); setPorConfirmar(m.id); }}>Registrar ingreso</Button>
-              )}
-            </article>
-          ))}
+          {fondo.data.movimientos.map((m) => {
+            const ajuste = m.detalles?.ajuste_pendiente;
+            const montoIngreso = ajuste ? Number(ajuste.monto) : Number(m.monto);
+            return (
+              <article key={m.id} className="space-y-1 rounded-xl border bg-card p-3 text-sm">
+                <div className="flex justify-between gap-2 font-semibold">
+                  <span>{m.detalles?.origen === "compensacion_deuda" ? "Compensación de deuda" : m.tipo === "ingreso" ? "Ingreso" : "Retiro"} · {m.estado}</span>
+                  <span className="whitespace-nowrap">{montoCaja(m.monto)}</span>
+                </div>
+                <p>
+                  {m.cuadre_id
+                    ? <Link className="text-primary underline" to={`/historial?cuadreId=${m.cuadre_id}`}>{m.dependiente ?? m.punto_venta}</Link>
+                    : m.punto_venta}
+                  {m.periodo_desde && ` · ${m.periodo_desde} a ${m.periodo_hasta ?? m.periodo_desde}`}
+                </p>
+                <p className="text-muted-foreground">{m.realizado_por} · {fechaCaja(m.realizado_en)}</p>
+                {m.confirmado_en && <p className="text-muted-foreground">Confirmó {m.confirmado_por} · {fechaCaja(m.confirmado_en)}</p>}
+                <p className="break-words">{m.motivo}</p>
+                {ajuste && <p className="font-medium">Ajuste pendiente de ingreso físico: {montoCaja(montoIngreso)}</p>}
+                {m.tipo === "ingreso" && (m.estado === "pendiente" || ajuste) && (
+                  porConfirmar === m.id ? (
+                    <div className="space-y-2">
+                      <p>Confirma solo si recibiste físicamente {montoCaja(montoIngreso)}.</p>
+                      <Button size="sm" disabled={confirmar.isPending} onClick={() => confirmar.mutate(m)}>
+                        {ajuste ? "Confirmar ingreso de la diferencia" : "Confirmar ingreso"}
+                      </Button>
+                      <Button size="sm" variant="ghost" disabled={confirmar.isPending} onClick={() => setPorConfirmar(null)}>Cancelar</Button>
+                      {confirmar.error && <p role="alert" className="text-destructive">{confirmar.error.message}</p>}
+                    </div>
+                  ) : <Button size="sm" variant="outline" disabled={confirmar.isPending} onClick={() => { confirmar.reset(); setPorConfirmar(m.id); }}>{ajuste ? "Registrar ingreso de la diferencia" : "Registrar ingreso"}</Button>
+                )}
+              </article>
+            );
+          })}
         </>
       )}
     </div>

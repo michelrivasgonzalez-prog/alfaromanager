@@ -48,7 +48,7 @@ import { formatDiasTrabajados, formatGastoDetalle, gastoLineas, ordenarGastos } 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SesionCaja } from "@/components/SesionCaja";
-import { confirmarSobrante, consultarSobrante, fechaCaja, montoCaja, reclasificarSobrante, useSesionCaja } from "@/lib/cajaSobrantes";
+import { conciliarSobranteEditado, confirmarAjusteSobrante, confirmarSobrante, consultarSobrante, deudaPorFaltante, fechaCaja, montoCaja, reclasificarSobrante, useSesionCaja } from "@/lib/cajaSobrantes";
 
 import { fmtDinero, fmtCant } from "@/lib/format";
 
@@ -310,6 +310,9 @@ export default function Historial() {
         {abierto && items.map((c) => {
 
         const r = calcCuadre(c);
+        const deudaFaltante = c.deudaDependienteId
+          ? deudasAll.data?.find((d) => d.id === c.deudaDependienteId && d.cuadre_id === c.id)
+          : undefined;
         const gastosYanitza =
           (r.gastosPorCategoria["Local"] || 0) +
           (r.gastosPorCategoria["Yanitza"] || 0) +
@@ -358,15 +361,25 @@ export default function Historial() {
                 tone={r.diferencia < 0 ? "danger" : r.diferencia > 0 ? "ok" : undefined}
               />
               <Mini label="Salario bruto" value={fmt(r.salarioBruto)} />
-              {r.deudaDependiente > 0 ? (
-                <Mini label="Deuda" value={fmt(r.deudaDependiente)} tone="danger" />
+              {deudaFaltante ? (
+                <Mini label="Saldo del faltante" value={montoCaja(Number(deudaFaltante.saldo))}
+                  tone={deudaFaltante.saldo > 0 ? "danger" : "ok"} />
+              ) : r.deudaDependiente > 0 ? (
+                <Mini label="Deuda generada" value={montoCaja(deudaPorFaltante(-r.diferencia, r.descuentoFalta))} tone="danger" />
               ) : (
                 <Mini label="Salario pagado" value={r.salarioPagado === null ? "Sin desglose" : fmt(r.salarioPagado)} />
               )}
             </div>
+            {canEdit && !pendientes.includes(c.id) && (r.deudaDependiente > 0 || c.deudaDependienteId) && (
+              <Button size="sm" variant="outline" className="mt-2 w-full" onClick={() => nav(`/historial/${c.id}/salario`)}>
+                Salario · Gestionar faltante
+              </Button>
+            )}
             {canEdit && esTurnoFondoSobrantes(c) && r.sobrante > 0 && (
               <Button size="sm" variant="outline" className="mt-2 w-full" onClick={() => setSobranteFor(c)}>
-                Gestionar sobrante
+                {r.reclasificado && Math.round(r.sobranteDetectado * 100) !== Math.round(r.sobrante * 100)
+                  ? "Gestionar sobrante · Revisar diferencia"
+                  : "Gestionar sobrante"}
               </Button>
             )}
             {(() => {
@@ -691,13 +704,20 @@ function ConsultaSobrante({ cuadre }: { cuadre: Cuadre }) {
   const [motivo, setMotivo] = useState("");
   const [confirmarFisico, setConfirmarFisico] = useState(false);
   const movimiento = consulta.data?.movimiento;
+  const ajustePendiente = Number(movimiento?.detalles?.ajuste_pendiente?.monto ?? 0);
+  const montoCalculado = Math.round(r.sobranteDetectado * 100) / 100;
+  const montoRegistrado = Number(movimiento?.monto ?? r.sobrante) + ajustePendiente;
+  const requiereAjuste = !!movimiento && Math.round(montoCalculado * 100) !== Math.round(montoRegistrado * 100);
   const operacion = useMutation({
-    mutationFn: (accion: "reclasificar" | "confirmar") => {
-      if (accion === "confirmar") {
+    mutationFn: async (accion: "reclasificar" | "confirmar" | "conciliar" | "confirmar-ajuste") => {
+      if (accion === "conciliar") return conciliarSobranteEditado(actual.id, montoCalculado);
+      if (accion === "confirmar" || accion === "confirmar-ajuste") {
         if (!movimiento) throw new Error("El movimiento ya no está disponible.");
-        return confirmarSobrante(movimiento.id);
+        return accion === "confirmar-ajuste"
+          ? confirmarAjusteSobrante(movimiento.id, Number(movimiento.detalles?.ajuste_pendiente?.total))
+          : confirmarSobrante(movimiento.id);
       }
-      return reclasificarSobrante(actual, Math.round(r.sobrante * 100) / 100, r.salarioBruto, r.salarioPagado, motivo.trim());
+      return reclasificarSobrante(actual, montoCalculado, r.salarioBruto, r.salarioPagado, motivo.trim());
     },
     onSuccess: async () => {
       setConfirmarFisico(false);
@@ -708,7 +728,10 @@ function ConsultaSobrante({ cuadre }: { cuadre: Cuadre }) {
   return (
     <div className="max-h-[65vh] space-y-3 overflow-y-auto text-sm">
       <p>{actual.dependiente} · {formatDiasTrabajados(actual.diasTrabajados)}</p>
-      <Row label="Sobrante de caja" value={montoCaja(movimiento?.monto ?? r.sobrante)} />
+      <Row label="Sobrante del cuadre actual" value={montoCaja(montoCalculado)} />
+      {movimiento && <Row label={movimiento.estado === "confirmado" ? "Ingreso confirmado" : "Ingreso registrado"}
+        value={montoCaja(Number(movimiento.monto))} />}
+      {ajustePendiente > 0 && <Row label="Ajuste pendiente de ingreso físico" value={montoCaja(ajustePendiente)} />}
       <Row label="Salario calculado" value={fmt(r.salarioReal)} />
       <Row label="Salario pagado" value={r.salarioPagado === null ? "Sin desglose" : fmt(r.salarioPagado)} />
       {consulta.isPending && <p role="status">Consultando caja…</p>}
@@ -723,25 +746,47 @@ function ConsultaSobrante({ cuadre }: { cuadre: Cuadre }) {
           <Button type="submit" disabled={!motivo.trim() || operacion.isPending}>Registrar sobrante pendiente</Button>
         </form>
       )}
-      {movimiento?.estado === "pendiente" && (
+      {requiereAjuste && movimiento?.estado !== "anulado" && montoCalculado > 0 && (
+        <div className="space-y-2 rounded-lg bg-muted p-3">
+          <p>El sobrante del cuadre editado difiere del importe registrado en la caja.</p>
+          <Button variant="outline" disabled={operacion.isPending} onClick={() => operacion.mutate("conciliar")}>
+            Actualizar importe en Caja de Sobrantes
+          </Button>
+        </div>
+      )}
+      {!requiereAjuste && (movimiento?.estado === "pendiente" || ajustePendiente > 0) && (
         confirmarFisico ? (
           <div className="space-y-2">
-            <p>Confirma solo si recibiste físicamente {montoCaja(movimiento.monto)}.</p>
-            <Button disabled={operacion.isPending} onClick={() => operacion.mutate("confirmar")}>Confirmar ingreso</Button>
+            <p>Confirma solo si recibiste físicamente {montoCaja(ajustePendiente || Number(movimiento?.monto))}.</p>
+            <Button disabled={operacion.isPending}
+              onClick={() => operacion.mutate(ajustePendiente > 0 ? "confirmar-ajuste" : "confirmar")}>
+              {ajustePendiente > 0 ? "Confirmar ingreso de la diferencia" : "Confirmar ingreso"}
+            </Button>
             <Button variant="ghost" disabled={operacion.isPending} onClick={() => setConfirmarFisico(false)}>Cancelar</Button>
           </div>
-        ) : <Button variant="outline" onClick={() => setConfirmarFisico(true)}>Registrar ingreso</Button>
+        ) : <Button variant="outline" onClick={() => setConfirmarFisico(true)}>
+          {ajustePendiente > 0 ? "Registrar ingreso de la diferencia" : "Registrar ingreso"}
+        </Button>
       )}
       {operacion.error && <p role="alert" className="text-destructive">{operacion.error.message}</p>}
       {!!consulta.data?.auditoria.length && (
         <section className="space-y-2 border-t pt-2">
           <h3 className="font-semibold">Auditoría</h3>
           {consulta.data.auditoria.map((a) => {
-            const actor = a.estado_nuevo?.confirmado_por ?? a.estado_nuevo?.realizado_por ?? a.estado_anterior?.realizado_por;
+            const antes = a.estado_anterior?.detalles;
+            const despues = a.estado_nuevo?.detalles;
+            const ajustado = despues?.ajuste_cuadre?.registrado_en !== antes?.ajuste_cuadre?.registrado_en
+              ? despues?.ajuste_cuadre : undefined;
+            const confirmado = despues?.ajuste_confirmado?.confirmado_en !== antes?.ajuste_confirmado?.confirmado_en
+              ? despues?.ajuste_confirmado : undefined;
+            const actor = confirmado?.confirmado_por ?? ajustado?.registrado_por
+              ?? a.estado_nuevo?.confirmado_por ?? a.estado_nuevo?.realizado_por ?? a.estado_anterior?.realizado_por;
             return (
               <div key={a.id} className="rounded-lg bg-muted/50 p-2">
                 <p>{fechaCaja(a.fecha)}{actor && ` · ${actor}`}</p>
-                <p>{a.estado_anterior?.estado ?? "Creación"} → {a.estado_nuevo?.estado ?? a.tipo_accion}</p>
+                <p>{confirmado ? `Ajuste confirmado · Total ${montoCaja(Number(confirmado.total))}`
+                  : ajustado ? `Importe conciliado · Total ${montoCaja(Number(ajustado.total))}`
+                  : `${a.estado_anterior?.estado ?? "Creación"} → ${a.estado_nuevo?.estado ?? a.tipo_accion}`}</p>
               </div>
             );
           })}

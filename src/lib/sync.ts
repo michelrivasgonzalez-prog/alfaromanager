@@ -339,12 +339,13 @@ export async function flushPendingCuadres() {
 
 export async function pullCuadre(id: string) {
   await ensureCloudSession();
-  const { data, error } = await supabase.from("cuadres").select("data").eq("id", id).single();
+  const { data, error } = await supabase.from("cuadres").select("data").eq("id", id).is("deleted_at", null).single();
   if (error) throw error;
   const cuadre = data.data as unknown as Cuadre;
   useCuadreStore.setState((state) => ({
     history: state.history.map((item) => item.id === id ? cuadre : item),
   }));
+  return cuadre;
 }
 
 export async function pushCuadre(c: Cuadre) {

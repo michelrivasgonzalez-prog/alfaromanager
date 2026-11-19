@@ -8,6 +8,7 @@ import AppLayout from "./components/AppLayout";
 import Index from "./pages/Index";
 import Cuadre from "./pages/Cuadre";
 import Historial from "./pages/Historial";
+import SalarioHistorico from "./pages/SalarioHistorico";
 import CajaSobrantes from "./pages/CajaSobrantes";
 import Calendario from "./pages/Calendario";
 import Reportes from "./pages/Reportes";
@@ -76,6 +77,10 @@ const App = () => (
                   <Historial />
                 </RequireRole>
               }
+            />
+            <Route
+              path="/historial/:cuadreId/salario"
+              element={<RequireRole allow={["admin", "duena"]}><SalarioHistorico /></RequireRole>}
             />
             <Route
               path="/caja-sobrantes"
