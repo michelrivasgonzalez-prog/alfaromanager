@@ -5,6 +5,7 @@ import type { Cuadre } from "@/store/cuadreStore";
 
 export type MovimientoFondo = {
   id: string;
+  detalles?: { origen?: string };
   cuadre_id: string | null;
   punto_venta: string;
   tipo: "ingreso" | "retiro";
@@ -105,3 +106,15 @@ export const fechaCaja = (fecha: string) => new Date(fecha).toLocaleString("es")
 
 export const montoCaja = (monto: number) =>
   `${monto.toLocaleString("es", { maximumFractionDigits: 2 })} CUP`;
+
+export async function compensarDeudaFondo(operacion: string, cliente: string, deuda: string, importe: number, motivo: string) {
+  const { data, error } = await cajaClient.rpc("compensar_deuda_fondo", { operacion, cliente, deuda, importe, motivo });
+  if (error) throw new Error(error.message);
+  return data as string;
+}
+
+export async function vincularFaltanteKamila(cliente: string, datos: Cuadre) {
+  const { data, error } = await cajaClient.rpc("vincular_faltante_kamila", { cliente, datos });
+  if (error) throw new Error(error.message);
+  return data as string;
+}

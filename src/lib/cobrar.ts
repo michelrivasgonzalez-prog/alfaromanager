@@ -37,6 +37,8 @@ export type Abono = {
   usuario_nombre: string | null;
   nota: string | null;
   reversa_de: string | null;
+  origen?: "salario" | "fondo_sobrantes" | null;
+  dependiente_nombre?: string | null;
   created_at: string;
 };
 
@@ -172,15 +174,16 @@ export async function eliminarDeuda(id: string) {
   if (error) throw error;
 }
 
-export async function listAbonos(clienteId: string): Promise<Abono[]> {
-  const { data, error } = await supabase
-    .from("abonos")
-    .select("*")
-    .is("deleted_at", null)
-    .eq("cliente_id", clienteId)
-    .order("fecha", { ascending: false });
-  if (error) throw error;
-  return (data ?? []) as any;
+export async function listAbonos(clienteId?: string): Promise<Abono[]> {
+  const rows: Abono[] = [];
+  for (let inicio = 0; ; inicio += 500) {
+    let consulta = supabase.from("abonos").select("*").is("deleted_at", null);
+    if (clienteId) consulta = consulta.eq("cliente_id", clienteId);
+    const { data, error } = await consulta.order("fecha", { ascending: false }).order("id").range(inicio, inicio + 499);
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if (!data || data.length < 500) return rows;
+  }
 }
 
 export async function listAbonosPorDeuda(clienteId: string): Promise<Record<string, AbonoAplicacion[]>> {
@@ -322,4 +325,36 @@ export async function rechazarAbonoPendiente(id: string) {
     .eq("estado", "pendiente");
 
   if (error) throw error;
+}
+
+export function origenAbono(abono: Abono) {
+  if (abono.origen === "fondo_sobrantes") return "Fondo de Sobrantes";
+  if (abono.origen === "salario" || abono.nota?.startsWith("Descontado del salario")) return "Salario";
+  return "Pago directo";
+}
+
+export async function cerrarCuadreConAbono(cuadre: import("@/store/cuadreStore").Cuadre, disponible: number) {
+  const plan = cuadre.planAbonoSalario;
+  if (!plan) throw new Error("Falta el plan de abono del cuadre.");
+  const { data, error } = await (supabase as any).rpc("cerrar_cuadre_con_abono", {
+    datos: cuadre, cliente_id: plan.clienteId, aplicaciones: plan.aplicaciones, disponible,
+  });
+  if (error) throw error;
+  return data as import("@/store/cuadreStore").Cuadre;
+}
+
+export function normalizarDependiente(nombre: string) {
+  const clave = nombre.normalize("NFD").replace(/\p{Diacritic}/gu, "").trim().toLowerCase();
+  return clave === "camila san freeman" ? "kamila sanz friman" : clave;
+}
+
+export function resumirAbonos(abonos: Abono[]) {
+  const porId = new Map(abonos.map((abono) => [abono.id, abono]));
+  const resumen = { salario: 0, fondo: 0, directo: 0 };
+  for (const abono of abonos) {
+    const origen = origenAbono(porId.get(abono.reversa_de ?? "") ?? abono);
+    const campo = origen === "Salario" ? "salario" : origen === "Fondo de Sobrantes" ? "fondo" : "directo";
+    resumen[campo] += Math.round(Number(abono.monto) * 100);
+  }
+  return { salario: resumen.salario / 100, fondo: resumen.fondo / 100, directo: resumen.directo / 100 };
 }

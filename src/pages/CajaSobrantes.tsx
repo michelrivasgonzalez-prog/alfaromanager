@@ -2,6 +2,7 @@ import { useRef, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import CompensarDeudaFondo from "@/components/CompensarDeudaFondo";
 import { SesionCaja } from "@/components/SesionCaja";
 import { confirmarSobrante, fechaCaja, listarCaja, montoCaja, retirarSobrante, salirCaja, useSesionCaja } from "@/lib/cajaSobrantes";
 import { Link } from "react-router-dom";
@@ -95,12 +96,13 @@ function Fondo() {
             {retirar.isSuccess && <p role="status" className="text-sm">Retiro registrado.</p>}
             <Button disabled={!valido || retirar.isPending} type="submit">Registrar retiro</Button>
           </form>
+          <CompensarDeudaFondo disponible={saldo.saldo_disponible} />
           <h2 className="font-semibold">Movimientos</h2>
           {!fondo.data.movimientos.length && <p className="text-sm text-muted-foreground">Sin movimientos registrados.</p>}
           {fondo.data.movimientos.map((m) => (
             <article key={m.id} className="space-y-1 rounded-xl border bg-card p-3 text-sm">
               <div className="flex justify-between gap-2 font-semibold">
-                <span>{m.tipo === "ingreso" ? "Ingreso" : "Retiro"} · {m.estado}</span>
+                <span>{m.detalles?.origen === "compensacion_deuda" ? "Compensación de deuda" : m.tipo === "ingreso" ? "Ingreso" : "Retiro"} · {m.estado}</span>
                 <span className="whitespace-nowrap">{montoCaja(m.monto)}</span>
               </div>
               <p>
