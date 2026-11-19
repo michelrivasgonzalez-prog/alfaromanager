@@ -117,6 +117,12 @@ export async function softDeleteCliente(id: string) {
   if (error) throw error;
 }
 
+export async function buscarDeuda(id: string): Promise<Deuda | null> {
+  const { data, error } = await supabase.from("deudas").select("*").eq("id", id).is("deleted_at", null).maybeSingle();
+  if (error) throw error;
+  return data as Deuda | null;
+}
+
 export async function listDeudas(clienteId?: string): Promise<Deuda[]> {
   let q = supabase.from("deudas").select("*").is("deleted_at", null).order("fecha", { ascending: false });
   if (clienteId) q = q.eq("cliente_id", clienteId);

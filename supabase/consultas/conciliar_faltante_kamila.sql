@@ -4,7 +4,7 @@ begin read only;
 select c.id, c.dependiente, c.finalizado, c.data -> 'diasTrabajados' dias,
   round(-s.diferencia, 2) faltante_bruto,
   round(s.bruto, 2) salario_bruto,
-  round(greatest(0, -s.diferencia - s.bruto), 2) deuda_restante,
+  greatest(0, round(-s.diferencia, 2) - round(s.bruto, 2)) deuda_restante,
   c.data ->> 'deudaDependienteId' deuda_vinculada
 from public.cuadres c cross join lateral private.calcular_limite_salario(c.data) s
 where c.id = '8fe85acf-9a34-4760-ab8e-18d746f76ea5';

@@ -6,7 +6,12 @@ import type { Cuadre } from "@/store/cuadreStore";
 
 export type MovimientoFondo = {
   id: string;
-  detalles?: { origen?: string };
+  detalles?: {
+    origen?: string;
+    ajuste_pendiente?: { monto: number; total: number };
+    ajuste_cuadre?: { registrado_por: string; registrado_en: string; total: number };
+    ajuste_confirmado?: { confirmado_por: string; confirmado_en: string; total: number };
+  };
   cuadre_id: string | null;
   punto_venta: string;
   tipo: "ingreso" | "retiro";
@@ -130,3 +135,15 @@ export function compensarDeudaFondo(operacion: string, cliente: string, deuda: s
 export function vincularFaltanteKamila(cliente: string, datos: Cuadre) {
   return rpcCaja<string>("vincular_faltante_kamila", { cliente, datos });
 }
+
+export const TURNO_KAMILA_FALTANTE = "8fe85acf-9a34-4760-ab8e-18d746f76ea5";
+
+export function deudaPorFaltante(faltante: number, salarioAbsorbido: number) {
+  return Math.max(0, Math.round(faltante * 100) - Math.round(salarioAbsorbido * 100)) / 100;
+}
+
+export const conciliarSobranteEditado = (cuadreId: string, esperado: number) =>
+  rpcCaja<MovimientoFondo>("conciliar_sobrante_editado", { cuadre_id: cuadreId, esperado });
+
+export const confirmarAjusteSobrante = (movimientoId: string, esperado: number) =>
+  rpcCaja<MovimientoFondo>("confirmar_ajuste_sobrante", { movimiento_id: movimientoId, esperado });
