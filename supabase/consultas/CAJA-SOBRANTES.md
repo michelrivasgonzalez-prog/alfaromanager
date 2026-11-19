@@ -16,7 +16,7 @@
    select private.emitir_pin_caja('<ID del perfil>');
    ```
 
-   La persona usa ese PIN en la pantalla principal y abre **Caja de Sobrantes** directamente. El PIN nuevo se administra en la base de datos. Para renovarlo, ejecutar nuevamente el comando. Para revocar el acceso, eliminar el perfil de `private.pines_caja` desde SQL Editor. Los demás perfiles conservan su PIN actual.
+   La persona usa ese PIN en la pantalla principal y abre **Caja de Sobrantes** o **Gestionar sobrante** directamente. El PIN debe ser nuevo porque los PIN anteriores se verifican en el dispositivo y no autorizan operaciones del fondo. El PIN nuevo se administra en la base de datos. Para renovarlo, ejecutar nuevamente el comando. Para revocar el acceso, eliminar el perfil de `private.pines_caja` desde SQL Editor. Los demás perfiles conservan su PIN actual.
 5. Revisar el PR e integrarlo en `main` para que Lovable sincronice el código. Probar el acceso por PIN y la conciliación antes de publicar la aplicación.
 
 ## Uso

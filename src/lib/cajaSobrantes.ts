@@ -6,6 +6,7 @@ import type { Cuadre } from "@/store/cuadreStore";
 
 export type MovimientoFondo = {
   id: string;
+  detalles?: { origen?: string };
   cuadre_id: string | null;
   punto_venta: string;
   tipo: "ingreso" | "retiro";
@@ -84,16 +85,20 @@ export async function entrarConPinDeCaja(pin: string) {
   return perfil;
 }
 
-async function operar<T>(accion: string, solicitud: Record<string, unknown> = {}): Promise<T> {
+async function rpcCaja<T>(nombre: string, args: Record<string, unknown>): Promise<T> {
   const actual = sesion;
   if (!actual || Date.parse(actual.vence) <= Date.now()) {
     void salirCaja().catch(console.warn);
     throw new Error("Vuelve a entrar a la aplicación con tu PIN de caja.");
   }
-  const { data, error } = await cliente.rpc("operar_caja_sobrantes", { accion, solicitud, token: actual.token });
+  const { data, error } = await cliente.rpc(nombre, { ...args, token: actual.token });
   if (error?.code === "42501" && sesion === actual) void salirCaja().catch(console.warn);
   if (error) throw new Error(error.message);
   return data as T;
+}
+
+function operar<T>(accion: string, solicitud: Record<string, unknown> = {}) {
+  return rpcCaja<T>("operar_caja_sobrantes", { accion, solicitud });
 }
 
 export const listarCaja = () => operar<ResumenFondo>("listar");
@@ -117,3 +122,11 @@ export const fechaCaja = (fecha: string) => new Date(fecha).toLocaleString("es")
 
 export const montoCaja = (monto: number) =>
   `${monto.toLocaleString("es", { maximumFractionDigits: 2 })} CUP`;
+
+export function compensarDeudaFondo(operacion: string, cliente: string, deuda: string, importe: number, motivo: string) {
+  return rpcCaja<string>("compensar_deuda_fondo", { operacion, cliente, deuda, importe, motivo });
+}
+
+export function vincularFaltanteKamila(cliente: string, datos: Cuadre) {
+  return rpcCaja<string>("vincular_faltante_kamila", { cliente, datos });
+}

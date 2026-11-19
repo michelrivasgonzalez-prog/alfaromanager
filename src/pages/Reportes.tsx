@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { fmt as formatoCUP, listAbonos, listClientes, listDeudas, normalizarDependiente, resumirAbonos } from "@/lib/cobrar";
 import {
   useCuadreStore,
   calcCuadre,
@@ -56,12 +58,26 @@ type SeccionActiva = "ventas" | "dependientes" | "productos" | "gastos";
 type OrdenProducto = "ganancia" | "venta" | "margen" | "cantidad";
 
 export default function Reportes() {
-  const { history } = useCuadreStore();
+  const { history, dependientes } = useCuadreStore();
 
   // Estados de control y filtros
   const [puntoFiltro, setPuntoFiltro] = useState<"Todos" | PuntoVenta>("Todos");
   const [modoPeriodo, setModoPeriodo] = useState<VistaPeriodo>("mes");
   const [seccion, setSeccion] = useState<SeccionActiva>("ventas");
+
+  const verDeudas = seccion === "dependientes";
+  const clientes = useQuery({ queryKey: ["clientes"], queryFn: listClientes, enabled: verDeudas });
+  const deudas = useQuery({ queryKey: ["deudas-all"], queryFn: () => listDeudas(), enabled: verDeudas });
+  const abonos = useQuery({ queryKey: ["abonos"], queryFn: () => listAbonos(), enabled: verDeudas });
+  const cuentasDependientes = useMemo(() => {
+    if (!clientes.data || !deudas.data || !abonos.data) return null;
+    const nombres = new Set([...dependientes, ...history.map((c) => c.dependiente)].map(normalizarDependiente));
+    const ids = new Set(clientes.data.filter((c) => nombres.has(normalizarDependiente(c.nombre))).map((c) => c.id));
+    return {
+      ...resumirAbonos(abonos.data.filter((a) => ids.has(a.cliente_id))),
+      pendiente: deudas.data.reduce((total, d) => total + (ids.has(d.cliente_id) ? Number(d.saldo) : 0), 0),
+    };
+  }, [clientes.data, deudas.data, abonos.data, dependientes, history]);
 
   // Filtro de productos
   const [busquedaProducto, setBusquedaProducto] = useState("");
@@ -654,6 +670,23 @@ export default function Reportes() {
          ======================================================== */}
       {seccion === "dependientes" && (
         <div className="space-y-4">
+          <section className="space-y-2 rounded-xl border bg-card p-4">
+            <h2 className="text-sm font-semibold">Cartera de dependientes · todos los períodos</h2>
+            {clientes.isError || deudas.isError || abonos.isError ? (
+              <p role="alert" className="text-sm text-destructive">No se pudo consultar la cartera.</p>
+            ) : cuentasDependientes ? (
+              <dl className="grid grid-cols-2 gap-3 text-sm">
+                {([
+                  ["Descontado del salario", cuentasDependientes.salario],
+                  ["Compensado con el fondo", cuentasDependientes.fondo],
+                  ["Pagado directamente", cuentasDependientes.directo],
+                  ["Saldo pendiente", cuentasDependientes.pendiente],
+                ] as const).map(([label, valor]) => (
+                  <div key={label}><dt className="text-muted-foreground">{label}</dt><dd>{formatoCUP(valor)}</dd></div>
+                ))}
+              </dl>
+            ) : <p className="text-sm">Consultando cartera…</p>}
+          </section>
           {/* Tarjeta de Resumen de Faltantes */}
           <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
             <div className="flex items-center justify-between mb-3">
