@@ -145,6 +145,9 @@ export type Cuadre = {
   salarioExcepcionesProductos?: SalarioProductoExcepcion[]; // <-- AGREGAR ESTA LÍNEA
   finalizado: boolean;
   deudaDependienteId?: string | null;
+  fondoFaltantePropuesto?: number;
+  fondoFaltanteOperacion?: string;
+  fondoFaltante?: { monto: number; movimientoId: string | null };
   descuentoDeudas?: number;
   abonoDeudasId?: string | null;
   planAbonoSalario?: {
@@ -344,6 +347,7 @@ export const newCuadre = (
 interface State {
   // Cuadres en curso por punto de venta
   currents: Record<PuntoVenta, Cuadre | null>;
+  originalesEdicion: Partial<Record<PuntoVenta, Cuadre>>;
   activePunto: PuntoVenta;
   // Último paso visitado por cuadre (para reanudar)
   lastStep: Record<PuntoVenta, number>;
@@ -405,7 +409,7 @@ interface State {
   addRecogida: (r: Omit<Recogida, "id">) => void;
   removeRecogida: (id: string) => void;
 
-  finalizar: () => void;
+  finalizar: (guardado?: Cuadre) => void;
   cancelar: (punto?: PuntoVenta) => void;
   deleteHistory: (id: string) => void;
   importarFinales: (cuadreId: string) => void;
@@ -431,6 +435,7 @@ export const useCuadreStore = create<State>()(
   persist(
     (set, get) => ({
       currents: { "Cafetería": null, "Mipyme": null },
+      originalesEdicion: {},
       activePunto: "Cafetería",
       lastStep: { "Cafetería": 1, "Mipyme": 1 },
       history: [],
@@ -622,6 +627,7 @@ export const useCuadreStore = create<State>()(
           const p = punto ?? s.activePunto;
           return {
             activePunto: p,
+            originalesEdicion: { ...s.originalesEdicion, [p]: undefined },
             currents: {
               ...s.currents,
               [p]: newCuadre(p, s.catalogo, s.settings),
@@ -768,10 +774,12 @@ export const useCuadreStore = create<State>()(
             recogidas: (c.recogidas ?? []).filter((r) => r.id !== id),
           }))
         ),
-      finalizar: () => {
+      finalizar: (guardado) => {
         const s = get();
-        const c = s.currents[s.activePunto];
-        if (!c) return;
+        const activo = s.currents[s.activePunto];
+        if (!activo || (guardado && guardado.id !== activo.id)) return;
+        const c = guardado ?? activo;
+        const actualizaCatalogo = !guardado?.fondoFaltante || !s.history.some((turno) => turno.id === activo.id);
         // El catálogo del punto se REEMPLAZA por los productos del cuadre:
         // así se corrigen nombres cambiados y no quedan duplicados.
         // Si un producto quedó en 0 (se terminó), se limpia precio y costo
@@ -817,14 +825,16 @@ export const useCuadreStore = create<State>()(
             return new Date(fB).getTime() - new Date(fA).getTime();
           }),
           currents: { ...s.currents, [s.activePunto]: null },
+          originalesEdicion: { ...s.originalesEdicion, [s.activePunto]: undefined },
           lastStep: { ...s.lastStep, [s.activePunto]: 1 },
-          catalogo: normalizeCatalogoOrden(catalogo),
+          catalogo: actualizaCatalogo ? normalizeCatalogoOrden(catalogo) : s.catalogo,
         });
       },
       cancelar: (punto) =>
         set((s) => {
           const p = punto ?? s.activePunto;
           return {
+            originalesEdicion: { ...s.originalesEdicion, [p]: undefined },
             currents: { ...s.currents, [p]: null },
             lastStep: { ...s.lastStep, [p]: 1 },
           };
@@ -900,10 +910,11 @@ export const useCuadreStore = create<State>()(
           const src = s.history.find((h) => h.id === cuadreId);
           if (!src) return {};
           const p = src.puntoVenta;
+          if (s.currents[p]?.id === cuadreId) return { activePunto: p };
           return {
             activePunto: p,
             currents: { ...s.currents, [p]: { ...src, regimenSobrantes: src.regimenSobrantes ?? false, finalizado: false } },
-            history: s.history.filter((h) => h.id !== cuadreId),
+            originalesEdicion: { ...s.originalesEdicion, [p]: src },
             lastStep: { ...s.lastStep, [p]: 1 },
           };
         }),
@@ -1023,18 +1034,26 @@ export const calcCuadre = (c: Cuadre) => {
   const decisionMipyme = c.puntoVenta === "Mipyme" ? c.entregarSobranteMipyme : undefined;
   const propina = !aplicaRegimenSobrantes && decisionMipyme === undefined ? sobranteDetectado : 0;
   const sobranteEntregado = !reclasificado && decisionMipyme ? sobranteDetectado : 0;
-  // El faltante primero se descuenta del salario. Si aún queda faltante
-  // por cubrir después de agotar el salario, ESE excedente es deuda real
-  // del dependiente. Si el salario cubre el faltante, no hay deuda.
-  const descuentoFalta = Math.min(faltanteBruto, salarioBruto);
-  const deudaDependiente = Math.max(0, faltanteBruto - salarioBruto);
-  const salarioAntesDeudas = salarioBruto + propina + sobranteEntregado - descuentoFalta;
+  const cobertura = c.fondoFaltantePropuesto ?? c.fondoFaltante?.monto ?? 0;
+  const usaFondo = Number.isFinite(cobertura) && cobertura > 0;
+  const centavos = (importe: number) => Math.round(importe * 100);
+  const cubiertoConFondo = usaFondo ? Math.min(centavos(faltanteBruto), centavos(cobertura)) / 100 : 0;
+  const faltanteNeto = usaFondo ? (centavos(faltanteBruto) - centavos(cubiertoConFondo)) / 100 : faltanteBruto;
+  const brutoLiquidacion = usaFondo ? centavos(salarioBruto) / 100 : salarioBruto;
+  const descuentoFalta = Math.min(faltanteNeto, brutoLiquidacion);
+  const deudaDependiente = usaFondo
+    ? Math.max(0, centavos(faltanteNeto) - centavos(brutoLiquidacion)) / 100
+    : Math.max(0, faltanteNeto - brutoLiquidacion);
+  const salarioBaseDisponible = brutoLiquidacion + propina + sobranteEntregado - descuentoFalta;
+  const salarioAntesDeudas = usaFondo ? centavos(salarioBaseDisponible) / 100 : salarioBaseDisponible;
   // Deudas propias del dependiente pagadas con su salario.
   const descuentoDeudas = Math.min(
     Math.max(0, c.descuentoDeudas ?? 0),
     Math.max(0, salarioAntesDeudas)
   );
-  const salarioReal = salarioAntesDeudas - descuentoDeudas;
+  const salarioReal = usaFondo
+    ? (centavos(salarioAntesDeudas) - centavos(descuentoDeudas)) / 100
+    : salarioAntesDeudas - descuentoDeudas;
   const billetesPagados = Object.entries(c.salarioDenominaciones ?? {});
   const pagoRevisado = c.sobranteGestion?.salarioPagadoReal;
   const salarioPagado = billetesPagados.some(([, cantidad]) => cantidad > 0)
@@ -1061,6 +1080,9 @@ export const calcCuadre = (c: Cuadre) => {
 
     efectivoADepositar,
     diferencia,
+    faltanteBruto,
+    cubiertoConFondo,
+    faltanteNeto,
     diasCount,
     salarioBruto,
     salarioBasePeriodo,

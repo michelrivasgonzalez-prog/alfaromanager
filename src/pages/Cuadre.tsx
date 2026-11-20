@@ -57,6 +57,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import StepShell from "@/components/cuadre/StepShell";
+import FondoParaFaltante from "@/components/cuadre/FondoParaFaltante";
+import { cerrarCuadreConFondo, montoCaja } from "@/lib/cajaSobrantes";
 import { NumberInput } from "@/components/NumberInput";
 import {
   DENOMINACIONES,
@@ -2369,7 +2371,7 @@ function Step7() {
 
 /* ================== Step 8: Diferencia ================== */
 function Step8() {
-  const { currents, activePunto } = useCuadreStore();
+  const { currents, activePunto, role, updateCurrent } = useCuadreStore();
   const current = currents[activePunto];
   if (!current) return null;
   const c = calcCuadre(current);
@@ -2431,13 +2433,26 @@ function Step8() {
           </div>
         </div>
       </div>
+      {role === "admin" && (falta || current.fondoFaltantePropuesto !== undefined || current.fondoFaltante) && (
+        <FondoParaFaltante
+          key={current.id}
+          cuadreId={current.id}
+          faltante={c.faltanteBruto}
+          propuesto={current.fondoFaltantePropuesto}
+          aplicado={current.fondoFaltante?.monto ?? 0}
+          onChange={(monto) => updateCurrent({
+            fondoFaltantePropuesto: monto,
+            fondoFaltanteOperacion: monto === undefined ? undefined : current.fondoFaltanteOperacion ?? crypto.randomUUID(),
+          })}
+        />
+      )}
     </StepShell>
   );
 }
 
 /* ================== Step 9: Salario ================== */
 function Step9() {
-  const { currents, activePunto, updateCurrent, setSalarioDen, settings, role } =
+  const { currents, activePunto, updateCurrent, setSalarioDen, settings, role, originalesEdicion } =
     useCuadreStore();
   const current = currents[activePunto];
   
@@ -2448,8 +2463,11 @@ function Step9() {
 
   if (!current) return null;
 
-  // Sincroniza valores iniciales si cambian en Ajustes
+  const editandoHistorico = originalesEdicion[activePunto]?.id === current.id;
+
+  // Los ajustes vigentes se aplican a los nuevos turnos.
   useEffect(() => {
+    if (editandoHistorico) return;
     const conf = settings.salarioBase[activePunto];
     if (conf && conf !== current.salarioBase) {
       updateCurrent({ salarioBase: conf });
@@ -2463,9 +2481,11 @@ function Step9() {
       updateCurrent({ porcentajeVenta: pctConf });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activePunto, settings.salarioBase[activePunto], settings.salarioModo?.[activePunto], settings.porcentajeVenta?.[activePunto]]);
+  }, [activePunto, editandoHistorico, settings.salarioBase[activePunto], settings.salarioModo?.[activePunto], settings.porcentajeVenta?.[activePunto]]);
 
   const c = calcCuadre(current);
+  const usaFondo = c.cubiertoConFondo > 0;
+  const mostrarImporte = usaFondo ? montoCaja : fmt;
 
   // Filtro de productos del cuadre que tuvieron venta > 0 (si ninguno tiene venta aún, muestra todos)
   const productosDisponibles = useMemo(() => {
@@ -2481,6 +2501,7 @@ function Step9() {
   const noHayEfectivo = efectivoRecibido <= 0;
 
   useEffect(() => {
+    if (usaFondo || editandoHistorico) return;
     const totalSet = Object.values(current.salarioDenominaciones).reduce(
       (s, n) => s + n,
       0
@@ -2737,12 +2758,21 @@ function Step9() {
         )}
       </div>
 
+      {usaFondo && (
+        <div className="space-y-1 rounded-2xl border bg-card p-4 text-sm">
+          <Row label="Faltante original" value={montoCaja(c.faltanteBruto)} />
+          <Row label={current.fondoFaltantePropuesto === undefined ? "Cubierto con el fondo" : "Cobertura prevista del fondo"}
+            value={montoCaja(c.cubiertoConFondo)} />
+          <Row label="Faltante a liquidar" value={montoCaja(c.faltanteNeto)} />
+          <Row label="Salario disponible antes de otras deudas" value={montoCaja(c.salarioAntesDeudas)} />
+        </div>
+      )}
       <div className="grid grid-cols-3 gap-2">
-        <SummaryTile label="Bruto" value={fmt(c.salarioBruto)} accent="primary" />
+        <SummaryTile label="Bruto" value={mostrarImporte(c.salarioBruto)} accent="primary" />
         {c.descuentoFalta > 0 ? (
           <div className="rounded-2xl bg-destructive p-3 text-destructive-foreground shadow-soft">
             <div className="text-[10px] font-semibold uppercase opacity-80">Descuento</div>
-            <div className="text-lg font-bold">{fmt(c.descuentoFalta)}</div>
+            <div className="text-lg font-bold">{mostrarImporte(c.descuentoFalta)}</div>
           </div>
         ) : (
           <div className="rounded-2xl gradient-emerald p-3 text-secondary-foreground shadow-soft">
@@ -2753,10 +2783,10 @@ function Step9() {
         {c.deudaDependiente > 0 ? (
           <div className="rounded-2xl bg-destructive p-3 text-destructive-foreground shadow-soft">
             <div className="text-[10px] font-semibold uppercase opacity-80">Deuda</div>
-            <div className="text-lg font-bold">{fmt(c.deudaDependiente)}</div>
+            <div className="text-lg font-bold">{mostrarImporte(c.deudaDependiente)}</div>
           </div>
         ) : (
-          <SummaryTile label="A pagar" value={fmt(c.salarioReal)} accent="emerald" />
+          <SummaryTile label="A pagar" value={mostrarImporte(c.salarioReal)} accent="emerald" />
         )}
       </div>
 
@@ -2772,12 +2802,13 @@ function Step9() {
       )}
 
       {c.deudaDependiente > 0 && (
-        <DeudaDependientePanel monto={c.deudaDependiente} />
+        usaFondo ? <p className="text-sm text-destructive">El saldo del faltante se registrará como deuda al guardar el turno.</p>
+          : <DeudaDependientePanel monto={c.deudaDependiente} />
       )}
       <PagarDeudasDependientePanel disponible={c.salarioAntesDeudas} />
 
       {/* Selector de desglose de efectivo a pagar */}
-      {c.salarioReal > 0 && !noHayEfectivo && (
+      {c.salarioReal > 0 && (!noHayEfectivo || usaFondo) && (
         <div className="rounded-2xl border border-border bg-card p-5 shadow-soft space-y-3">
           <div className="flex items-center justify-between">
             <Label className="text-xs uppercase tracking-wider text-muted-foreground">
@@ -2815,9 +2846,17 @@ function Step9() {
           <div className="flex items-center justify-between text-xs pt-1 border-t border-border/40">
             <span className="text-muted-foreground">Efectivo asignado:</span>
             <span className={`font-bold ${totalPagado === c.salarioReal ? "text-emerald-600 dark:text-emerald-400" : "text-amber-500"}`}>
-              ${fmt(totalPagado)} / ${fmt(c.salarioReal)}
+              {montoCaja(totalPagado)} / {montoCaja(c.salarioReal)}
             </span>
           </div>
+          {usaFondo && totalPagado > c.salarioReal && (
+            <p role="alert" className="text-sm text-destructive">El desglose supera el salario por entregar.</p>
+          )}
+          {usaFondo && totalPagado < c.salarioReal && (
+            <p className="text-sm text-muted-foreground">
+              Salario pendiente de entregar: {montoCaja(Math.round((c.salarioReal - totalPagado) * 100) / 100)}.
+            </p>
+          )}
         </div>
       )}
     </StepShell>
@@ -2830,6 +2869,7 @@ function Step10({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [cerrando, setCerrando] = useState(false);
+  const enCurso = useRef(false);
   const current = currents[activePunto];
   if (!current) return null;
   const isAdmin = role === "admin";
@@ -2837,37 +2877,61 @@ function Step10({ onClose }: { onClose: () => void }) {
   const sinCosto10 = productosSinCosto(current.productos);
 
   const finalizarTurno = async () => {
-    if (cerrando) return;
+    if (enCurso.current) return;
     if (sinCosto10.length > 0) {
       toast.error("Faltan precios de costo: no se puede finalizar");
       return;
     }
     const plan = current.planAbonoSalario;
+    const cobertura = current.fondoFaltantePropuesto ?? current.fondoFaltante?.monto;
+    if (cobertura !== undefined && (cobertura <= 0 || Math.round(cobertura * 100) > Math.round(c.faltanteBruto * 100))) {
+      toast.error("El faltante cambió. Revisa el importe del fondo en el paso Diferencia.");
+      return;
+    }
+    if (cobertura !== undefined && (c.salarioPagado ?? 0) > c.salarioReal) {
+      toast.error("El efectivo registrado supera el salario por entregar. Revisa el desglose.");
+      return;
+    }
     if (plan) {
       const total = plan.aplicaciones.reduce((s, item) => s + Math.round(item.monto * 100), 0);
       if (total !== Math.round(c.descuentoDeudas * 100)) {
         toast.error("El salario disponible cambió. Revisa los abonos en el paso Salario.");
         return;
       }
+    }
+    const guardabaHistoricoConFondo = cobertura !== undefined &&
+      useCuadreStore.getState().history.some((item) => item.id === current.id);
+    if (plan || cobertura !== undefined) {
+      enCurso.current = true;
       setCerrando(true);
       try {
-        if (!await ensureCloudSession()) throw new Error("Conéctate a internet para cerrar con abonos.");
-        const snap = { ...current, finalizado: true, regimenSobrantes: current.regimenSobrantes ?? esTurnoFondoSobrantes(current) };
-        const guardado = await cerrarCuadreConAbono(snap, Math.round(c.salarioAntesDeudas * 100) / 100);
+        if (!await ensureCloudSession()) throw new Error("Conéctate a internet para guardar la liquidación.");
         const store = useCuadreStore.getState();
-        if (store.currents[store.activePunto]?.id === current.id) {
-          store.updateCurrent({ ...guardado, planAbonoSalario: undefined });
-          finalizar();
+        const { fondoFaltanteOperacion, ...datos } = current;
+        const snap = { ...datos, finalizado: true, regimenSobrantes: current.regimenSobrantes ?? esTurnoFondoSobrantes(current) };
+        let guardado: DatosCuadre;
+        if (cobertura !== undefined) {
+          const operacion = fondoFaltanteOperacion ?? crypto.randomUUID();
+          if (!fondoFaltanteOperacion && store.currents[store.activePunto]?.id === current.id) {
+            store.updateCurrent({ fondoFaltanteOperacion: operacion });
+          }
+          const original = store.originalesEdicion[activePunto];
+          const previo = original?.id === current.id ? original : store.history.find((item) => item.id === current.id);
+          guardado = await cerrarCuadreConFondo({ ...snap, fondoFaltantePropuesto: cobertura }, operacion, previo ?? null);
+        } else {
+          guardado = await cerrarCuadreConAbono(snap, Math.round(c.salarioAntesDeudas * 100) / 100);
         }
-        for (const key of ["deudas", "deudas-all", "abonos", "abonos-por-deuda"]) {
+        finalizar(guardado);
+        for (const key of ["caja-sobrantes", "cuadre-historico", "deudas", "deudas-all", "abonos", "abonos-por-deuda"]) {
           void qc.invalidateQueries({ queryKey: [key] });
         }
         const turnoId = guardado.precuadre?.turnoId;
         if (turnoId) void marcarPrecuadreConciliado(turnoId).catch(console.warn);
       } catch (error) {
-        toast.error((error as Error).message || "No se pudo cerrar el cuadre con el abono.");
+        toast.error((error as Error).message || "No se pudo guardar la liquidación.");
         return;
       } finally {
+        enCurso.current = false;
         setCerrando(false);
       }
     } else {
@@ -2880,10 +2944,12 @@ function Step10({ onClose }: { onClose: () => void }) {
         .then(() => useCuadreStore.getState().clearPendingCuadre(snap.id))
         .catch(() => toast.warning("Guardado en el teléfono. Se subirá cuando haya conexión."));
     }
-    localStorage.setItem("alfaro-catalogo-pending", "1");
-    pushAllCatalogo()
-      .then(() => localStorage.removeItem("alfaro-catalogo-pending"))
-      .catch(console.warn);
+    if (!guardabaHistoricoConFondo) {
+      localStorage.setItem("alfaro-catalogo-pending", "1");
+      pushAllCatalogo()
+        .then(() => localStorage.removeItem("alfaro-catalogo-pending"))
+        .catch(console.warn);
+    }
     toast.success("Cuadre guardado en historial");
     onClose();
   };
@@ -2951,7 +3017,13 @@ function Step10({ onClose }: { onClose: () => void }) {
           highlight={c.diferencia < 0 ? "destructive" : c.diferencia > 0 ? "emerald" : undefined}
           icon={c.diferencia < 0 ? TrendingDown : c.diferencia > 0 ? TrendingUp : undefined}
         />
-        <Row label="Salario bruto" value={fmt(c.salarioBruto)} />
+        {c.cubiertoConFondo > 0 && (
+          <>
+            <Row label={current.fondoFaltantePropuesto === undefined ? "Cubierto con el fondo" : "Cobertura prevista del fondo"} value={montoCaja(c.cubiertoConFondo)} />
+            <Row label="Faltante neto" value={montoCaja(c.faltanteNeto)} />
+          </>
+        )}
+        <Row label="Salario bruto" value={montoCaja(c.salarioBruto)} />
         {current.entregarSobranteMipyme && c.sobranteEntregado > 0 && (
           <Row label="Sobrante entregado" value={fmt(c.sobranteEntregado)} />
         )}
@@ -2959,23 +3031,26 @@ function Step10({ onClose }: { onClose: () => void }) {
         {c.descuentoFalta > 0 && (
           <Row
             label="− Descuento por faltante"
-            value={fmt(c.descuentoFalta)}
+            value={montoCaja(c.descuentoFalta)}
             highlight="destructive"
           />
         )}
         {c.descuentoDeudas > 0 && (
           <Row
             label="− Deudas pagadas del dependiente"
-            value={fmt(c.descuentoDeudas)}
+            value={montoCaja(c.descuentoDeudas)}
             highlight="destructive"
           />
         )}
         {c.deudaDependiente > 0 ? (
-          <Row label="Deuda" value={fmt(c.deudaDependiente)} highlight="destructive" />
+          <Row label="Deuda" value={montoCaja(c.deudaDependiente)} highlight="destructive" />
         ) : (
-          <Row label="Salario calculado" value={fmt(c.salarioReal)} highlight="emerald" />
+          <Row label="Salario calculado" value={montoCaja(c.salarioReal)} highlight="emerald" />
         )}
-        <Row label="Salario pagado" value={c.salarioPagado === null ? "Sin desglose" : fmt(c.salarioPagado)} />
+        {c.cubiertoConFondo > 0 && c.salarioReal > (c.salarioPagado ?? 0) && (
+          <Row label="Salario pendiente" value={montoCaja(c.salarioReal - (c.salarioPagado ?? 0))} />
+        )}
+        <Row label="Salario pagado" value={c.salarioPagado === null ? "Sin desglose" : montoCaja(c.salarioPagado)} />
       </div>
 
       {current.productos.some((p) => p.notaDesbloqueo) && (
@@ -3025,6 +3100,9 @@ function Step10({ onClose }: { onClose: () => void }) {
             Se cerrará el cuadre de <strong>{current.dependiente || "—"}</strong> en {current.puntoVenta} y
             se guardará en el historial. Revisa que todo esté correcto antes de continuar.
           </p>
+          {c.cubiertoConFondo > 0 && (
+            <p className="text-sm">Cobertura total del fondo para este turno: <strong>{montoCaja(c.cubiertoConFondo)}</strong>.</p>
+          )}
           <DialogFooter className="gap-2">
             <Button variant="outline" className="rounded-xl" onClick={() => setConfirmOpen(false)}>
               Revisar
@@ -3169,7 +3247,9 @@ function PagarDeudasDependientePanel({ disponible }: { disponible: number }) {
 
   if (!current) return null;
 
-  const pendientes = (deudas as Deuda[]).filter((d) => d.saldo > 0.009);
+  const pendientes = (deudas as Deuda[]).filter((d) =>
+    d.saldo > 0.009 && d.id !== current.deudaDependienteId && d.cuadre_id !== current.id
+  );
   const yaPagado = current.abonoDeudasId ? current.descuentoDeudas ?? 0 : 0;
   const totalSel = Object.values(sel).reduce((s, n) => s + Math.round(n * 100), 0) / 100;
   const restante = Math.max(0, disponible - yaPagado - totalSel);
@@ -3186,7 +3266,9 @@ function PagarDeudasDependientePanel({ disponible }: { disponible: number }) {
     updateCurrent({
       planAbonoSalario: descuento > 0 ? { clienteId: cliente.id, aplicaciones } : undefined,
       descuentoDeudas: descuento,
-      salarioDenominaciones: sugerirPagoSalario(disponible - descuento, current.denominaciones),
+      ...((current.fondoFaltantePropuesto ?? current.fondoFaltante?.monto)
+        ? {}
+        : { salarioDenominaciones: sugerirPagoSalario(disponible - descuento, current.denominaciones) }),
     });
     setAbierto(false);
   };

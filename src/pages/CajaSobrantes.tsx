@@ -101,15 +101,19 @@ function Fondo() {
           {fondo.data.movimientos.map((m) => {
             const ajuste = m.detalles?.ajuste_pendiente;
             const montoIngreso = ajuste ? Number(ajuste.monto) : Number(m.monto);
+            const cuadreId = m.cuadre_id ?? m.detalles?.cuadre_id;
+            const tipo = m.detalles?.origen === "faltante_cuadre" ? "Faltante de cuadre"
+              : m.detalles?.origen === "compensacion_deuda" ? "Compensación de deuda"
+              : m.tipo === "ingreso" ? "Ingreso" : "Retiro";
             return (
               <article key={m.id} className="space-y-1 rounded-xl border bg-card p-3 text-sm">
                 <div className="flex justify-between gap-2 font-semibold">
-                  <span>{m.detalles?.origen === "compensacion_deuda" ? "Compensación de deuda" : m.tipo === "ingreso" ? "Ingreso" : "Retiro"} · {m.estado}</span>
+                  <span>{tipo} · {m.estado}</span>
                   <span className="whitespace-nowrap">{montoCaja(m.monto)}</span>
                 </div>
                 <p>
-                  {m.cuadre_id
-                    ? <Link className="text-primary underline" to={`/historial?cuadreId=${m.cuadre_id}`}>{m.dependiente ?? m.punto_venta}</Link>
+                  {cuadreId
+                    ? <Link className="text-primary underline" to={`/historial?cuadreId=${cuadreId}`}>{m.dependiente ?? m.punto_venta}</Link>
                     : m.punto_venta}
                   {m.periodo_desde && ` · ${m.periodo_desde} a ${m.periodo_hasta ?? m.periodo_desde}`}
                 </p>

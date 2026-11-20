@@ -389,6 +389,10 @@ export default function PortalDependiente() {
                       </div>
                     </div>
                     {([
+                      ...(res.cubiertoConFondo > 0 ? [
+                        ["Cubierto con el fondo", res.cubiertoConFondo],
+                        ["Salario pendiente", Math.max(0, res.salarioReal - (res.salarioPagado ?? 0))],
+                      ] as const : []),
                       ["Salario calculado", res.salarioReal],
                       ["Descuento por faltante", res.descuentoFalta],
                       ["Descuento por deudas", res.descuentoDeudas],

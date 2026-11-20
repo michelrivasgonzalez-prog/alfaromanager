@@ -8,6 +8,7 @@ export type MovimientoFondo = {
   id: string;
   detalles?: {
     origen?: string;
+    cuadre_id?: string;
     ajuste_pendiente?: { monto: number; total: number };
     ajuste_cuadre?: { registrado_por: string; registrado_en: string; total: number };
     ajuste_confirmado?: { confirmado_por: string; confirmado_en: string; total: number };
@@ -147,3 +148,9 @@ export const conciliarSobranteEditado = (cuadreId: string, esperado: number) =>
 
 export const confirmarAjusteSobrante = (movimientoId: string, esperado: number) =>
   rpcCaja<MovimientoFondo>("confirmar_ajuste_sobrante", { movimiento_id: movimientoId, esperado });
+
+export const consultarFondoParaCuadre = (cuadreId: string) =>
+  rpcCaja<{ saldoDisponible: number; montoAplicado: number; requiereRevision?: string }>("consultar_fondo_para_cuadre", { cuadre_id: cuadreId });
+
+export const cerrarCuadreConFondo = (datos: Cuadre, operacion: string, esperado: Cuadre | null) =>
+  rpcCaja<Cuadre>("cerrar_cuadre_con_fondo", { datos, operacion, esperado });
