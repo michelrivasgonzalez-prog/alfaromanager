@@ -202,7 +202,7 @@ export default function Reportes() {
       const dif = calc.diferencia;
       const faltante = dif < 0 ? Math.abs(dif) : 0;
       const sobrante = dif > 0 ? dif : 0;
-      const deuda = Math.max(0, faltante - calc.salarioBruto);
+      const deuda = calc.deudaDependiente;
 
       const actual = mapa.get(dep) || {
         nombre: dep,

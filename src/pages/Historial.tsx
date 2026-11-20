@@ -365,14 +365,25 @@ export default function Historial() {
                 <Mini label="Saldo del faltante" value={montoCaja(Number(deudaFaltante.saldo))}
                   tone={deudaFaltante.saldo > 0 ? "danger" : "ok"} />
               ) : r.deudaDependiente > 0 ? (
-                <Mini label="Deuda generada" value={montoCaja(deudaPorFaltante(-r.diferencia, r.descuentoFalta))} tone="danger" />
+                <Mini label="Deuda generada" value={montoCaja(deudaPorFaltante(r.faltanteNeto, r.descuentoFalta))} tone="danger" />
               ) : (
                 <Mini label="Salario pagado" value={r.salarioPagado === null ? "Sin desglose" : fmt(r.salarioPagado)} />
               )}
             </div>
-            {canEdit && !pendientes.includes(c.id) && (r.deudaDependiente > 0 || c.deudaDependienteId) && (
+            {canEdit && !pendientes.includes(c.id) && (r.deudaDependiente > 0 || c.deudaDependienteId || c.fondoFaltante) && (
               <Button size="sm" variant="outline" className="mt-2 w-full" onClick={() => nav(`/historial/${c.id}/salario`)}>
                 Salario · Gestionar faltante
+              </Button>
+            )}
+            {canEdit && !pendientes.includes(c.id) && (!c.abonoDeudasId || c.fondoFaltante) && r.faltanteBruto > 0 && (
+              <Button size="sm" variant="outline" className="mt-2 w-full" onClick={() => {
+                const borrador = useCuadreStore.getState().currents[c.puntoVenta];
+                if (borrador && borrador.id !== c.id &&
+                  !confirm(`Ya hay un borrador en ${c.puntoVenta}. ¿Reemplazarlo para editar este turno?`)) return;
+                editCuadre(c.id);
+                nav("/cuadre/8");
+              }}>
+                Editar diferencia y salario
               </Button>
             )}
             {canEdit && esTurnoFondoSobrantes(c) && r.sobrante > 0 && (
@@ -466,7 +477,7 @@ export default function Historial() {
                 variant="outline"
                 className="rounded-xl"
                 onClick={() => {
-                  if (!confirm("Al editar este cuadre se saldrá del historial y podrás modificar sus datos. Al finalizar se volverá a guardar. ¿Continuar?")) return;
+                  if (!confirm("¿Abrir este cuadre para editarlo? Los cambios se aplican al guardar.")) return;
                   editCuadre(c.id);
                   toast.info("Cuadre en edición. Ve a Cuadre para modificar.");
                   nav("/cuadre/1");
@@ -475,7 +486,7 @@ export default function Historial() {
                 <Pencil className="h-3.5 w-3.5" />
               </Button>
               )}
-              {canDelete && !c.abonoDeudasId && !c.deudaDependienteId && (
+              {canDelete && !c.abonoDeudasId && !c.deudaDependienteId && !c.fondoFaltante && (
               <Button
                 size="sm"
                 variant="ghost"

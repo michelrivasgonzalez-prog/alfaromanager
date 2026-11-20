@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calcCuadre, esTurnoFondoSobrantes, newCuadre } from "./cuadreStore";
+import { calcCuadre, esTurnoFondoSobrantes, newCuadre, useCuadreStore } from "./cuadreStore";
 
 const turno = () => ({
   ...newCuadre("Cafetería", []),
@@ -49,5 +49,63 @@ describe("Reglas por punto de venta", () => {
     expect(calcCuadre({ ...cuadre, entregarSobranteMipyme: true })).toMatchObject({
       salarioReal: 4000, sobranteEntregado: 1000, propina: 0,
     });
+  });
+});
+
+describe("Fondo antes del salario", () => {
+  const turnoConFaltante = () => {
+    const cuadre = turno();
+    return {
+      ...cuadre,
+      diasTrabajados: ["2026-11-17", "2026-11-18"],
+      salarioBase: 1728.3125,
+      salarioDenominaciones: {},
+      productos: [{
+        id: "producto", nombre: "Producto", inicio: 1, entradas: 0, traslados: 0, final: 0,
+        precio: 15375, costo: 7000,
+      }],
+      denominaciones: {},
+    };
+  };
+
+  it("aplica 14.925 CUP antes del salario y separa los billetes del importe a pagar", () => {
+    const cuadre = {
+      ...turnoConFaltante(),
+      fondoFaltantePropuesto: 14925,
+      descuentoDeudas: 1780,
+      salarioDenominaciones: { "50": 16, "20": 19, "10": 4 },
+    };
+    expect(calcCuadre(cuadre)).toMatchObject({
+      diferencia: -15375,
+      cubiertoConFondo: 14925,
+      faltanteNeto: 450,
+      descuentoFalta: 450,
+      deudaDependiente: 0,
+      salarioAntesDeudas: 3006.63,
+      salarioReal: 1226.63,
+      salarioPagado: 1220,
+    });
+  });
+
+  it("arrastra al historial solo la deuda neta después del fondo y salario", () => {
+    const cuadre = { ...turnoConFaltante(), finalizado: true, fondoFaltante: { monto: 10000, movimientoId: "movimiento" } };
+    expect(calcCuadre(cuadre)).toMatchObject({
+      cubiertoConFondo: 10000, faltanteNeto: 5375, descuentoFalta: 3456.63, deudaDependiente: 1918.37, salarioReal: 0,
+    });
+  });
+
+  it("deja intacto el turno cerrado cuando se cancela el borrador con cobertura", () => {
+    const original = useCuadreStore.getState();
+    const cerrado = { ...turnoConFaltante(), finalizado: true };
+    useCuadreStore.setState({ history: [cerrado] });
+    try {
+      useCuadreStore.getState().editCuadre(cerrado.id);
+      useCuadreStore.getState().updateCurrent({ fondoFaltantePropuesto: 14925 });
+      useCuadreStore.getState().cancelar();
+      expect(useCuadreStore.getState().history).toEqual([cerrado]);
+      expect(useCuadreStore.getState().originalesEdicion["Cafetería"]).toBeUndefined();
+    } finally {
+      useCuadreStore.setState(original);
+    }
   });
 });

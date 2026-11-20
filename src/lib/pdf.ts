@@ -18,6 +18,7 @@ const n2 = (n: number) =>
  */
 export function generarPDF(c: Cuadre) {
   const r = calcCuadre(c);
+  const fmtSalario = r.cubiertoConFondo > 0 ? (monto: number) => `${n2(monto)} CUP` : fmt;
 
   const productosRows = r.productos
     .filter(
@@ -356,9 +357,12 @@ export function generarPDF(c: Cuadre) {
             )}</span></div>`
           : ""
       }
+      ${r.cubiertoConFondo > 0 ? `
+        <div class="row"><span>Cubierto con el fondo</span><span class="v">${fmtSalario(r.cubiertoConFondo)}</span></div>
+        <div class="row"><span>Faltante neto</span><span class="v">${fmtSalario(r.faltanteNeto)}</span></div>` : ""}
       ${
         r.descuentoFalta > 0
-          ? `<div class="row bad"><span>− Descuento por faltante</span><span class="v">${fmt(
+          ? `<div class="row bad"><span>− Descuento por faltante</span><span class="v">${fmtSalario(
               r.descuentoFalta
             )}</span></div>`
           : ""
@@ -366,12 +370,12 @@ export function generarPDF(c: Cuadre) {
       ${
         r.deudaDependiente > 0
           ? ""
-          : `<div class="row total ok"><span>Salario calculado</span><span class="v">${fmt(
+          : `<div class="row total ok"><span>Salario calculado</span><span class="v">${fmtSalario(
               Math.max(0, r.salarioReal)
             )}</span></div>`
       }
 
-      <div class="row"><span>Salario pagado</span><span class="v">${r.salarioPagado === null ? "Sin desglose" : fmt(r.salarioPagado)}</span></div>
+      <div class="row"><span>Salario pagado</span><span class="v">${r.salarioPagado === null ? "Sin desglose" : fmtSalario(r.salarioPagado)}</span></div>
 
       ${
         r.deudaDependiente > 0

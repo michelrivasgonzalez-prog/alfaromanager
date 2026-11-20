@@ -32,8 +32,14 @@ export default function SalarioHistorico() {
               {([
                 ["Faltante original", Math.max(0, -liquidacion.diferencia)],
                 ["Salario aplicado al faltante", liquidacion.descuentoFalta],
-                ["Deuda generada", deudaPorFaltante(-liquidacion.diferencia, liquidacion.descuentoFalta)],
+                ["Deuda generada", deudaPorFaltante(liquidacion.faltanteNeto, liquidacion.descuentoFalta)],
+                ["Salario calculado", liquidacion.salarioReal],
                 ["Salario pagado", liquidacion.salarioPagado],
+                ...(liquidacion.cubiertoConFondo > 0 ? [
+                  ["Cubierto con el fondo", liquidacion.cubiertoConFondo],
+                  ["Faltante neto", liquidacion.faltanteNeto],
+                  ["Salario pendiente de entregar", Math.max(0, liquidacion.salarioReal - (liquidacion.salarioPagado ?? 0))],
+                ] as const : []),
               ] as const).map(([label, monto]) => (
                 <div key={label}>
                   <dt className="text-muted-foreground">{label}</dt>
@@ -42,7 +48,7 @@ export default function SalarioHistorico() {
               ))}
             </dl>
           </div>
-          {(liquidacion.deudaDependiente > 0 || cuadre.deudaDependienteId) && (
+          {(liquidacion.deudaDependiente > 0 || (cuadre.deudaDependienteId && !cuadre.fondoFaltante)) && (
             <SesionCaja><FondoDelTurno cuadre={cuadre} /></SesionCaja>
           )}
         </>
