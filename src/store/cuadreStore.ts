@@ -223,7 +223,7 @@ const DEFAULT_SETTINGS: Settings = {
   salarioModo: { "Cafetería": "base", "Mipyme": "base" },
   porcentajeVenta: { "Cafetería": 3, "Mipyme": 3 },
   salarioExcepcionesProductos: [
-    { id: "mayabe", productoNombre: "Cerveza Mayabe", tarifaPorUnidad: 10 },
+    { id: "mayabe", productoNombre: "Cerveza Mayabe 355 ml", tarifaPorUnidad: 10 },
   ],
   diasNoTrabajados: [],
   diasNoTrabajadosPunto: { "Cafetería": [], "Mipyme": [] },
@@ -337,7 +337,7 @@ export const newCuadre = (
   salarioModo: settings.salarioModo?.[punto] ?? "base",
   porcentajeVenta: settings.porcentajeVenta?.[punto] ?? 3,
   salarioExcepcionesProductos: settings.salarioExcepcionesProductos ?? [
-    { id: "mayabe", productoNombre: "Cerveza Mayabe", tarifaPorUnidad: 10 },
+    { id: "mayabe", productoNombre: "Cerveza Mayabe 355 ml", tarifaPorUnidad: 10 },
   ],
   salarioDenominaciones: emptyDen(),
   ...(punto === "Mipyme" ? { entregarSobranteMipyme: false } : {}),
