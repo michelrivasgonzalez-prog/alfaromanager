@@ -10,12 +10,16 @@ export type AuditoriaRow = {
   entidad: string;
   entidad_id: string | null;
   detalle: Record<string, any> | null;
+  tipo: "abonos" | "fondo" | "otros";
+  punto: string | null;
 };
 
 export type AuditoriaFilter = {
   entidad?: string;
   usuario?: string;
   accion?: string;
+  tipo?: "abonos" | "fondo" | "otros";
+  punto?: string;
   desde?: string;
   hasta?: string;
   pagina?: number;
@@ -30,7 +34,7 @@ export type AuditoriaPagina = {
   porPagina: number;
 };
 
-/** Lee la auditoría de la nube; el PIN de la app controla quién ve Ajustes. */
+/** Lee el historial unificado; el PIN existente decide quién ve Ajustes. */
 export async function paginaAuditoria(
   filter: AuditoriaFilter = {}
 ): Promise<AuditoriaPagina> {
@@ -44,13 +48,15 @@ export async function paginaAuditoria(
   );
   const inicio = (pagina - 1) * porPagina;
 
-  let q = supabase
-    .from("auditoria")
+  let q = (supabase as any)
+    .from("auditoria_unificada")
     .select("*", { count: "exact" })
     .order("fecha", { ascending: false })
     .order("id", { ascending: false });
 
   if (filter.entidad) q = q.eq("entidad", filter.entidad);
+  if (filter.tipo) q = q.eq("tipo", filter.tipo);
+  if (filter.punto && filter.punto !== "todos") q = q.eq("punto", filter.punto);
   if (filter.usuario?.trim()) {
     q = q.ilike("usuario_nombre", "%" + filter.usuario.trim() + "%");
   }
