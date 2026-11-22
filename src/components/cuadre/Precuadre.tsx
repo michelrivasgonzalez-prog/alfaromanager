@@ -1,4 +1,6 @@
 import { puntoHabitual, sortProductos, catLabel, type GastoCategoria } from "@/store/cuadreStore";
+import BarcodeScanner from "@/components/BarcodeScanner";
+import { buscarPorCodigo, buscarDuplicadoCatalogo, limpiarCodigoBarras, esCodigoBarrasValido, normalizarNombreProducto } from "@/lib/codigosBarras";
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import type { PrecioTramo } from "@/store/cuadreStore";
 import { useCuadreStore, PuntoVenta, Cuadre, Denominaciones, PUNTOS } from "@/store/cuadreStore";
@@ -56,7 +58,8 @@ import {
   X,
   CreditCard,
   Edit2,
-  Users
+  Users,
+  ScanBarcode
 } from "lucide-react";
 
 const enteroCUP = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
@@ -150,6 +153,7 @@ export function PrecuadreDependiente({
       nombre: string;
       precio: number;
       categoria: string;
+      codigoBarras?: string;
     }[]
   >([]);
 
@@ -173,6 +177,7 @@ export function PrecuadreDependiente({
       return {
         id: p.id,
         nombre: p.nombre,
+        codigoBarras: p.codigoBarras,
         precioDefecto: p.precio ?? 0,
         categoria: p.categoria || "Sin categoría",
         inicioDefecto,
@@ -217,6 +222,10 @@ export function PrecuadreDependiente({
   const [modalNuevoProd, setModalNuevoProd] = useState(false);
   const [nuevoProdNombre, setNuevoProdNombre] = useState("");
   const [nuevoProdPrecio, setNuevoProdPrecio] = useState("");
+  const [nuevoProdCodigo, setNuevoProdCodigo] = useState("");
+  const [scannerModo, setScannerModo] = useState<"entrada" | "nuevo" | null>(null);
+  const [productoEscaneado, setProductoEscaneado] = useState<{ id: string; nombre: string } | null>(null);
+  const [cantidadEscaneada, setCantidadEscaneada] = useState("1");
 
   // Paso 5: Relevo y firma
   const [tipoRelevo, setTipoRelevo] =
@@ -511,51 +520,95 @@ export function PrecuadreDependiente({
     setPinInput("");
   };
 
-  // Agregar producto nuevo en el paso 3
+  const codigoDetectado = (raw: string) => {
+    const codigo = limpiarCodigoBarras(raw);
+    const modo = scannerModo;
+    setScannerModo(null);
+    if (!esCodigoBarrasValido(codigo)) {
+      toast.error("El código detectado no tiene un GTIN válido. Comprueba sus dígitos.");
+      return;
+    }
+    const registrado = buscarPorCodigo(catalogo, punto, codigo);
+    const local = productosNuevosLocal.find((p) => p.codigoBarras === codigo);
+    const encontrado = registrado ?? local;
+    if (modo === "nuevo") {
+      if (encontrado) {
+        toast.warning('El código ya corresponde a "' + encontrado.nombre + '". No lo dupliques.');
+        setModalNuevoProd(false);
+        setBusquedaPaso3(encontrado.nombre);
+      } else {
+        setNuevoProdCodigo(codigo);
+      }
+      return;
+    }
+    if (encontrado) {
+      setProductoEscaneado({ id: encontrado.id, nombre: encontrado.nombre });
+      setCantidadEscaneada("1");
+      setBusquedaPaso3(encontrado.nombre);
+      toast.success('Encontrado: ' + encontrado.nombre);
+    } else {
+      setBusquedaPaso3("");
+      setNuevoProdCodigo(codigo);
+      toast.info("No está asociado a ningún producto de este punto. Búscalo por nombre antes de añadirlo.");
+      setModalNuevoProd(true);
+    }
+  };
+
+  const confirmarEntradaEscaneada = () => {
+    if (!productoEscaneado) return;
+    const cantidad = Number(cantidadEscaneada);
+    if (!Number.isFinite(cantidad) || cantidad <= 0 || cantidad > 100000) {
+      toast.error("Introduce una cantidad válida y mayor a cero.");
+      return;
+    }
+    setEntradas((prev) => ({
+      ...prev,
+      [productoEscaneado.id]: Math.round(((prev[productoEscaneado.id] ?? 0) + cantidad) * 10000) / 10000,
+    }));
+    toast.success("Se sumaron " + cantidad + " unidades a " + productoEscaneado.nombre);
+    setProductoEscaneado(null);
+    setCantidadEscaneada("1");
+  };
+
+  // Agregar producto nuevo únicamente cuando NO existe en el catálogo ni en este precuadre.
   const handleGuardarNuevoProducto = () => {
     const nombre = nuevoProdNombre.trim();
     const precio = parseFloat(nuevoProdPrecio);
-
-    if (
-      !nombre ||
-      isNaN(precio) ||
-      precio <= 0
-    ) {
-      toast.error(
-        "Indica un nombre válido y precio mayor a 0"
-      );
+    const codigo = limpiarCodigoBarras(nuevoProdCodigo);
+    if (!nombre || !Number.isFinite(precio) || precio <= 0) {
+      toast.error("Indica un nombre válido y precio mayor a 0");
+      return;
+    }
+    if (codigo && !esCodigoBarrasValido(codigo)) {
+      toast.error("Verifica los dígitos del código de barras.");
+      return;
+    }
+    const previo = buscarDuplicadoCatalogo(catalogo, punto, { nombre, codigoBarras: codigo });
+    const duplicadoLocal = productosNuevosLocal.find((p) =>
+      normalizarNombreProducto(p.nombre) === normalizarNombreProducto(nombre) ||
+      (!!codigo && p.codigoBarras === codigo)
+    );
+    const duplicado = previo ?? duplicadoLocal;
+    if (duplicado) {
+      toast.warning('Ya existe "' + duplicado.nombre + '". Busca ese producto y registra su entrada.');
+      setBusquedaPaso3(duplicado.nombre);
+      setModalNuevoProd(false);
       return;
     }
 
     const nuevoId = crypto.randomUUID();
-
-    setProductosNuevosLocal((prev) => [
-      ...prev,
-      {
-        id: nuevoId,
-        nombre,
-        precio,
-        categoria: "Varios",
-      },
-    ]);
-
-    setInicios((prev) => ({
-      ...prev,
-      [nuevoId]: 0,
-    }));
-
-    setPreciosEditados((prev) => ({
-      ...prev,
-      [nuevoId]: precio,
-    }));
-
+    setProductosNuevosLocal((prev) => [...prev, {
+      id: nuevoId, nombre, precio, categoria: "Varios",
+      codigoBarras: codigo || undefined,
+    }]);
+    setInicios((prev) => ({ ...prev, [nuevoId]: 0 }));
+    setPreciosEditados((prev) => ({ ...prev, [nuevoId]: precio }));
     setNuevoProdNombre("");
     setNuevoProdPrecio("");
+    setNuevoProdCodigo("");
     setModalNuevoProd(false);
-
-    toast.success(
-      `Producto "${nombre}" registrado`
-    );
+    setBusquedaPaso3(nombre);
+    toast.success('Producto "' + nombre + '" añadido al precuadre. Declara su entrada.');
   };
 
   const iniciarEdicionGasto = (gasto: GastoPrecuadre) => {
@@ -640,6 +693,7 @@ export function PrecuadreDependiente({
           (p) => ({
             id: p.id,
             nombre: p.nombre,
+            codigoBarras: p.codigoBarras,
             inicio: p.inicio,
             entradas: p.entradas,
             traslados: p.traslados,
