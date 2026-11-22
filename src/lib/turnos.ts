@@ -41,6 +41,7 @@ export type PrecuadreData = {
   productos: {
     id: string;
     nombre: string;
+    codigoBarras?: string;
     inicio: number;
     entradas: number;
     traslados: number;
