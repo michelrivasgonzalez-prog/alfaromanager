@@ -226,10 +226,17 @@ async function syncCatalogo(isAdmin: boolean) {
     localStorage.removeItem("alfaro-catalogo-pending");
   }
   const state = useCuadreStore.getState();
-  const { data: remote, error } = await (supabase as any)
+  let { data: remote, error } = await (supabase as any)
     .from("catalogo")
-    .select("id, nombre, precio, costo, punto, orden, categoria")
+    .select("id, nombre, precio, costo, punto, orden, categoria, codigo_barras")
     .is("deleted_at", null);
+  // Compatible con instalaciones donde aún no se ha ejecutado la migración.
+  if (error && /codigo_barras/i.test(error.message ?? "")) {
+    ({ data: remote, error } = await (supabase as any)
+      .from("catalogo")
+      .select("id, nombre, precio, costo, punto, orden, categoria")
+      .is("deleted_at", null));
+  }
   if (error) throw error;
   const remoteRows: any[] = remote ?? [];
 
@@ -242,6 +249,7 @@ async function syncCatalogo(isAdmin: boolean) {
     remoteRows.map((r: any) => ({
       id: r.id,
       nombre: r.nombre,
+      codigoBarras: r.codigo_barras ?? state.catalogo.find((c) => c.id === r.id)?.codigoBarras,
       precio: Number(r.precio),
       costo: Number(r.costo),
       orden: Number(r.orden ?? 0),
@@ -387,17 +395,8 @@ async function upsertCuadres(cuadres: Cuadre[]) {
   if (error) throw error;
 }
 
-export async function pushCatalogItem(c: {
-  id: string;
-  nombre: string;
-  precio: number;
-  costo: number;
-  orden?: number;
-  categoria?: string;
-  punto?: string;
-}) {
-  await ensureCloudSession();
-  const { error } = await (supabase as any).from("catalogo").upsert({
+function filaCatalogo(c: CatalogoItem) {
+  return {
     id: c.id,
     nombre: c.nombre,
     precio: c.precio,
@@ -405,25 +404,37 @@ export async function pushCatalogItem(c: {
     orden: c.orden ?? 0,
     categoria: c.categoria ?? null,
     punto: c.punto ?? null,
+    codigo_barras: c.codigoBarras || null,
     deleted_at: null,
-  } as any);
-  if (error) throw error;
+  };
+}
+
+export async function pushCatalogItem(c: CatalogoItem) {
+  await ensureCloudSession();
+  const { error } = await (supabase as any).from("catalogo").upsert(filaCatalogo(c));
+  if (error) {
+    if (/codigo_barras/i.test(error.message ?? "")) {
+      throw new Error("Falta aplicar la migración SQL de códigos de barras en Lovable.");
+    }
+    throw error;
+  }
 }
 
 async function upsertCatalogItems(items: CatalogoItem[]) {
-  const rows = (items as any[]).map((c) => ({
-    id: c.id,
-    nombre: c.nombre,
-    precio: c.precio,
-    costo: c.costo,
-    orden: c.orden ?? 0,
-    categoria: c.categoria ?? null,
-    punto: c.punto ?? null,
-    deleted_at: null,
-  }));
-  if (rows.length === 0) return;
+  if (!items.length) return;
+  const rows = items.map(filaCatalogo);
   const { error } = await (supabase as any).from("catalogo").upsert(rows);
-  if (error) throw error;
+  if (error) {
+    if (/codigo_barras/i.test(error.message ?? "")) {
+      // No bloquear cierres/sincronización previos a la migración.
+      const legacyRows = rows.map(({ codigo_barras, ...r }) => r);
+      const { error: legacyError } = await (supabase as any).from("catalogo").upsert(legacyRows);
+      if (legacyError) throw legacyError;
+      console.warn("Catálogo sincronizado sin códigos: aplicar migración SQL pendiente.");
+      return;
+    }
+    throw error;
+  }
 }
 
 export async function deleteCatalogItem(id: string) {
