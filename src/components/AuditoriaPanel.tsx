@@ -22,6 +22,10 @@ const ACCIONES: Record<string, string> = {
   revertir_abono: "Abono revertido",
   vincular_faltante: "Faltante vinculado",
   cerrar_cuadre_con_fondo: "Cuadre cerrado con fondo",
+  fondo_crear: "Ingreso del Fondo de Sobrantes",
+  fondo_confirmar: "Ingreso de fondo confirmado",
+  fondo_retirar: "Retiro del Fondo de Sobrantes",
+  fondo_anular: "Movimiento de fondo anulado",
 };
 
 function etiquetaAccion(accion: string): string {
@@ -54,6 +58,8 @@ export default function AuditoriaPanel() {
   const [hasta, setHasta] = useState("");
   const [fechasAplicadas, setFechasAplicadas] = useState({ desde: "", hasta: "" });
   const [accion, setAccion] = useState("todas");
+  const [tipo, setTipo] = useState("todas");
+  const [punto, setPunto] = useState("todos");
   const [clientes, setClientes] = useState<Record<string, string>>({});
 
   const cargar = useCallback(async () => {
@@ -63,6 +69,8 @@ export default function AuditoriaPanel() {
       const respuesta = await paginaAuditoria({
         usuario: usuarioAplicado || undefined,
         accion: accion === "todas" ? undefined : accion,
+        tipo: tipo === "todas" ? undefined : tipo as "abonos" | "fondo" | "otros",
+        punto: punto === "todos" ? undefined : punto,
         desde: fechasAplicadas.desde || undefined,
         hasta: fechasAplicadas.hasta || undefined,
         pagina,
@@ -88,7 +96,7 @@ export default function AuditoriaPanel() {
     } finally {
       setCargando(false);
     }
-  }, [usuarioAplicado, accion, fechasAplicadas, pagina]);
+  }, [usuarioAplicado, accion, tipo, punto, fechasAplicadas, pagina]);
 
   useEffect(() => {
     void cargar();
@@ -114,7 +122,7 @@ export default function AuditoriaPanel() {
           <div>
             <h3 className="text-sm font-semibold">Trazabilidad y Auditoría</h3>
             <p className="text-xs text-muted-foreground">
-              Historial de movimientos registrados en la nube
+              Abonos, cierres y Caja de Sobrantes
             </p>
           </div>
         </div>
@@ -150,6 +158,30 @@ export default function AuditoriaPanel() {
             <SelectItem value="cerrar_cuadre_con_fondo">Cierres con fondo</SelectItem>
           </SelectContent>
         </Select>
+
+        <div className="grid grid-cols-2 gap-2">
+          <Select value={tipo} onValueChange={(v) => { setTipo(v); setPagina(1); }}>
+            <SelectTrigger className="h-9 rounded-xl text-xs">
+              <SelectValue placeholder="Grupo" />
+            </SelectTrigger>
+            <SelectContent className="bg-popover">
+              <SelectItem value="todas">Todas las áreas</SelectItem>
+              <SelectItem value="abonos">Abonos y reversiones</SelectItem>
+              <SelectItem value="fondo">Caja de Sobrantes</SelectItem>
+              <SelectItem value="otros">Otras acciones</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={punto} onValueChange={(v) => { setPunto(v); setPagina(1); }}>
+            <SelectTrigger className="h-9 rounded-xl text-xs">
+              <SelectValue placeholder="Punto de venta" />
+            </SelectTrigger>
+            <SelectContent className="bg-popover">
+              <SelectItem value="todos">Ambos puntos</SelectItem>
+              <SelectItem value="Cafetería">Cafetería</SelectItem>
+              <SelectItem value="Mipyme">MiPYME</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
         <div className="grid grid-cols-2 gap-2">
           <label className="text-xs text-muted-foreground space-y-1">
@@ -193,7 +225,7 @@ export default function AuditoriaPanel() {
           const esReversion = r.accion.toLowerCase().includes("revertir");
           const clienteId = typeof d.cliente_id === "string" ? d.cliente_id : "";
           const cliente = clienteId ? (clientes[clienteId] ?? "Cliente registrado") : null;
-          const rawMonto = d.monto ?? d.importe;
+          const rawMonto = d.monto ?? d.importe ?? d.estado_nuevo?.monto ?? d.estado_anterior?.monto;
           const tieneMonto = rawMonto !== null && rawMonto !== undefined &&
             rawMonto !== "" && Number.isFinite(Number(rawMonto));
           const monto = Number(rawMonto);
@@ -209,6 +241,7 @@ export default function AuditoriaPanel() {
                   {cliente && <p className="text-foreground font-medium">{cliente}</p>}
                   <p className="text-muted-foreground">Operador: {r.usuario_nombre || "Sistema"}</p>
                   <p className="text-muted-foreground">Entidad: {r.entidad}</p>
+                  {r.punto && <p className="text-muted-foreground">Punto: {r.punto}</p>}
                 </div>
                 <span className="text-[10px] text-muted-foreground shrink-0 whitespace-nowrap">
                   {fechaLegible(r.fecha)}
