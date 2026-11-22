@@ -92,7 +92,13 @@ export function unificarCatalogo(items: CatalogoItem[]): {
     const k = `${it.punto ?? "Cafetería"}|${key(nombre)}`;
     const ya = vistos.get(k);
     if (ya) {
+      // Nunca fusionar dos productos con códigos comerciales distintos.
+      if (ya.codigoBarras && it.codigoBarras && ya.codigoBarras !== it.codigoBarras) {
+        out.push({ ...it, nombre, categoria: esConfitura(nombre) ? "Confituras" : it.categoria });
+        continue;
+      }
       cambiado = true;
+      if (!ya.codigoBarras && it.codigoBarras) ya.codigoBarras = it.codigoBarras;
       if (!ya.precio && it.precio) {
         ya.precio = it.precio;
         ya.costo = it.costo;
