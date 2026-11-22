@@ -173,16 +173,26 @@ export default function Auth() {
       <PinPad
         busy={busy}
         error={error}
-        onComplete={async (p) => {
+                onComplete={async (p) => {
           setBusy(true);
           setError(null);
           try {
-            const u = await login(p) ?? await entrarConPinDeCaja(p);
-            if (!u) {
-              setError("PIN incorrecto");
+            const u = await login(p);
+            if (u) {
+              // Si es admin o dueña, activar la caja con este mismo PIN automáticamente
+              if (u.role === "admin" || u.role === "duena") {
+                await entrarConPinDeCaja(p).catch(console.warn);
+              }
+              toast.success(`Hola, ${u.nombre}`);
               return;
             }
-            toast.success(`Hola, ${u.nombre}`);
+            // Fallback por si inicia con PIN validado desde el servidor
+            const deCaja = await entrarConPinDeCaja(p);
+            if (deCaja) {
+              toast.success(`Hola, ${deCaja.nombre}`);
+              return;
+            }
+            setError("PIN incorrecto");
           } catch (error) {
             setError(error instanceof Error ? error.message : "No se pudo verificar el PIN.");
           } finally {
