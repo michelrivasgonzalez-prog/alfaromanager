@@ -387,9 +387,6 @@ export default function PortalDependiente() {
                     ))}
                   </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
               );
             })}
           </div>
