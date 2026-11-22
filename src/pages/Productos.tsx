@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { useCuadreStore, PUNTOS, PuntoVenta, sortCatalogo } from "@/store/cuadreStore";
+import { useMemo, useRef, useState } from "react";
+import { useCuadreStore, PUNTOS, PuntoVenta, type CatalogoItem } from "@/store/cuadreStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/NumberInput";
@@ -12,14 +12,15 @@ import {
   Download,
   Coffee,
   Store,
-  ChevronUp,
-  ChevronDown,
+  ScanBarcode,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 import { pushCatalogItem, deleteCatalogItem } from "@/lib/sync";
 import { KardexDialog } from "@/components/KardexDialog";
+import BarcodeScanner from "@/components/BarcodeScanner";
+import { buscarDuplicadoCatalogo, buscarPorCodigo, esCodigoBarrasValido, limpiarCodigoBarras, normalizarNombreProducto } from "@/lib/codigosBarras";
 import {
   Dialog,
   DialogContent,
@@ -38,7 +39,6 @@ export default function Productos() {
     importCatalog,
     importCatalogReplace,
     clearCatalog,
-    moveCatalogItem,
     role,
   } = useCuadreStore();
   const [punto, setPunto] = useState<PuntoVenta>("Cafetería");
@@ -47,7 +47,10 @@ export default function Productos() {
   const [nuevoOpen, setNuevoOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [kardex, setKardex] = useState<string | null>(null);
-  const [nuevo, setNuevo] = useState({ nombre: "", precio: 0, costo: 0, categoria: "" });
+  const [nuevo, setNuevo] = useState({ nombre: "", precio: 0, costo: 0, categoria: "", codigoBarras: "" });
+  const [scannerDestino, setScannerDestino] = useState<string | null>(null);
+  const [codigosBorrador, setCodigosBorrador] = useState<Record<string, string>>({});
+  const history = useCuadreStore((s) => s.history);
 
 
 
@@ -65,26 +68,111 @@ export default function Productos() {
     );
   }
 
-  const productosPunto = sortCatalogo(catalogo).filter((p) => (p.punto ?? "Cafetería") === punto);
-  const moveItem = (id: string, dir: -1 | 1) => {
-    moveCatalogItem(id, dir);
-    useCuadreStore
-      .getState()
-      .catalogo.filter((c) => (c.punto ?? "Cafetería") === punto)
-      .forEach((c) => pushCatalogItem(c).catch(console.error));
-  };
+  const ultimo = useMemo(() => [...history]
+    .filter((c) => c.puntoVenta === punto && c.finalizado)
+    .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())[0], [history, punto]);
 
-  const updateAndSync = (id: string, patch: any) => {
-    updateCatalogItem(id, patch);
-    const state = useCuadreStore.getState();
-    if ("orden" in patch) {
-      state.catalogo
-        .filter((c) => (c.punto ?? "Cafetería") === punto)
-        .forEach((c) => pushCatalogItem(c).catch(console.error));
+  const existencias = useMemo(() => {
+    const porNombre = new Map<string, number>();
+    const porCodigo = new Map<string, number>();
+    for (const p of ultimo?.productos ?? []) {
+      porNombre.set(normalizarNombreProducto(p.nombre), Number(p.final) || 0);
+      if (p.codigoBarras) porCodigo.set(p.codigoBarras, Number(p.final) || 0);
+    }
+    const mapa = new Map<string, number>();
+    for (const item of catalogo) {
+      if ((item.punto ?? "Cafetería") !== punto) continue;
+      const cantidad = item.codigoBarras && porCodigo.has(item.codigoBarras)
+        ? porCodigo.get(item.codigoBarras)!
+        : porNombre.get(normalizarNombreProducto(item.nombre)) ?? 0;
+      mapa.set(item.id, cantidad);
+    }
+    return mapa;
+  }, [catalogo, ultimo, punto]);
+
+  // Solo orden visual: activos del último cuadre primero, luego agotados;
+  // cada grupo en orden alfabético español, sin alterar los registros.
+  const productosPunto = useMemo(() => catalogo
+    .filter((p) => (p.punto ?? "Cafetería") === punto)
+    .sort((a, b) =>
+      Number((existencias.get(b.id) ?? 0) > 0) -
+      Number((existencias.get(a.id) ?? 0) > 0) ||
+      a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" })
+    ), [catalogo, existencias, punto]);
+
+  const updateAndSync = async (id: string, patch: Partial<CatalogoItem>) => {
+    const anterior = useCuadreStore.getState().catalogo.find((c) => c.id === id);
+    if (!anterior) return;
+    const siguiente = { ...anterior, ...patch };
+    const duplicado = buscarDuplicadoCatalogo(
+      useCuadreStore.getState().catalogo, punto,
+      { nombre: siguiente.nombre, codigoBarras: siguiente.codigoBarras }, id
+    );
+    if (duplicado) {
+      toast.error('Ya existe "' + duplicado.nombre + '" en ' + punto);
       return;
     }
-    const next = state.catalogo.find((c) => c.id === id);
-    if (next) pushCatalogItem(next).catch(console.error);
+    updateCatalogItem(id, patch);
+    try {
+      const actualizado = useCuadreStore.getState().catalogo.find((c) => c.id === id);
+      if (actualizado) await pushCatalogItem(actualizado);
+    } catch (e: any) {
+      updateCatalogItem(id, anterior);
+      toast.error(e?.message ?? "No se pudo guardar el producto");
+    }
+  };
+
+  const guardarCodigo = (id: string, valor: string) => {
+    const codigo = limpiarCodigoBarras(valor);
+    const item = catalogo.find((p) => p.id === id);
+    if (!item || codigo === (item.codigoBarras ?? "")) {
+      setCodigosBorrador((prev) => { const n = { ...prev }; delete n[id]; return n; });
+      return;
+    }
+    if (codigo && !esCodigoBarrasValido(codigo)) {
+      toast.error("Código inválido. Revisa los dígitos EAN / UPC / GTIN.");
+      return;
+    }
+    const duplicado = buscarDuplicadoCatalogo(catalogo, punto, { codigoBarras: codigo }, id);
+    if (duplicado) {
+      toast.warning('El código ya corresponde a "' + duplicado.nombre + '". No se duplicó.');
+      document.getElementById("producto-" + duplicado.id)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    setCodigosBorrador((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    void updateAndSync(id, { codigoBarras: codigo || undefined });
+  };
+
+  const escaneado = (codigoRaw: string) => {
+    const codigo = limpiarCodigoBarras(codigoRaw);
+    if (!esCodigoBarrasValido(codigo)) {
+      toast.error("No se puede guardar este formato de código. Introduce un GTIN válido.");
+      setScannerDestino(null);
+      return;
+    }
+    const destino = scannerDestino;
+    setScannerDestino(null);
+    const encontrado = buscarPorCodigo(catalogo, punto, codigo);
+    if (destino === "buscar") {
+      if (encontrado) {
+        toast.success('Producto encontrado: ' + encontrado.nombre);
+        setTimeout(() => document.getElementById("producto-" + encontrado.id)?.scrollIntoView({ behavior: "smooth", block: "center" }), 120);
+      } else {
+        setNuevo((v) => ({ ...v, codigoBarras: codigo }));
+        setNuevoOpen(true);
+        toast.info("Código nuevo. Comprueba el nombre antes de crear el producto.");
+      }
+      return;
+    }
+    if (destino === "nuevo") {
+      if (encontrado) {
+        toast.warning('Ya existe: "' + encontrado.nombre + '"');
+        setNuevoOpen(false);
+        setTimeout(() => document.getElementById("producto-" + encontrado.id)?.scrollIntoView({ behavior: "smooth", block: "center" }), 120);
+      } else setNuevo((v) => ({ ...v, codigoBarras: codigo }));
+      return;
+    }
+    if (destino) guardarCodigo(destino, codigo);
   };
 
   const descargarPlantilla = () => {
