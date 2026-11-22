@@ -4,6 +4,10 @@ import type { CatalogoItem, PuntoVenta } from "@/store/cuadreStore";
 export const limpiarCodigoBarras = (valor: string | null | undefined) =>
   String(valor ?? "").replace(/[\s-]/g, "").trim();
 
+/** Clave canónica GTIN-14 para comparar UPC-A y EAN-13 con cero inicial. */
+export const claveGTIN = (valor: string | null | undefined) =>
+  limpiarCodigoBarras(valor).padStart(14, "0");
+
 export function esCodigoBarrasValido(valor: string): boolean {
   const codigo = limpiarCodigoBarras(valor);
   if (!/^(?:\d{8}|\d{12}|\d{13}|\d{14})$/.test(codigo)) return false;
@@ -38,7 +42,7 @@ export function buscarDuplicadoCatalogo(
     p.id !== excluirId &&
     (p.punto ?? "Cafetería") === punto &&
     (
-      (codigo.length > 0 && limpiarCodigoBarras(p.codigoBarras) === codigo) ||
+      (codigo.length > 0 && claveGTIN(p.codigoBarras) === claveGTIN(codigo)) ||
       (nombre.length > 0 && normalizarNombreProducto(p.nombre) === nombre)
     )
   );
@@ -54,6 +58,6 @@ export function buscarPorCodigo(
   return catalogo.find((p) =>
     (p.punto ?? "Cafetería") === punto &&
     !!p.codigoBarras &&
-    limpiarCodigoBarras(p.codigoBarras) === exacto
+    claveGTIN(p.codigoBarras) === claveGTIN(exacto)
   );
 }
