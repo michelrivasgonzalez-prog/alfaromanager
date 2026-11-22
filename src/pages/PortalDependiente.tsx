@@ -342,6 +342,7 @@ export default function PortalDependiente() {
                     </div>
 
                                         <span
+                                         <span
                       className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         diff < 0
                           ? "bg-destructive/10 text-destructive"
@@ -352,13 +353,13 @@ export default function PortalDependiente() {
                         ? `Faltante: -$${Math.abs(Math.round(diff))}`
                         : "Turno cuadrado"}
                     </span>
+                  </div>
 
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div className="bg-muted/40 p-2.5 rounded-xl space-y-0.5">
                       <span className="text-muted-foreground text-[11px]">
                         Ventas Totales
                       </span>
-
                       <div className="font-semibold text-sm text-foreground">
                         ${Math.round(res.totalVenta)}
                       </div>
@@ -368,14 +369,13 @@ export default function PortalDependiente() {
                       <span className="text-muted-foreground text-[11px]">
                         Salario Cobrado
                       </span>
-
                       <div className="font-semibold text-sm text-primary">
                         {res.salarioPagado === null ? "Sin desglose" : monto(res.salarioPagado)}
                       </div>
                     </div>
+
                     {([
-                        ["Salario pendiente", Math.max(0, res.salarioReal - (res.salarioPagado ?? 0))],
-                      ] as const : []),
+                      ["Salario pendiente", Math.max(0, res.salarioReal - (res.salarioPagado ?? 0))],
                       ["Salario calculado", res.salarioReal],
                       ["Descuento por faltante", res.descuentoFalta],
                       ["Descuento por deudas", res.descuentoDeudas],
@@ -384,6 +384,9 @@ export default function PortalDependiente() {
                       <div key={label} className="bg-muted/40 p-2.5 rounded-xl">
                         <span className="text-muted-foreground">{label}</span>
                         <div className="font-semibold">{monto(value)}</div>
+                      </div>
+                    ))}
+                  </div>
                       </div>
                     ))}
                   </div>
