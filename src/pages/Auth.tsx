@@ -177,8 +177,19 @@ export default function Auth() {
           setBusy(true);
           setError(null);
           try {
-            const u = await login(p);
+                        const u = await login(p);
             if (u) {
+              // Si es dependiente, verificar si está inactiva en los ajustes
+              if (u.role === "dependiente") {
+                const settings = useCuadreStore.getState().settings;
+                const inactivos: string[] = (settings as any).dependientesInactivos ?? [];
+                if (inactivos.some((n) => n.trim().toLowerCase() === u.nombre.trim().toLowerCase())) {
+                  usePinStore.getState().logout();
+                  setError("Esta cuenta de dependiente se encuentra desactivada. Consulta con la administración.");
+                  return;
+                }
+              }
+
               // Si es admin o dueña, activar la caja con este mismo PIN automáticamente
               if (u.role === "admin" || u.role === "duena") {
                 await entrarConPinDeCaja(p).catch(console.warn);
