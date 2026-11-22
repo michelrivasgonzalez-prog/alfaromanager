@@ -2614,8 +2614,8 @@ function Step9() {
         </div>
 
         <div className="rounded-xl bg-muted/40 p-2.5 text-[11px] text-muted-foreground grid grid-cols-2 gap-2">
-          <div>Por base: <span className="font-semibold text-foreground">${fmt(c.salarioBasePeriodo)}</span></div>
-          <div>Por %: <span className="font-semibold text-foreground">${fmt(c.salarioPorPorcentaje)}</span></div>
+                    <div>Por base: <span className="font-semibold text-foreground">{fmt(c.salarioBasePeriodo)}</span></div>
+          <div>Por %: <span className="font-semibold text-foreground">{fmt(c.salarioPorPorcentaje)}</span></div>
         </div>
 
                 {/* SELECTOR Y CONFIGURACIÓN DE PRODUCTOS CON TARIFA FIJA */}
@@ -2626,17 +2626,17 @@ function Step9() {
               <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs space-y-1.5 shadow-sm">
                 <div className="font-semibold text-primary flex items-center justify-between text-xs">
                   <span>Venta general sujeta al {current.porcentajeVenta}%:</span>
-                  <span className="font-mono font-bold">${fmt(c.ventaGeneral)} → ${fmt(c.ventaGeneral * ((current.porcentajeVenta ?? 0) / 100))}</span>
+                                    <span className="font-mono font-bold">{fmt(c.ventaGeneral)} → {fmt(c.ventaGeneral * ((current.porcentajeVenta ?? 0) / 100))}</span>
                 </div>
                 {c.desgloseExcepciones.map((exc) => (
                   <div key={exc.nombre} className="flex justify-between text-emerald-600 dark:text-emerald-400 text-[11px]">
                     <span>+ {exc.nombre} ({exc.unidades} u. × ${exc.tarifa} CUP):</span>
-                    <span className="font-mono font-semibold">${fmt(exc.total)}</span>
+                                        <span className="font-mono font-semibold">{fmt(exc.total)}</span>
                   </div>
                 ))}
                 <div className="border-t border-primary/20 pt-1.5 flex justify-between font-bold text-foreground text-xs">
                   <span>Total Comisión:</span>
-                  <span className="font-mono text-primary text-sm">${fmt(c.salarioPorPorcentaje)}</span>
+                                    <span className="font-mono text-primary text-sm">{fmt(c.salarioPorPorcentaje)}</span>
                 </div>
               </div>
             )}
@@ -2737,7 +2737,7 @@ function Step9() {
                       <div>
                         <span className="font-medium text-foreground">{exc.productoNombre}</span>
                         <span className="ml-2 text-muted-foreground text-[11px]">
-                          ({vendidos} u. × ${exc.tarifaPorUnidad} CUP = <strong className="text-emerald-600 dark:text-emerald-400">${fmt(totalTarifa)}</strong>)
+                                                    ({vendidos} u. × {exc.tarifaPorUnidad} CUP = <strong className="text-emerald-600 dark:text-emerald-400">{fmt(totalTarifa)}</strong>)
                         </span>
                       </div>
                       <Button
