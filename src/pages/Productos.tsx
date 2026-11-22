@@ -52,20 +52,6 @@ export default function Productos() {
 
 
 
-  if (role !== "admin") {
-    return (
-      <div className="space-y-4">
-        <h1 className="text-2xl font-bold">Productos</h1>
-        <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">
-          <Lock className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">
-            Solo el administrador puede gestionar el catálogo de productos, precios y costos.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   const ultimo = useMemo(() => [...history]
     .filter((c) => c.puntoVenta === punto && c.finalizado)
     .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())[0], [history, punto]);
@@ -260,6 +246,20 @@ export default function Productos() {
       toast.error("Error al leer el Excel: " + (err?.message ?? ""));
     }
   };
+
+  if (role !== "admin") {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-2xl font-bold">Productos</h1>
+        <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">
+          <Lock className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            Solo el administrador puede gestionar el catálogo de productos, precios y costos.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
