@@ -47,10 +47,12 @@ export function unificarCuadre(
   const lista: Producto[] = [];
   for (const p of c.productos) {
     const nombre = nombreCanonico(p.nombre);
-    const ya = porNombre.get(key(nombre));
+    // Variantes con GTIN distinto nunca deben fusionarse aunque el nombre sea igual.
+    const nombreClave = p.codigoBarras ? key(nombre) + "|" + p.codigoBarras : key(nombre);
+    const ya = porNombre.get(nombreClave);
     if (!ya) {
       const np: Producto = { ...p, nombre, categoria: catDe(nombre) ?? p.categoria };
-      porNombre.set(key(nombre), np);
+      porNombre.set(nombreClave, np);
       lista.push(np);
       continue;
     }
