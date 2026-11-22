@@ -1204,6 +1204,11 @@ export function PrecuadreDependiente({
                 )}
               </div>
 
+              <Button type="button" className="w-full rounded-2xl text-xs font-bold"
+                onClick={() => setScannerModo("entrada")}>
+                <ScanBarcode className="mr-2 h-4 w-4" /> Escanear producto para registrar entrada
+              </Button>
+
               <Button
                 type="button"
                 variant="outline"
@@ -1325,6 +1330,33 @@ export function PrecuadreDependiente({
               </Button>
             </div>
 
+            <BarcodeScanner open={scannerModo !== null}
+              onOpenChange={(abierto) => { if (!abierto) setScannerModo(null); }}
+              onScan={codigoDetectado} titulo="Escanear entrada de mercancía" />
+
+            <Dialog open={productoEscaneado !== null} onOpenChange={(abierto) => { if (!abierto) setProductoEscaneado(null); }}>
+              <DialogContent className="max-w-sm">
+                <DialogHeader><DialogTitle>Registrar entrada escaneada</DialogTitle></DialogHeader>
+                {productoEscaneado && (
+                  <div className="space-y-3">
+                    <p className="text-sm font-semibold">{productoEscaneado.nombre}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Ya declaradas en este precuadre: {entradas[productoEscaneado.id] ?? 0}
+                    </p>
+                    <label className="block text-xs">
+                      Cantidad recibida (se sumará a las anteriores)
+                      <Input type="number" step="any" min="0.0001" autoFocus
+                        value={cantidadEscaneada}
+                        onChange={(e) => setCantidadEscaneada(e.target.value)}
+                        className="mt-1 h-11 rounded-xl" />
+                    </label>
+                    <Button type="button" className="w-full h-11 rounded-xl"
+                      onClick={confirmarEntradaEscaneada}>Sumar unidades a Entradas</Button>
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
+
             {modalNuevoProd && (
               <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                 <div className="bg-card border border-border rounded-3xl p-5 max-w-sm w-full space-y-3 shadow-xl">
@@ -1351,6 +1383,23 @@ export function PrecuadreDependiente({
                         className="rounded-xl text-xs font-semibold"
                         autoFocus
                       />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-muted-foreground block">
+                        Código de barras (opcional)
+                      </label>
+                      <div className="flex gap-2">
+                        <Input value={nuevoProdCodigo} inputMode="numeric"
+                          placeholder="EAN / UPC / GTIN"
+                          onChange={(e) => setNuevoProdCodigo(e.target.value)}
+                          className="rounded-xl text-xs font-mono flex-1" />
+                        <Button type="button" size="icon" variant="outline"
+                          className="shrink-0 rounded-xl"
+                          onClick={() => setScannerModo("nuevo")}>
+                          <ScanBarcode className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
 
                     <div>
