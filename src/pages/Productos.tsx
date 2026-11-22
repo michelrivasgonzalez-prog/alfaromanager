@@ -177,140 +177,89 @@ export default function Productos() {
 
   const descargarPlantilla = () => {
     const ws = XLSX.utils.aoa_to_sheet([
-      ["orden", "nombre", "costo", "precio"],
-      [1, "Café espresso", 20, 50],
-      [2, "Capuchino", 35, 80],
+      ["nombre", "costo", "precio", "codigo_barras", "categoria"],
+      ["Café Expreso", 20, 120, "", "Otros"],
     ]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Productos");
-    XLSX.writeFile(wb, `plantilla-productos-${punto}.xlsx`);
-    toast.success("Plantilla descargada");
+    ws["!cols"] = [{ wch: 40 }, { wch: 14 }, { wch: 14 }, { wch: 22 }, { wch: 20 }];
+    XLSX.writeFile(
+      Object.assign(XLSX.utils.book_new(), { SheetNames: ["Productos"], Sheets: { Productos: ws } }),
+      "plantilla-productos-" + punto + ".xlsx"
+    );
   };
 
   const exportarExcel = (modo: "todos" | "existencia") => {
-    const items = sortCatalogo(catalogo, categorias).filter(
-      (p) => (p.punto ?? "Cafetería") === punto
+    const items = productosPunto.filter((p) =>
+      modo === "todos" || (existencias.get(p.id) ?? 0) > 0
     );
-    if (items.length === 0) {
-      toast.info(`No hay productos en ${punto}`);
+    const conExistencia = modo === "existencia";
+    if (!items.length) {
+      toast.info("No hay productos para exportar");
       return;
     }
-    let filas = items.map((p, i) => ({
-      orden: i + 1,
-      nombre: p.nombre,
-      categoria: p.categoria ?? "",
-      costo: p.costo,
-      precio: p.precio,
-      existencia: null as number | null,
-    }));
-    let sufijo = "completo";
-    if (modo === "existencia") {
-      const history = useCuadreStore.getState().history;
-      const ultimo = history
-        .filter((c) => c.puntoVenta === punto && c.finalizado)
-        .sort((a, b) => {
-          const da = a.diasTrabajados?.[a.diasTrabajados.length - 1] ?? a.fecha;
-          const db = b.diasTrabajados?.[b.diasTrabajados.length - 1] ?? b.fecha;
-          return String(db).localeCompare(String(da));
-        })[0];
-      if (!ultimo) {
-        toast.info(`No hay ningún turno finalizado en ${punto}`);
-        return;
-      }
-      const finales = new Map(
-        ultimo.productos.map((p) => [p.nombre.trim().toLowerCase(), Number(p.final) || 0])
-      );
-      filas = filas
-        .map((f) => ({ ...f, existencia: finales.get(f.nombre.trim().toLowerCase()) ?? 0 }))
-        .filter((f) => (f.existencia ?? 0) > 0);
-      if (filas.length === 0) {
-        toast.info(`Ningún producto tiene existencia en el último turno de ${punto}`);
-        return;
-      }
-      sufijo = "con-existencia";
-    }
-    const conExistencia = modo === "existencia";
     const ws = XLSX.utils.aoa_to_sheet([
-      conExistencia
-        ? ["orden", "nombre", "categoria", "existencia", "costo", "precio"]
-        : ["orden", "nombre", "categoria", "costo", "precio"],
-      ...filas.map((f) =>
-        conExistencia
-          ? [f.orden, f.nombre, f.categoria, f.existencia, f.costo, f.precio]
-          : [f.orden, f.nombre, f.categoria, f.costo, f.precio]
-      ),
+      ["nombre", "categoria", "codigo_barras", "costo", "precio", ...(conExistencia ? ["existencia"] : [])],
+      ...items.map((p) => [
+        p.nombre, p.categoria ?? "", p.codigoBarras ?? "", p.costo, p.precio,
+        ...(conExistencia ? [existencias.get(p.id) ?? 0] : []),
+      ]),
     ]);
-    ws["!cols"] = conExistencia
-      ? [{ wch: 7 }, { wch: 34 }, { wch: 18 }, { wch: 11 }, { wch: 10 }, { wch: 10 }]
-      : [{ wch: 7 }, { wch: 34 }, { wch: 18 }, { wch: 10 }, { wch: 10 }];
+    ws["!cols"] = [{ wch: 40 }, { wch: 20 }, { wch: 22 }, { wch: 14 }, { wch: 14 }, { wch: 12 }];
+    // La celda de código es texto: nunca formatear como número científico.
+    for (let fila = 1; fila <= items.length; fila++) {
+      const celda = ws[XLSX.utils.encode_cell({ r: fila, c: 2 })];
+      if (celda) { celda.t = "s"; celda.v = items[fila - 1].codigoBarras ?? ""; }
+    }
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Productos");
-    XLSX.writeFile(wb, `productos-${punto}-${sufijo}.xlsx`);
-    toast.success(
-      conExistencia
-        ? `${filas.length} productos con existencia exportados`
-        : "Productos exportados"
-    );
+    XLSX.writeFile(wb, "productos-" + punto + "-" + modo + ".xlsx");
+    toast.success("Exportación completada");
   };
-
 
   const importarExcel = async (file: File) => {
     try {
       const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf);
+      const wb = XLSX.read(buf, { type: "array" });
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws);
-      const items = rows
-        .map((r, idx) => {
-          // tolerante a mayúsculas/acentos
-          const keys = Object.fromEntries(
-            Object.entries(r).map(([k, v]) => [k.toLowerCase().trim(), v])
-          );
-          const orden = Number(
-            keys["orden"] ?? keys["lugar"] ?? keys["no"] ?? keys["#"] ?? idx + 1
-          );
-          const nombre = String(keys["nombre"] ?? keys["producto"] ?? "").trim();
-          const costo = Number(keys["costo"] ?? keys["precio costo"] ?? 0);
-          const precio = Number(keys["precio"] ?? keys["precio venta"] ?? 0);
-          return nombre ? { nombre, costo, precio, orden: orden || idx + 1, punto } : null;
-        })
-        .filter(Boolean)
-        .sort((a: any, b: any) => a.orden - b.orden) as {
-        nombre: string;
-        costo: number;
-        precio: number;
-        orden: number;
-        punto: PuntoVenta;
-      }[];
-      if (items.length === 0) {
-        toast.error("No se encontraron filas válidas");
-        return;
-      }
-      const existentes = useCuadreStore
-        .getState()
-        .catalogo.filter((c) => (c.punto ?? "Cafetería") === punto);
-      const reemplazar =
-        existentes.length === 0 ||
-        confirm(
-          `Hay ${existentes.length} producto(s) en ${punto}. ` +
-            `¿Reemplazarlos por los del Excel manteniendo el orden de la hoja?\n\n` +
-            `Aceptar = Reemplazar (recomendado para conservar el orden).\n` +
-            `Cancelar = Agregar al final.`
+      const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { raw: false });
+      let importados = 0, existentes = 0, invalidos = 0, fallidos = 0;
+      for (const fila of rows) {
+        const keys = Object.fromEntries(Object.entries(fila).map(([k, v]) =>
+          [k.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase(), v]
+        ));
+        const nombre = String(keys.nombre ?? keys.producto ?? "").trim();
+        const codigo = limpiarCodigoBarras(String(
+          keys.codigo_barras ?? keys["codigo de barras"] ?? keys.barcode ?? keys.ean ?? ""
+        ));
+        if (!nombre) { invalidos++; continue; }
+        if (codigo && !esCodigoBarrasValido(codigo)) { invalidos++; continue; }
+        const actuales = useCuadreStore.getState().catalogo;
+        const duplicado = buscarDuplicadoCatalogo(actuales, punto, { nombre, codigoBarras: codigo });
+        if (duplicado) { existentes++; continue; }
+        const precio = Number(String(keys.precio ?? keys["precio venta"] ?? "0").replace(",", ".")) || 0;
+        const costo = Number(String(keys.costo ?? keys["precio costo"] ?? "0").replace(",", ".")) || 0;
+        addCatalogItem({
+          nombre, costo, precio, punto, codigoBarras: codigo || undefined,
+          categoria: String(keys.categoria ?? "").trim() || undefined,
+        });
+        const nuevoItem = useCuadreStore.getState().catalogo.find(
+          (p) => (p.punto ?? "Cafetería") === punto &&
+            normalizarNombreProducto(p.nombre) === normalizarNombreProducto(nombre)
         );
-      if (reemplazar) {
-        importCatalogReplace(items, punto);
-        existentes.forEach((c) => deleteCatalogItem(c.id).catch(console.error));
-      } else {
-        importCatalog(items);
+        try {
+          if (nuevoItem) await pushCatalogItem(nuevoItem);
+          importados++;
+        } catch (e) {
+          if (nuevoItem) removeCatalogItem(nuevoItem.id);
+          fallidos++;
+          console.warn("No se pudo importar producto", nombre, e);
+        }
       }
-      toast.success(`${items.length} productos importados a ${punto}`);
-      const nuevos = useCuadreStore
-        .getState()
-        .catalogo.filter((c) => (c.punto ?? "Cafetería") === punto);
-      nuevos.forEach((c) => pushCatalogItem(c).catch(console.error));
-    } catch (e) {
-      console.error(e);
-      toast.error("Error al leer el archivo");
+      toast.info("Importados: " + importados + " · Ya existían: " + existentes +
+        " · Inválidos: " + invalidos + " · Errores de nube: " + fallidos);
+      if (fallidos) toast.error("Revisa la migración SQL y tu conexión antes de reintentar.");
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Error al leer el Excel: " + (err?.message ?? ""));
     }
   };
 
