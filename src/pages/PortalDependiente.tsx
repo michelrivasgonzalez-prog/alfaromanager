@@ -342,7 +342,6 @@ export default function PortalDependiente() {
                     </div>
 
                                         <span
-                                         <span
                       className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         diff < 0
                           ? "bg-destructive/10 text-destructive"
