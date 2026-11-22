@@ -36,8 +36,6 @@ export default function Productos() {
     addCatalogItem,
     updateCatalogItem,
     removeCatalogItem,
-    importCatalog,
-    importCatalogReplace,
     clearCatalog,
     role,
   } = useCuadreStore();
@@ -370,6 +368,12 @@ export default function Productos() {
       </div>
 
       <div className="space-y-2">
+        <div className="rounded-xl border border-border bg-card p-3 space-y-2">
+          <p className="text-xs text-muted-foreground">Primero: productos con existencia en el último cuadre, ordenados alfabéticamente. Después: productos agotados, también A–Z.</p>
+          <Button type="button" variant="outline" onClick={() => setScannerDestino("buscar")} className="w-full rounded-xl h-10">
+            <ScanBarcode className="mr-2 h-4 w-4" /> Buscar por código de barras con cámara
+          </Button>
+        </div>
         {productosPunto.length === 0 && (
           <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center">
             <Package className="mx-auto mb-2 h-7 w-7 text-muted-foreground" />
@@ -380,36 +384,12 @@ export default function Productos() {
         )}
         {productosPunto.map((p, i) => (
           <div
+            id={"producto-" + p.id}
             key={p.id}
-            className="rounded-2xl border border-border bg-card p-3 shadow-soft"
+            className="rounded-2xl border border-border bg-card p-3 shadow-soft scroll-mt-24"
           >
             <div className="flex items-center gap-2">
-              <NumberInput
-                value={p.orden ?? i + 1}
-                onChange={(v) => updateAndSync(p.id, { orden: v || i + 1 })}
-                className="h-10 w-14 rounded-xl text-center font-semibold"
-                aria-label="Orden"
-              />
-              <div className="flex flex-col">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
-                  disabled={i === 0}
-                  onClick={() => moveItem(p.id, -1)}
-                >
-                  <ChevronUp className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
-                  disabled={i === productosPunto.length - 1}
-                  onClick={() => moveItem(p.id, 1)}
-                >
-                  <ChevronDown className="h-4 w-4" />
-                </Button>
-              </div>
+              <span className="text-xs w-8 text-center font-semibold text-muted-foreground">{i + 1}.</span>
               <Input
                 value={p.nombre}
                 onChange={(e) => updateAndSync(p.id, { nombre: e.target.value })}
@@ -426,6 +406,12 @@ export default function Productos() {
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
+            </div>
+            <div className="mt-2 flex items-center gap-2 text-[11px]">
+              <span className={(existencias.get(p.id) ?? 0) > 0 ? "font-semibold text-emerald-600" : "text-muted-foreground"}>
+                Existencia final: {(existencias.get(p.id) ?? 0).toLocaleString("es-ES")}
+              </span>
+              {ultimo && <span className="text-muted-foreground">· Último cuadre</span>}
             </div>
             <div className="mt-2 grid grid-cols-2 gap-2">
               <label className="text-xs">
@@ -444,6 +430,19 @@ export default function Productos() {
                   className="mt-0.5 h-9 rounded-lg"
                 />
               </label>
+            </div>
+            <div className="mt-2 space-y-1">
+              <span className="text-xs text-muted-foreground">Código de barras (EAN / UPC / GTIN)</span>
+              <div className="flex gap-2">
+                <Input value={codigosBorrador[p.id] ?? p.codigoBarras ?? ""} inputMode="numeric"
+                  placeholder="Escanear o introducir código"
+                  onChange={(e) => setCodigosBorrador((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                  onBlur={() => guardarCodigo(p.id, codigosBorrador[p.id] ?? p.codigoBarras ?? "")}
+                  className="h-10 flex-1 rounded-xl font-mono text-xs" />
+                <Button type="button" size="icon" variant="outline" className="h-10 w-10 shrink-0 rounded-xl"
+                  aria-label={"Escanear código de " + p.nombre}
+                  onClick={() => setScannerDestino(p.id)}><ScanBarcode className="h-4 w-4" /></Button>
+              </div>
             </div>
             <label className="mt-2 block text-xs">
               <span className="text-muted-foreground">Categoría</span>
@@ -534,6 +533,16 @@ export default function Productos() {
                 className="mt-1 h-11 rounded-xl"
               />
             </label>
+            <div className="space-y-1">
+              <span className="text-xs text-muted-foreground">Código de barras (opcional)</span>
+              <div className="flex gap-2">
+                <Input value={nuevo.codigoBarras} inputMode="numeric" placeholder="EAN / UPC / GTIN"
+                  onChange={(e) => setNuevo((n) => ({ ...n, codigoBarras: e.target.value }))}
+                  className="h-11 flex-1 font-mono text-xs rounded-xl" />
+                <Button type="button" variant="outline" size="icon" className="h-11 w-11 rounded-xl"
+                  onClick={() => setScannerDestino("nuevo")}><ScanBarcode className="h-4 w-4" /></Button>
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <label className="block text-xs">
                 <span className="text-muted-foreground">Precio venta</span>
@@ -583,26 +592,42 @@ export default function Productos() {
             </Button>
             <Button
               className="gradient-primary text-primary-foreground"
-              onClick={() => {
-                if (!nuevo.nombre.trim()) {
+              onClick={async () => {
+                const nombre = nuevo.nombre.trim();
+                const codigo = limpiarCodigoBarras(nuevo.codigoBarras);
+                if (!nombre) {
                   toast.error("Escribe el nombre del producto");
                   return;
                 }
+                if (codigo && !esCodigoBarrasValido(codigo)) {
+                  toast.error("Comprueba el código de barras (dígitos de control inválidos)");
+                  return;
+                }
+                const duplicado = buscarDuplicadoCatalogo(catalogo, punto, { nombre, codigoBarras: codigo });
+                if (duplicado) {
+                  toast.warning('Ya existe "' + duplicado.nombre + '". Selecciónalo en lugar de duplicarlo.');
+                  setNuevoOpen(false);
+                  setTimeout(() => document.getElementById("producto-" + duplicado.id)?.scrollIntoView({ behavior: "smooth", block: "center" }), 120);
+                  return;
+                }
                 addCatalogItem({
-                  nombre: nuevo.nombre.trim(),
-                  precio: nuevo.precio,
-                  costo: nuevo.costo,
-                  punto,
-                  orden: productosPunto.length + 1,
+                  nombre, precio: nuevo.precio, costo: nuevo.costo, punto,
                   categoria: nuevo.categoria.trim() || undefined,
+                  codigoBarras: codigo || undefined,
                 });
-                const last = useCuadreStore
-                  .getState()
-                  .catalogo.find((c) => c.nombre === nuevo.nombre.trim() && (c.punto ?? "Cafetería") === punto);
-                if (last) pushCatalogItem(last).catch(console.error);
-                toast.success(`"${nuevo.nombre.trim()}" agregado a ${punto}`);
-                setNuevo({ nombre: "", precio: 0, costo: 0, categoria: "" });
-                setNuevoOpen(false);
+                const last = useCuadreStore.getState().catalogo.find((c) =>
+                  (c.punto ?? "Cafetería") === punto &&
+                  normalizarNombreProducto(c.nombre) === normalizarNombreProducto(nombre)
+                );
+                try {
+                  if (last) await pushCatalogItem(last);
+                  toast.success('Producto "' + nombre + '" registrado');
+                  setNuevo({ nombre: "", precio: 0, costo: 0, categoria: "", codigoBarras: "" });
+                  setNuevoOpen(false);
+                } catch (e: any) {
+                  if (last) removeCatalogItem(last.id);
+                  toast.error(e?.message ?? "No se pudo guardar el producto en Supabase");
+                }
               }}
             >
               Agregar producto
@@ -610,7 +635,9 @@ export default function Productos() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <BarcodeScanner open={scannerDestino !== null}
+        onOpenChange={(abierto) => { if (!abierto) setScannerDestino(null); }}
+        onScan={escaneado} titulo="Escáner de productos" />
     </div>
   );
 }
-
