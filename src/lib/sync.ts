@@ -414,7 +414,13 @@ export async function pushCatalogItem(c: CatalogoItem) {
   const { error } = await (supabase as any).from("catalogo").upsert(filaCatalogo(c));
   if (error) {
     if (/codigo_barras/i.test(error.message ?? "")) {
-      throw new Error("Falta aplicar la migración SQL de códigos de barras en Lovable.");
+      if (c.codigoBarras) {
+        throw new Error("Falta aplicar la migración SQL de códigos de barras en Lovable.");
+      }
+      const { codigo_barras, ...legacy } = filaCatalogo(c);
+      const { error: legacyError } = await (supabase as any).from("catalogo").upsert(legacy);
+      if (legacyError) throw legacyError;
+      return;
     }
     throw error;
   }
