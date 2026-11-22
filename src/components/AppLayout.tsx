@@ -39,6 +39,20 @@ export default function AppLayout() {
         (n) => n.trim().toLowerCase() === nombre.trim().toLowerCase()
       )
     );
+  // Expulsar a la dependienta si la administración la marca como inactiva
+  useEffect(() => {
+    if (role === "dependiente" && nombre) {
+      const inactivos: string[] = (settings as any).dependientesInactivos ?? [];
+      const estaInactiva = inactivos.some(
+        (n) => n.trim().toLowerCase() === nombre.trim().toLowerCase()
+      );
+      if (estaInactiva) {
+        signOut();
+        toast.error("Tu cuenta ha sido desactivada por la administración.");
+        navigate("/auth", { replace: true });
+      }
+    }
+  }, [role, nombre, settings, signOut, navigate]);
 
   const tabs = ALL_TABS.filter((t) => {
     if (!role) return false;
