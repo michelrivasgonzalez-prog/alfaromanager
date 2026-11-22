@@ -4,6 +4,8 @@ import { persist } from "zustand/middleware";
 export type Producto = {
   id: string;
   nombre: string;
+  /** Barcode/GTIN in text form; optional so historical cuadres remain valid. */
+  codigoBarras?: string;
   inicio: number;
   entradas: number;
   traslados: number;
@@ -33,6 +35,8 @@ export type PrecioTramo = {
 export type CatalogoItem = {
   id: string;
   nombre: string;
+  /** Código comercial. Único por punto, no sustituye al UUID. */
+  codigoBarras?: string;
   precio: number;
   costo: number;
   orden?: number;
@@ -320,6 +324,7 @@ export const newCuadre = (
     .map((c) => ({
       id: crypto.randomUUID(),
       nombre: c.nombre,
+      codigoBarras: c.codigoBarras,
       inicio: 0,
       entradas: 0,
       traslados: 0,
@@ -795,11 +800,15 @@ export const useCuadreStore = create<State>()(
           const key = nombre.toLowerCase();
           if (vistos.has(key)) continue;
           vistos.add(key);
-          const prev = previos.find((ci) => ci.nombre.trim().toLowerCase() === key);
+          const prev = previos.find((ci) =>
+            ci.nombre.trim().toLowerCase() === key ||
+            (!!p.codigoBarras && ci.codigoBarras === p.codigoBarras)
+          );
           const agotado = Number(p.final) === 0;
           delPunto.push({
             id: prev?.id ?? crypto.randomUUID(),
             nombre,
+            codigoBarras: prev?.codigoBarras ?? p.codigoBarras,
             precio: agotado ? 0 : p.precio,
             costo: agotado ? 0 : p.costo,
             categoria: p.categoria ?? prev?.categoria,
