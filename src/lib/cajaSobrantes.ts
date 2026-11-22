@@ -54,13 +54,45 @@ const cliente = supabase as unknown as {
     PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>;
 };
 
-export const useSesionCaja = create<{ cuenta: string | null }>(() => ({ cuenta: null }));
-let sesion: SesionPin | null = null;
+const CAJA_STORAGE_KEY = "alfarocafe-caja-session";
+
+function cargarSesionGuardada(): SesionPin | null {
+  try {
+    const raw = localStorage.getItem(CAJA_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as SesionPin;
+    if (parsed && parsed.vence && Date.parse(parsed.vence) > Date.now()) {
+      return parsed;
+    }
+    localStorage.removeItem(CAJA_STORAGE_KEY);
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+let sesion: SesionPin | null = cargarSesionGuardada();
+export const useSesionCaja = create<{ cuenta: string | null }>(() => ({
+  cuenta: sesion?.usuario_id ?? null,
+}));
+
+function guardarSesion(s: SesionPin | null) {
+  sesion = s;
+  useSesionCaja.setState({ cuenta: s?.usuario_id ?? null });
+  try {
+    if (s) {
+      localStorage.setItem(CAJA_STORAGE_KEY, JSON.stringify(s));
+    } else {
+      localStorage.removeItem(CAJA_STORAGE_KEY);
+    }
+  } catch {
+    // ignorar error de storage
+  }
+}
 
 export async function salirCaja() {
   const anterior = sesion;
-  sesion = null;
-  useSesionCaja.setState({ cuenta: null });
+  guardarSesion(null);
   if (anterior) await cliente.rpc("cerrar_caja_con_pin", { token: anterior.token });
 }
 
@@ -73,8 +105,6 @@ usePinStore.subscribe((actual, anterior) => {
 export async function entrarConPinDeCaja(pin: string) {
   if (!await ensureCloudSession()) throw new Error("Conéctate a internet para verificar el PIN de caja.");
   const { data, error } = await cliente.rpc("iniciar_caja_con_pin", { pin });
-  // Durante el despliegue, los PIN locales siguen disponibles aunque todavía
-  // falte la migración de la caja.
   if (error?.code === "PGRST202") return null;
   if (error) throw new Error("No se pudo verificar el PIN de caja.");
   const respuesta = data as RespuestaPin;
@@ -86,8 +116,7 @@ export async function entrarConPinDeCaja(pin: string) {
     await cliente.rpc("cerrar_caja_con_pin", { token: respuesta.token });
     throw new Error("Este perfil de caja no está disponible en el dispositivo. Sincroniza los usuarios e inténtalo de nuevo.");
   }
-  sesion = respuesta;
-  useSesionCaja.setState({ cuenta: respuesta.usuario_id });
+  guardarSesion(respuesta);
   return perfil;
 }
 
