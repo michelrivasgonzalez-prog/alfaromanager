@@ -14,7 +14,7 @@ WHERE codigo_barras IS NOT NULL AND btrim(codigo_barras) = '';
 -- Nunca se asigna automáticamente un barcode basándose en nombre o fotografía.
 -- Un mismo código puede usarse en Cafetería y MiPYME; no dos veces en el mismo punto.
 CREATE UNIQUE INDEX IF NOT EXISTS catalogo_codigo_barras_punto_activo_idx
-ON public.catalogo ((coalesce(punto, 'Cafetería')), codigo_barras)
+ON public.catalogo ((coalesce(punto, 'Cafetería')), (lpad(codigo_barras, 14, '0')))
 WHERE deleted_at IS NULL AND codigo_barras IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS catalogo_codigo_barras_busqueda_idx
