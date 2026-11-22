@@ -165,10 +165,9 @@ export default function Productos() {
       ["Café Expreso", 20, 120, "", "Otros"],
     ]);
     ws["!cols"] = [{ wch: 40 }, { wch: 14 }, { wch: 14 }, { wch: 22 }, { wch: 20 }];
-    XLSX.writeFile(
-      Object.assign(XLSX.utils.book_new(), { SheetNames: ["Productos"], Sheets: { Productos: ws } }),
-      "plantilla-productos-" + punto + ".xlsx"
-    );
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Productos");
+    XLSX.writeFile(wb, "plantilla-productos-" + punto + ".xlsx");
   };
 
   const exportarExcel = (modo: "todos" | "existencia") => {
@@ -301,11 +300,12 @@ export default function Productos() {
           Importar desde Excel
         </div>
         <p className="mt-1 text-[11px] text-muted-foreground">
-          Encabezados requeridos: <code className="rounded bg-muted px-1">orden</code>,{" "}
-          <code className="rounded bg-muted px-1">nombre</code>,{" "}
+          Encabezados: <code className="rounded bg-muted px-1">nombre</code>,{" "}
           <code className="rounded bg-muted px-1">costo</code>,{" "}
-          <code className="rounded bg-muted px-1">precio</code>. Los productos se agregan al
-          punto seleccionado ({punto}).
+          <code className="rounded bg-muted px-1">precio</code>,{" "}
+          <code className="rounded bg-muted px-1">codigo_barras</code> (opcional) y
+          <code className="rounded bg-muted px-1">categoria</code>.
+          Se omiten los productos duplicados; no se borran los existentes en {punto}.
         </p>
         <input
           ref={fileRef}
