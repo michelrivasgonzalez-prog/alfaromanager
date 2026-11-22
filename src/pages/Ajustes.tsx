@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCuadreStore, PUNTOS, SALARIO_MODOS, SalarioModo } from "@/store/cuadreStore";
 import { usePinStore } from "@/store/pinStore";
 import { useAuth } from "@/hooks/useAuth";
@@ -14,7 +14,6 @@ import {
   Trash2,
   Wifi,
   Upload,
-  ShieldCheck,
   FileDown,
   ClipboardList,
   Warehouse,
@@ -40,9 +39,8 @@ import {
   type CuadresImportResult,
 } from "@/lib/cuadresImport";
 import { pushCuadre } from "@/lib/sync";
-import { listAuditoria, AuditoriaRow } from "@/lib/auditoria";
+import AuditoriaPanel from "@/components/AuditoriaPanel";
 import { format } from "date-fns";
-import { es } from "date-fns/locale";
 
 export default function Ajustes() {
   const { history, settings, setSalarioBasePunto, updateSettings, importCuadresBulk } =
@@ -783,188 +781,6 @@ function CategoriasPanel() {
         >
           Añadir
         </Button>
-      </div>
-    </div>
-  );
-}
-
-function AuditoriaPanel() {
-  const [logs, setLogs] = useState<AuditoriaRow[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [usuario, setUsuario] = useState("");
-  const [accionFiltro, setAccionFiltro] = useState<string>("todas");
-  const [clientesMap, setClientesMap] = useState<Record<string, string>>({});
-
-  const load = async () => {
-    setLoading(true);
-    try {
-      const { data: clis } = await supabase.from("clientes").select("id, nombre");
-      const map: Record<string, string> = {};
-      (clis ?? []).forEach((c) => {
-        map[c.id] = c.nombre;
-      });
-      setClientesMap(map);
-
-      const data = await listAuditoria({
-        usuario: usuario || undefined,
-        limit: 100,
-      });
-      setLogs(data ?? []);
-    } catch (e: any) {
-      toast.error("Error al cargar auditoría: " + (e?.message || ""));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  const logsFiltrados = useMemo(() => {
-    if (!logs) return [];
-    if (accionFiltro === "todas") return logs;
-    return logs.filter((l) =>
-      (l.accion || "").toLowerCase().includes(accionFiltro.toLowerCase())
-    );
-  }, [logs, accionFiltro]);
-
-  return (
-    <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="h-4 w-4 text-primary" />
-          <div className="text-sm font-semibold">Trazabilidad y Auditoría</div>
-        </div>
-        <span className="text-[11px] font-semibold text-muted-foreground">
-          {logsFiltrados.length} evento(s)
-        </span>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <Input
-          placeholder="Buscar por usuario…"
-          value={usuario}
-          onChange={(e) => setUsuario(e.target.value)}
-          className="h-9 rounded-xl text-xs"
-        />
-        <Select value={accionFiltro} onValueChange={setAccionFiltro}>
-          <SelectTrigger className="h-9 rounded-xl text-xs">
-            <SelectValue placeholder="Tipo de acción" />
-          </SelectTrigger>
-          <SelectContent className="bg-popover">
-            <SelectItem value="todas">Todos los movimientos</SelectItem>
-            <SelectItem value="registrar_abono">Abonos recibidos</SelectItem>
-            <SelectItem value="revertir_abono">Abonos cancelados / revertidos</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <Button
-        onClick={load}
-        disabled={loading}
-        className="w-full rounded-xl gradient-primary h-9 text-xs"
-      >
-        <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-        {loading ? "Cargando…" : "Actualizar eventos"}
-      </Button>
-
-      <div className="max-h-96 space-y-2.5 overflow-y-auto pr-1">
-        {logsFiltrados.length === 0 && (
-          <div className="rounded-xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
-            Sin registros de auditoría encontrados.
-          </div>
-        )}
-
-        {logsFiltrados.map((l) => {
-          const rawFecha =
-            (l as any).fecha || (l as any).creado_en || (l as any).created_at;
-          let fechaStr = "—";
-          if (rawFecha) {
-            try {
-              fechaStr = format(new Date(rawFecha), "dd MMM · HH:mm", { locale: es });
-            } catch {
-              fechaStr = "—";
-            }
-          }
-
-          const d = l.detalle ?? {};
-          const esReversion = l.accion.includes("revertir");
-          const clienteNombre = d.cliente_id
-            ? clientesMap[d.cliente_id] || "Cliente registrado"
-            : null;
-          const monto = Number(d.monto || 0);
-          const credito = Number(d.credito_generado || 0);
-          const aplicaciones = Array.isArray(d.aplicaciones) ? d.aplicaciones : [];
-
-          return (
-            <div
-              key={l.id}
-              className="rounded-xl border border-border bg-muted/20 p-3 text-xs space-y-2"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span
-                      className={`font-semibold px-2 py-0.5 rounded-md text-[11px] ${
-                        esReversion
-                          ? "bg-destructive/10 text-destructive"
-                          : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                      }`}
-                    >
-                      {esReversion ? "Abono Revertido" : "Abono Registrado"}
-                    </span>
-                    {clienteNombre && (
-                      <span className="font-semibold text-foreground text-[11px]">
-                        {clienteNombre}
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-[11px] text-muted-foreground mt-1">
-                    Operador:{" "}
-                    <strong className="text-foreground">
-                      {l.usuario_nombre ?? "Sistema"}
-                    </strong>
-                  </div>
-                </div>
-                <div className="text-[10px] text-muted-foreground whitespace-nowrap font-mono">
-                  {fechaStr}
-                </div>
-              </div>
-
-              <div className="rounded-lg border border-border/60 bg-card p-2.5 text-[11px] space-y-1">
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Monto:</span>
-                  <span
-                    className={`font-mono font-bold ${
-                      esReversion
-                        ? "text-destructive"
-                        : "text-emerald-600 dark:text-emerald-400"
-                    }`}
-                  >
-                    {esReversion ? "-" : "+"}${monto.toLocaleString("es-ES")} CUP
-                  </span>
-                </div>
-                {credito > 0 && (
-                  <div className="flex justify-between items-center text-muted-foreground">
-                    <span>Crédito a favor generado:</span>
-                    <span className="font-mono font-semibold text-foreground">
-                      +${credito.toLocaleString("es-ES")} CUP
-                    </span>
-                  </div>
-                )}
-                {aplicaciones.length > 0 && (
-                  <div className="flex justify-between items-center text-muted-foreground border-t border-border/30 pt-1">
-                    <span>Impacto en cuentas:</span>
-                    <span className="text-foreground font-medium">
-                      {aplicaciones.length} deuda(s) cubierta(s)
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
       </div>
     </div>
   );
