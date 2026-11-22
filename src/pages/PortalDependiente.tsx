@@ -267,17 +267,15 @@ export default function PortalDependiente() {
       {/* Historial y liquidaciones */}
       {tab === "historial" && (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-3">
             <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
               <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 <Calendar className="h-4 w-4 text-primary" />
                 Turnos
               </div>
-
               <div className="mt-2 text-2xl font-bold text-foreground">
                 {misCuadres.length}
               </div>
-
               <div className="text-[11px] text-muted-foreground mt-0.5">
                 completados
               </div>
@@ -288,43 +286,35 @@ export default function PortalDependiente() {
                 <Wallet className="h-4 w-4 text-emerald-500" />
                 Salarios cobrados
               </div>
-
               <div className="mt-2 text-2xl font-bold text-foreground">
                 {monto(metricas.pagado)}
               </div>
-
               <div className="text-[11px] text-muted-foreground mt-0.5">
-                {metricas.sinDesglose > 0 ? `${metricas.sinDesglose} turno(s) sin desglose` : "Con pago registrado"}
+                {metricas.sinDesglose > 0 ? `${metricas.sinDesglose} turno(s) sin desglose` : "Liquidado"}
               </div>
             </div>
 
-            {([
-              ["Salario calculado", metricas.calculado],
-              ["Faltantes detectados", metricas.faltantes],
-              ["Descuentos por faltantes", metricas.descuentosFalta],
-              ["Deuda descontada del salario", metricas.descuentosDeudas],
-              ["Deuda generada en los turnos", metricas.deudaGenerada],
-              ["Sobrantes detectados", metricas.sobrantes],
-              ["Sobrantes reclasificados", metricas.reclasificados],
-            ] as const).map(([label, value]) => (
-              <div key={label} className="rounded-2xl border border-border bg-card p-4 shadow-soft">
-                <div className="text-xs font-medium text-muted-foreground">{label}</div>
-                <div className="mt-2 text-lg font-bold">{monto(value)}</div>
-              </div>
-            ))}
-            {([["Deuda compensada con el fondo", pagos?.fondo], ["Deuda pagada directamente", pagos?.directo]] as const)
-              .map(([label, value]) => (
-                <div key={label} className="rounded-2xl border border-border bg-card p-4 shadow-soft">
-                  <div className="text-xs font-medium text-muted-foreground">{label}</div>
-                  <div className="mt-2 text-lg font-bold">{abonos.isError ? "Sin conexión" : cliente && abonos.isPending ? "Consultando…" : monto(value ?? 0)}</div>
+            {metricas.faltantes > 0 && (
+              <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-4 shadow-soft">
+                <div className="text-xs font-medium text-destructive">Faltantes en turnos</div>
+                <div className="mt-2 text-lg font-bold text-destructive">{monto(metricas.faltantes)}</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">
+                  Descontado: {monto(metricas.descuentosFalta)}
                 </div>
-              ))}
+              </div>
+            )}
+
             <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
               <div className="text-xs font-medium text-muted-foreground">Deudas pendientes</div>
-              <div className="mt-2 text-lg font-bold">
-                {clientes.isError || deudas.isError ? "Sin conexión"
-                  : clientes.isPending || (cliente && deudas.isPending) ? "Consultando…"
+              <div className="mt-2 text-lg font-bold text-foreground">
+                {clientes.isError || deudas.isError
+                  ? "Sin conexión"
+                  : clientes.isPending || (cliente && deudas.isPending)
+                  ? "Consultando…"
                   : monto(saldoDeudas ?? 0)}
+              </div>
+              <div className="text-[10px] text-muted-foreground mt-0.5">
+                {saldoDeudas && saldoDeudas > 0 ? "Saldo por saldar" : "Al día"}
               </div>
             </div>
           </div>
@@ -351,22 +341,17 @@ export default function PortalDependiente() {
                       </div>
                     </div>
 
-                    <span
+                                        <span
                       className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         diff < 0
                           ? "bg-destructive/10 text-destructive"
-                          : diff > 0
-                          ? "bg-emerald-500/10 text-emerald-600"
                           : "bg-muted text-muted-foreground"
                       }`}
                     >
                       {diff < 0
                         ? `Faltante: -$${Math.abs(Math.round(diff))}`
-                        : diff > 0
-                        ? `Sobrante: +$${Math.round(diff)}`
-                        : "Sin diferencias"}
+                        : "Turno cuadrado"}
                     </span>
-                  </div>
 
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div className="bg-muted/40 p-2.5 rounded-xl space-y-0.5">
@@ -389,8 +374,6 @@ export default function PortalDependiente() {
                       </div>
                     </div>
                     {([
-                      ...(res.cubiertoConFondo > 0 ? [
-                        ["Cubierto con el fondo", res.cubiertoConFondo],
                         ["Salario pendiente", Math.max(0, res.salarioReal - (res.salarioPagado ?? 0))],
                       ] as const : []),
                       ["Salario calculado", res.salarioReal],
@@ -403,12 +386,6 @@ export default function PortalDependiente() {
                         <div className="font-semibold">{monto(value)}</div>
                       </div>
                     ))}
-                    {res.reclasificado && (
-                      <Badge variant="outline">
-                        Reclasificado · {monto(res.sobrante)}
-                        {c.sobranteGestion?.estadoFisico === "confirmado" && " · Ingreso confirmado"}
-                      </Badge>
-                    )}
                   </div>
                 </div>
               );
