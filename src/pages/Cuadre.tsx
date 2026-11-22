@@ -2828,16 +2828,46 @@ function Step9() {
             </Button>
           </div>
 
-          <div className="space-y-2">
+                    <div className="space-y-2">
             {DENOMINACIONES.map((d) => {
               const cantidad = current.salarioDenominaciones[d] || 0;
+              const enCaja = current.denominaciones[String(d)] || 0;
+              const excede = cantidad > enCaja;
               return (
-                <label key={d} className="grid grid-cols-[1fr_4.5rem_1fr] items-center gap-2 rounded-xl border p-2 text-xs">
-                  <span>${fmt(d)} ×</span>
-                  <Input type="number" min={0} value={cantidad || ""} placeholder="0"
+                <label
+                  key={d}
+                  className={cn(
+                    "grid grid-cols-[1.3fr_4.5rem_1fr] items-center gap-2 rounded-xl border p-2 text-xs transition-colors",
+                    excede && "border-destructive/60 bg-destructive/5"
+                  )}
+                >
+                  <div className="flex flex-col">
+                    <span className="font-semibold">{fmt(d)} ×</span>
+                    <span
+                      className={cn(
+                        "text-[10px]",
+                        enCaja === 0
+                          ? "text-muted-foreground/60"
+                          : excede
+                          ? "text-destructive font-medium"
+                          : "text-muted-foreground"
+                      )}
+                    >
+                      {enCaja} en caja {excede && "(excede caja)"}
+                    </span>
+                  </div>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={cantidad || ""}
+                    placeholder="0"
                     onChange={(e) => setSalarioDen(String(d), Number(e.target.value) || 0)}
-                    className="h-9 text-right" />
-                  <strong className="text-right">= ${fmt(d * cantidad)}</strong>
+                    className={cn(
+                      "h-9 text-right font-mono",
+                      excede && "border-destructive text-destructive font-bold focus-visible:ring-destructive"
+                    )}
+                  />
+                  <strong className="text-right tabular-nums">= {fmt(d * cantidad)}</strong>
                 </label>
               );
             })}
