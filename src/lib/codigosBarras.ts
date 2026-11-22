@@ -42,7 +42,7 @@ export function buscarDuplicadoCatalogo(
     p.id !== excluirId &&
     (p.punto ?? "Cafetería") === punto &&
     (
-      (codigo.length > 0 && claveGTIN(p.codigoBarras) === claveGTIN(codigo)) ||
+      (codigo.length > 0 && !!p.codigoBarras && claveGTIN(p.codigoBarras) === claveGTIN(codigo)) ||
       (nombre.length > 0 && normalizarNombreProducto(p.nombre) === nombre)
     )
   );
