@@ -16,3 +16,7 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm run build
       - run: npm test
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: deno check supabase/functions/alfaro-push-dispatch/index.ts
