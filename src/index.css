@@ -100,3 +100,32 @@
   .transition-smooth { transition: var(--transition-smooth); }
   .safe-bottom { padding-bottom: calc(env(safe-area-inset-bottom) + 5rem); }
 }
+
+
+/* AlFaroCafé 2.0 — componentes visuales reutilizables. No afectan la lógica. */
+@layer components {
+  .alfaro-page-header {
+    @apply relative overflow-hidden rounded-3xl border border-border/60 bg-card/90 p-4 shadow-soft sm:p-5;
+    background-image: radial-gradient(ellipse at 100% 0%, hsl(160 35% 75% / 0.19), transparent 46%),
+      linear-gradient(125deg, hsl(35 58% 96%), hsl(var(--card)));
+  }
+  .dark .alfaro-page-header {
+    background-image: radial-gradient(ellipse at 100% 0%, hsl(160 35% 35% / 0.19), transparent 46%);
+  }
+  .alfaro-surface {
+    @apply rounded-2xl border border-border/65 bg-card/95 shadow-soft;
+  }
+  .alfaro-action-tile {
+    @apply relative flex min-h-44 flex-col justify-between overflow-hidden rounded-3xl p-4 text-left text-white shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-elegant focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:p-5;
+  }
+  .alfaro-bottom-nav {
+    @apply fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-card/95 backdrop-blur-xl;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .alfaro-nav-button {
+    @apply flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors;
+  }
+  .alfaro-nav-active {
+    @apply bg-secondary/10 font-semibold text-secondary dark:text-emerald-300;
+  }
+}
