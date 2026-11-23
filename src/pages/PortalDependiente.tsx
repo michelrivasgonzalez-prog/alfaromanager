@@ -71,6 +71,13 @@ export default function PortalDependiente() {
     );
   }, [history, nombre]);
 
+  // Solo suma el salario efectivamente registrado como pagado en cuadres
+  // propios. No confundir con el salario bruto o hipotéticamente pendiente.
+  const totalCobrado = useMemo(() => misCuadres.reduce((total, cuadre) => {
+    const pagado = Number(calcCuadre(cuadre).salarioPagado ?? 0);
+    return total + (Number.isFinite(pagado) ? Math.max(0, pagado) : 0);
+  }, 0), [misCuadres]);
+
   // Copia inmutable del inventario que recibió la persona al iniciar su turno,
   // aunque exista un cuadre oficial anterior pendiente de conciliación.
   const productosTurno = useMemo(() => sortProductos(
