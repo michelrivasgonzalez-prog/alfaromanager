@@ -24,6 +24,7 @@ import { KardexDialog } from "@/components/KardexDialog";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import EditarProductoDialog, { type EdicionCatalogo } from "@/components/catalogo/EditarProductoDialog";
 import CodigosProductoDialog from "@/components/catalogo/CodigosProductoDialog";
+import ProductoTarjeta from "@/components/catalogo/ProductoTarjeta";
 import { subirFotoProducto, borrarFotoProducto } from "@/lib/fotoCatalogo";
 import { buscarDuplicadoCatalogo, buscarPorCodigo, codigosAdicionalesValidos, esCodigoBarrasValido, limpiarCodigoBarras, normalizarNombreProducto } from "@/lib/codigosBarras";
 import {
@@ -551,109 +552,54 @@ export default function Productos() {
                 {categoriaProducto(p)}
               </h3>
             )}
-          <div
-            id={"producto-" + p.id}
-            className="rounded-2xl border border-border bg-card p-3 shadow-soft scroll-mt-24"
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-xs w-8 text-center font-semibold text-muted-foreground">{i + 1}.</span>
-              <Input
-                value={p.nombre}
-                onChange={(e) => updateAndSync(p.id, { nombre: e.target.value })}
-                className="h-10 flex-1 rounded-xl font-semibold"
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-destructive"
-                onClick={() => {
-                  removeCatalogItem(p.id);
-                  deleteCatalogItem(p.id).catch(console.error);
-                }}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="mt-2 flex items-center gap-2 text-[11px]">
-              <span className={(existencias.get(p.id) ?? 0) > 0 ? "font-semibold text-emerald-600" : "text-muted-foreground"}>
-                Existencia final: {(existencias.get(p.id) ?? 0).toLocaleString("es-ES")}
-              </span>
-              {ultimo && <span className="text-muted-foreground">· Último cuadre</span>}
-            </div>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <label className="text-xs">
-                <span className="text-muted-foreground">Precio</span>
-                <NumberInput
-                  value={p.precio}
-                  onChange={(v) => updateAndSync(p.id, { precio: v })}
-                  className="mt-0.5 h-9 rounded-lg"
-                />
-              </label>
-              <label className="text-xs">
-                <span className="text-muted-foreground">Costo</span>
-                <NumberInput
-                  value={p.costo}
-                  onChange={(v) => updateAndSync(p.id, { costo: v })}
-                  className="mt-0.5 h-9 rounded-lg"
-                />
-              </label>
-            </div>
-            <div className="mt-2 space-y-1">
-              <span className="text-xs text-muted-foreground">Código de barras (EAN / UPC / GTIN)</span>
-              <div className="flex gap-2">
-                <Input value={codigosBorrador[p.id] ?? p.codigoBarras ?? ""} inputMode="numeric"
-                  placeholder="Escanear o introducir código"
-                  onChange={(e) => setCodigosBorrador((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                  onBlur={() => guardarCodigo(p.id, codigosBorrador[p.id] ?? p.codigoBarras ?? "")}
-                  className="h-10 flex-1 rounded-xl font-mono text-xs" />
-                <Button type="button" size="icon" variant="outline" className="h-10 w-10 shrink-0 rounded-xl"
-                  aria-label={"Escanear código de " + p.nombre}
-                  onClick={() => setScannerDestino(p.id)}><ScanBarcode className="h-4 w-4" /></Button>
-              </div>
-            </div>
-            <CodigosAsociados
-              producto={p}
-              onAgregar={() => setAliasDraft({ productoId: p.id, codigo: "", etiqueta: "" })}
-              onEscanear={() => setScannerDestino("alias:" + p.id)}
-              onEditar={(indice) => {
-                const entrada = p.codigosAdicionales?.[indice];
-                if (entrada) setAliasDraft({
-                  productoId: p.id, indice, codigo: entrada.codigo, etiqueta: entrada.etiqueta ?? "",
-                });
-              }}
-              onEliminar={(indice) => { void eliminarAlias(p, indice); }}
-            />
-            <label className="mt-2 block text-xs">
-              <span className="text-muted-foreground">Categoría</span>
-              {categorias.length > 0 ? (
-                <select
-                  value={p.categoria ?? ""}
-                  onChange={(e) => updateAndSync(p.id, { categoria: e.target.value || undefined })}
-                  className="mt-0.5 h-9 w-full rounded-lg border border-input bg-background px-2 text-sm"
-                >
-                  <option value="">Sin categoría</option>
-                  {categorias.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <Input
-                  value={p.categoria ?? ""}
-                  onChange={(e) => updateAndSync(p.id, { categoria: e.target.value || undefined })}
-                  placeholder="Gestiona las categorías en Ajustes"
-                  className="mt-0.5 h-9 rounded-lg"
-                />
-              )}
-            </label>
-            <Button variant="outline" size="sm" className="mt-2 h-8 w-full rounded-lg" onClick={() => setKardex(p.nombre)}>
-              Historial de movimientos
-            </Button>
-          </div>
+          <ProductoTarjeta
+            producto={p}
+            numero={i + 1}
+            existencia={existencias.get(p.id) ?? 0}
+            onEditar={() => setEditandoProductoId(p.id)}
+            onCodigos={() => setCodigosProductoId(p.id)}
+            onHistorial={() => setKardex(p.nombre)}
+          />
           </Fragment>
         ))}
       </div>
+      <EditarProductoDialog
+        producto={catalogo.find((p) => p.id === editandoProductoId) ?? null}
+        categorias={categorias}
+        onClose={() => setEditandoProductoId(null)}
+        onGuardar={guardarEdicion}
+        onCodigos={(id) => {
+          setEditandoProductoId(null);
+          setCodigosProductoId(id);
+        }}
+        onEliminar={(item) => { void eliminarProducto(item); }}
+      />
+      <CodigosProductoDialog
+        producto={catalogo.find((p) => p.id === codigosProductoId) ?? null}
+        onClose={() => setCodigosProductoId(null)}
+        onGuardarPrincipal={guardarCodigo}
+        onEscanearPrincipal={(id) => {
+          setCodigosProductoId(null);
+          setScannerDestino("primary:" + id);
+        }}
+        onAgregar={(id) => {
+          setCodigosProductoId(null);
+          setAliasDraft({ productoId: id, codigo: "", etiqueta: "" });
+        }}
+        onEscanearAdicional={(id) => {
+          setCodigosProductoId(null);
+          setScannerDestino("alias:" + id);
+        }}
+        onEditar={(id, indice) => {
+          const entrada = catalogo.find((p) => p.id === id)?.codigosAdicionales?.[indice];
+          if (!entrada) return;
+          setCodigosProductoId(null);
+          setAliasDraft({
+            productoId: id, indice, codigo: entrada.codigo, etiqueta: entrada.etiqueta ?? "",
+          });
+        }}
+        onEliminar={(item, indice) => { void eliminarAlias(item, indice); }}
+      />
       <KardexDialog nombre={kardex} punto={punto} onClose={() => setKardex(null)} />
       <Button
         className="h-11 w-full rounded-xl gradient-primary text-primary-foreground"
