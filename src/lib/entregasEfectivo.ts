@@ -40,7 +40,7 @@ export const formatoFechaEntrega = (fecha: string): string => {
 export const totalDenominaciones = (den: Denominaciones): number =>
   Object.entries(den).reduce((s, [billete, cantidad]) => s + Number(billete) * Number(cantidad || 0), 0);
 
-export function validarDenominaciones(den: Denominaciones): number {
+export function validarDenominaciones(den: Denominaciones, permitirCero = false): number {
   const permitidas = new Set(DENOMINACIONES.map(String));
   let total = 0;
   for (const [billete, cantidad] of Object.entries(den)) {
@@ -49,7 +49,7 @@ export function validarDenominaciones(den: Denominaciones): number {
     }
     total += Number(billete) * cantidad;
   }
-  if (!Number.isSafeInteger(total) || total <= 0) {
+  if (!Number.isSafeInteger(total) || total < 0 || (!permitirCero && total === 0)) {
     throw new Error("Introduce al menos un billete válido en la entrega.");
   }
   return total;
@@ -82,7 +82,7 @@ export async function enviarEntregaEfectivo(
 export async function contarEntregaEfectivo(
   usuarioId: string, entregaId: string, denominaciones: Denominaciones, nota = "",
 ): Promise<EntregaEfectivo> {
-  validarDenominaciones(denominaciones);
+  validarDenominaciones(denominaciones, true);
   const r = await rpcTurnoProtegido(usuarioId, "alfaro_efectivo_contar", {
     p_entrega_id: entregaId, p_den: denominaciones, p_nota: nota,
   });
