@@ -44,7 +44,7 @@ describe("PortalDependiente: renderizado del perfil", () => {
       </QueryClientProvider>
     );
     expect(screen.getByText("Salarios cobrados")).toBeTruthy();
-    expect(screen.getByText(/2\.500 CUP/)).toBeTruthy();
+    expect(screen.getByText(`${(2500).toLocaleString("es", { maximumFractionDigits: 2 })} CUP`)).toBeTruthy();
     expect(screen.getByText("Liquidaciones")).toBeTruthy();
   });
 });
