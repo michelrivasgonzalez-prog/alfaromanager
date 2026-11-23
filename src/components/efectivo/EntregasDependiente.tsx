@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Banknote, CheckCircle2, Clock, AlertTriangle, Plus, RefreshCw, Send, Tag, XCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -19,10 +19,35 @@ type Props = { usuarioId: string; turno: TurnoOperativo };
 
 export default function EntregasDependiente({ usuarioId, turno }: Props) {
   const qc = useQueryClient();
+  const borradorClave = `alfaro-efectivo-borrador:${usuarioId}:${turno.id}`;
+  const cargarBorrador = (): { billetes: Denominaciones; nota: string } => {
+    try {
+      const raw = localStorage.getItem(borradorClave);
+      if (!raw) return { billetes: emptyDen(), nota: "" };
+      const obj = JSON.parse(raw);
+      return {
+        billetes: { ...emptyDen(), ...(obj?.billetes ?? {}) },
+        nota: typeof obj?.nota === "string" ? obj.nota : "",
+      };
+    } catch {
+      return { billetes: emptyDen(), nota: "" };
+    }
+  };
   const [formulario, setFormulario] = useState(false);
-  const [den, setDen] = useState<Denominaciones>(emptyDen());
-  const [observacion, setObservacion] = useState("");
+  const [den, setDen] = useState<Denominaciones>(() => cargarBorrador().billetes);
+  const [observacion, setObservacion] = useState(() => cargarBorrador().nota);
   const [enviando, setEnviando] = useState(false);
+  useEffect(() => {
+    try {
+      if (Object.values(den).some((n) => Number(n) > 0) || observacion.trim()) {
+        localStorage.setItem(borradorClave, JSON.stringify({ billetes: den, nota: observacion }));
+      } else {
+        localStorage.removeItem(borradorClave);
+      }
+    } catch {
+      // La memoria del dispositivo puede estar llena; nunca confundir esto con una entrega enviada.
+    }
+  }, [borradorClave, den, observacion]);
   const [ultima, setUltima] = useState<string | null>(null);
   const lista = useQuery({
     queryKey: ["alfaro-efectivo-entregas", usuarioId, turno.id],
@@ -138,8 +163,8 @@ export default function EntregasDependiente({ usuarioId, turno }: Props) {
             </Button>
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Sin confirmación del servidor la entrega NO queda registrada. No se considera recibida
-            hasta que administración cuente el efectivo.
+            El conteo queda como borrador únicamente en este dispositivo mientras preparas la entrega.
+            Sin confirmación del servidor NO está enviado ni recibido, aunque estés sin conexión.
           </p>
         </div>
       )}
