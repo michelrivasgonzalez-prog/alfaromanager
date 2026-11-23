@@ -708,6 +708,15 @@ function Step4() {
       )
     : current.productos;
 
+  const gruposVisibles = Array.from(visibles.reduce((map, p) => {
+    const categoria = p.categoria?.trim() || "Sin categoría";
+    const productos = map.get(categoria) ?? [];
+    productos.push(p);
+    map.set(categoria, productos);
+    return map;
+  }, new Map<string, typeof visibles>()).entries())
+    .sort((a, b) => a[0].localeCompare(b[0], "es"));
+
   const aplicar = () => {
     if (!productoId || !cantidad) return;
     const p = current.productos.find((x) => x.id === productoId);
@@ -750,7 +759,7 @@ function Step4() {
           <Plus className="mr-2 h-4 w-4" /> Agregar producto
         </Button>
       )}
-      <div className="rounded-2xl border border-border bg-card p-5 shadow-soft space-y-3">
+      <div className="alfaro-surface space-y-3 p-4 sm:p-5">
         <div className="grid grid-cols-2 gap-2">
           <Button
             variant={tipo === "entrada" ? "default" : "outline"}
@@ -813,100 +822,88 @@ function Step4() {
           className="h-11 rounded-xl pl-9"
         />
       </div>
-      <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-soft">
-        <table className="w-full min-w-[620px] text-xs">
-          <thead className="bg-muted/60">
-            <tr>
-              <th className="px-3 py-1 text-left font-semibold">Producto</th>
-              <th className="px-2 py-1 text-right font-semibold">Entr.</th>
-              <th className="px-2 py-1 text-right font-semibold">Trasl.</th>
-              <th className="px-2 py-1 text-right font-semibold">Precio</th>
-              <th className="px-2 py-1 text-right font-semibold">Costo</th>
-              <th className="px-2 py-1 w-16"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {visibles.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">
-                  Sin resultados
-                </td>
-              </tr>
-            )}
-            {visibles.map((p) => (
-              <tr key={p.id} className="border-t border-border">
-                <td className="px-3 py-1 min-w-[11rem] leading-tight">
-                  {editingName === p.id ? (
-                    <Input
-                      autoFocus
-                      defaultValue={p.nombre}
-                      onBlur={(e) => {
-                        const v = e.target.value.trim();
-                        if (v) updateProducto(p.id, { nombre: v });
-                        setEditingName(null);
-                      }}
-                      className="h-8 rounded-lg text-xs"
-                    />
-                  ) : (
-                    <span
-                      className="cursor-pointer underline-offset-2 hover:underline"
-                      onClick={() => setEditingName(p.id)}
-                    >
-                      {p.nombre}
-                    </span>
-                  )}
-                  {p.categoria && (
-                    <div className="text-[10px] text-muted-foreground">{p.categoria}</div>
-                  )}
-                </td>
-                <td className="px-2 py-1 text-right">
-                  <NumberInput
-                    value={p.entradas}
-                    onChange={(v) => updateProducto(p.id, { entradas: v })}
-                    className="ml-auto h-8 w-16 rounded-lg text-right text-xs"
-                  />
-                </td>
-                <td className="px-2 py-1 text-right">
-                  <NumberInput
-                    value={p.traslados}
-                    onChange={(v) => updateProducto(p.id, { traslados: v })}
-                    className="ml-auto h-8 w-16 rounded-lg text-right text-xs"
-                  />
-                </td>
-                <td className="px-2 py-1 text-right">
-                  <NumberInput
-                    value={p.precio}
-                    onChange={(v) => updateProducto(p.id, { precio: v })}
-                    className="ml-auto h-8 w-20 rounded-lg text-right text-xs"
-                  />
-                </td>
-                <td className="px-2 py-1 text-right">
-                  <NumberInput
-                    value={p.costo}
-                    onChange={(v) => updateProducto(p.id, { costo: v })}
-                    className="ml-auto h-8 w-20 rounded-lg text-right text-xs"
-                  />
-                </td>
-                <td className="px-2 py-1 text-right">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 rounded-lg text-destructive"
-                    title="Eliminar producto de este cuadre"
-                    onClick={() => {
-                      if (!confirm(`¿Eliminar "${p.nombre}" de este cuadre?`)) return;
-                      removeProducto(p.id);
-                      toast.success("Producto eliminado");
-                    }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <section className="space-y-3" aria-label="Movimientos, precios y costos por producto">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+          <h2 className="text-sm font-bold">Productos del turno · {visibles.length}</h2>
+          <span className="text-xs text-muted-foreground">{gruposVisibles.length} categorías</span>
+        </div>
+        {visibles.length === 0 && (
+          <div className="alfaro-surface p-6 text-center text-sm text-muted-foreground">
+            No hay productos para la búsqueda actual.
+          </div>
+        )}
+        {gruposVisibles.map(([categoria, productos]) => (
+          <div key={categoria} className="alfaro-surface overflow-hidden">
+            <div className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted/30 px-3.5 py-3">
+              <h3 className="min-w-0 text-sm font-bold">{categoria}</h3>
+              <span className="shrink-0 rounded-full bg-secondary/10 px-2 py-1 text-[11px] font-semibold text-secondary">
+                {productos.length} producto{productos.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            <div className="divide-y divide-border/60">
+              {productos.map((p) => (
+                <div key={p.id} className="space-y-3 p-3.5">
+                  <div className="flex min-w-0 items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      {editingName === p.id ? (
+                        <Input autoFocus defaultValue={p.nombre}
+                          onBlur={(e) => {
+                            const nombre = e.target.value.trim();
+                            if (nombre) updateProducto(p.id, { nombre });
+                            setEditingName(null);
+                          }}
+                          className="h-10 w-full rounded-xl text-sm"/>
+                      ) : (
+                        <button type="button" title="Editar nombre" onClick={() => setEditingName(p.id)}
+                          className="break-words text-left text-sm font-semibold hover:underline">
+                          {p.nombre}
+                        </button>
+                      )}
+                    </div>
+                    <Button type="button" variant="outline" size="icon"
+                      className="h-9 w-9 shrink-0 rounded-xl text-destructive"
+                      aria-label={"Eliminar " + p.nombre + " de este cuadre"}
+                      title="Eliminar producto de este cuadre"
+                      onClick={() => {
+                        if (!confirm("¿Eliminar " + p.nombre + " de este cuadre?")) return;
+                        removeProducto(p.id);
+                        toast.success("Producto eliminado");
+                      }}>
+                      <Trash2 className="h-4 w-4"/>
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <label className="min-w-0 space-y-1">
+                      <span className="text-xs font-medium text-muted-foreground">Entradas</span>
+                      <NumberInput value={p.entradas}
+                        onChange={(v) => updateProducto(p.id, { entradas: v })}
+                        className="h-11 w-full rounded-xl text-right text-base font-semibold tabular-nums"/>
+                    </label>
+                    <label className="min-w-0 space-y-1">
+                      <span className="text-xs font-medium text-muted-foreground">Traslados</span>
+                      <NumberInput value={p.traslados}
+                        onChange={(v) => updateProducto(p.id, { traslados: v })}
+                        className="h-11 w-full rounded-xl text-right text-base font-semibold tabular-nums"/>
+                    </label>
+                    <label className="min-w-0 space-y-1">
+                      <span className="text-xs font-medium text-muted-foreground">Precio venta</span>
+                      <NumberInput value={p.precio}
+                        onChange={(v) => updateProducto(p.id, { precio: v })}
+                        className="h-11 w-full rounded-xl text-right text-base font-semibold tabular-nums"/>
+                    </label>
+                    <label className="min-w-0 space-y-1">
+                      <span className="text-xs font-medium text-muted-foreground">Costo</span>
+                      <NumberInput value={p.costo}
+                        onChange={(v) => updateProducto(p.id, { costo: v })}
+                        className="h-11 w-full rounded-xl text-right text-base font-semibold tabular-nums"/>
+                    </label>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </section>
 
       <Dialog open={nuevoOpen} onOpenChange={setNuevoOpen}>
         <DialogContent>
