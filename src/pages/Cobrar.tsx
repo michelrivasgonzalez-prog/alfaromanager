@@ -14,8 +14,6 @@ import {
   ShieldCheck,
   User as UserIcon,
   Search,
-  ArrowUpRight,
-  ArrowDownLeft,
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
@@ -195,10 +193,11 @@ export default function Cobrar() {
             <Wallet className="h-5 w-5" /> Pendiente por cobrar
           </div>
           <p className="relative mt-2 break-words text-3xl font-extrabold tracking-tight tabular-nums sm:text-4xl">
-            {fmt(pendienteTotal)}
+            {deudas.isPending ? "Consultando…" : deudas.isError ? "No disponible" : fmt(pendienteTotal)}
           </p>
           <p className="relative mt-2 text-xs text-white/85">
-            {clientesConDeuda} cliente{clientesConDeuda === 1 ? "" : "s"} con saldo pendiente
+            {deudas.isPending ? "Cargando saldos de los clientes…" : deudas.isError ? "No fue posible consultar las deudas." :
+              clientesConDeuda + " cliente" + (clientesConDeuda === 1 ? "" : "s") + " con saldo pendiente"}
           </p>
         </div>
         <div className="grid grid-cols-3 gap-2">
@@ -219,6 +218,16 @@ export default function Cobrar() {
           </div>
         </div>
       </section>
+      {(deudas.isError || clientes.isError) && (
+        <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm">
+          <p className="font-medium text-destructive">No se pudieron cargar todos los datos de cobros.</p>
+          <p className="mt-1 text-xs text-muted-foreground">No interpretes cifras incompletas como saldos confirmados.</p>
+          <Button type="button" size="sm" variant="outline" className="mt-2 rounded-lg"
+            onClick={() => { void deudas.refetch(); void clientes.refetch(); }}>
+            Reintentar consulta
+          </Button>
+        </div>
+      )}
 
             <Tabs defaultValue="clientes" className="w-full">
         <TabsList className="grid w-full grid-cols-2 rounded-xl">
