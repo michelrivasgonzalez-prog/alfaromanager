@@ -1,4 +1,4 @@
-import webpush from 'web-push';
+import * as webpush from 'web-push';
 
 const SUPABASE_URL = 'https://ydrmzyddlpsaojzekgmv.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_4K4YgbkLl70I04g_by_-QQ_9To7Q9J-';
