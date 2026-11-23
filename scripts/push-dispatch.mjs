@@ -54,7 +54,12 @@ async function run() {
     const payload = JSON.stringify({
       id: item.evento_id,
       title: item.titulo,
-      body: item.contenido || 'Abre AlFaroCafé para revisar un movimiento.',
+      // Los avisos de prueba históricos mencionaban iPhone aunque el destinatario fuera Android.
+      // Normaliza el texto al enviar sin tocar la cola ni los datos del inventario.
+      body: item.contenido?.replace(
+        'tu iPhone está recibiendo notificaciones push',
+        'tu dispositivo está recibiendo notificaciones push'
+      ) || 'Abre AlFaroCafé para revisar un movimiento.',
       url: item.destino || '/notificaciones',
       category: item.categoria
     });
