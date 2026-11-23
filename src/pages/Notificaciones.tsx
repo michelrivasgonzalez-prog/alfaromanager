@@ -229,7 +229,7 @@ export default function Notificaciones() {
                 <strong>{n.titulo}</strong>
                 {!n.leido && <span className="h-2 w-2 shrink-0 rounded-full bg-primary"/>}
               </div>
-              <p className="mt-0.5 text-xs text-muted-foreground">{n.contenido}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{n.contenido.replace("tu iPhone está recibiendo notificaciones push", "tu dispositivo está recibiendo notificaciones push")}</p>
               <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground">
                 <span>{nombreCategoria[n.categoria]}</span>
                 <span className="flex items-center gap-1">
@@ -283,7 +283,7 @@ export default function Notificaciones() {
         </h2>
         <p className="text-xs text-muted-foreground">
           Una cifra sobre el icono solo indica avisos pendientes; no garantiza que
-          Apple haya recibido un push. Esta prueba permite comprobar la entrega real.
+          el dispositivo haya recibido un push. Esta prueba permite comprobar la entrega real.
         </p>
         <Button type="button" variant="outline" disabled={!habilitado || !!error}
           onClick={() => void probarNotificacionEnTelefono()} className="h-11 w-full">
