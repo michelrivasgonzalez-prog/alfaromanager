@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { History, Package, Pencil, ScanBarcode } from "lucide-react";
+import { ChevronRight, History, Package, Pencil, ScanBarcode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { CatalogoItem } from "@/store/cuadreStore";
 import { codigosDeProducto } from "@/lib/codigosBarras";
@@ -84,15 +84,19 @@ export default function ProductoTarjeta({
               Códigos ({totalCodigos})
             </span>
           </Button>
-          <div className="flex shrink-0 items-center gap-1">
-            <Button type="button" size="icon" variant="ghost" className="h-9 w-9 rounded-xl"
-              title="Historial de movimientos" aria-label={"Historial de " + producto.nombre}
-              onClick={onHistorial}><History className="h-4 w-4" /></Button>
-            <Button type="button" size="icon" variant="outline" className="h-9 w-9 rounded-xl"
-              title="Editar producto" aria-label={"Editar " + producto.nombre}
-              onClick={onEditar}><Pencil className="h-4 w-4" /></Button>
-          </div>
+          <Button type="button" size="icon" variant="outline" className="h-9 w-9 shrink-0 rounded-xl"
+            title="Editar producto" aria-label={"Editar " + producto.nombre}
+            onClick={onEditar}><Pencil className="h-4 w-4" /></Button>
         </div>
+        <Button type="button" variant="outline"
+          className="h-11 w-full justify-between rounded-xl border-primary/30 bg-primary/5 px-3 text-sm font-semibold text-primary hover:bg-primary/10 hover:text-primary"
+          aria-label={"Ver historial de movimientos de " + producto.nombre}
+          onClick={onHistorial}>
+          <span className="flex items-center gap-2"><History className="h-4 w-4 shrink-0" />
+            Ver historial de movimientos
+          </span>
+          <ChevronRight className="h-4 w-4 shrink-0" />
+        </Button>
       </div>
     </article>
   );
