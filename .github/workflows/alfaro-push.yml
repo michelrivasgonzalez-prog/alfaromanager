@@ -22,11 +22,4 @@ jobs:
         run: npm install --no-save web-push
 
       - name: Ejecutar despachador de notificaciones
-        env:
-          VITE_SUPABASE_URL: "https://ydrmzyddlpsaojzekgmv.supabase.co"
-          VITE_SUPABASE_ANON_KEY: "sb_publishable_4K4YgbkLl70I04g_by_-QQ_9To7Q9J-"
-          ALFARO_DISPATCH_SECRET: ${{ secrets.ALFARO_DISPATCH_SECRET || 'alfaro_push_secreto_2026' }}
-          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
-          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
-          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
-        run: node scripts/push-dispatch.mjs
+        run: node push-dispatch.mjs
