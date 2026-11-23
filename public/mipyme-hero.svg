@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" role="img" aria-label="Ilustración del punto de venta MiPyME">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#EAD4AB"/><stop offset=".6" stop-color="#B8C9BA"/><stop offset="1" stop-color="#294E57"/></linearGradient>
+<linearGradient id="shelf" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#E6BE7C"/><stop offset="1" stop-color="#A67838"/></linearGradient>
+<linearGradient id="floor" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#5E756B"/><stop offset="1" stop-color="#223F45"/></linearGradient>
+<filter id="shadow"><feGaussianBlur stdDeviation="14"/></filter>
+</defs>
+<rect width="800" height="500" fill="url(#bg)"/>
+<circle cx="690" cy="70" r="160" fill="#F6E6C6" opacity=".45"/>
+<rect x="0" y="375" width="800" height="125" fill="url(#floor)"/>
+<g opacity=".55" filter="url(#shadow)"><ellipse cx="430" cy="398" rx="270" ry="28" fill="#192E33"/></g>
+<g transform="translate(285,90)">
+<rect x="0" y="25" width="395" height="300" rx="16" fill="#2A4D53" stroke="#D6BD86" stroke-width="9"/>
+<rect x="15" y="70" width="365" height="17" rx="5" fill="url(#shelf)"/>
+<rect x="15" y="172" width="365" height="17" rx="5" fill="url(#shelf)"/>
+<rect x="15" y="275" width="365" height="17" rx="5" fill="url(#shelf)"/>
+<g>
+<rect x="36" y="22" width="42" height="47" rx="8" fill="#F9E1AD"/><rect x="88" y="42" width="31" height="27" rx="3" fill="#C77F50"/>
+<rect x="128" y="31" width="50" height="38" rx="5" fill="#A4C6A9"/><rect x="194" y="19" width="38" height="50" rx="9" fill="#E7B96F"/>
+<rect x="247" y="26" width="36" height="43" rx="4" fill="#EFE3BD"/><rect x="302" y="37" width="48" height="32" rx="5" fill="#D38E5C"/>
+<rect x="31" y="96" width="53" height="76" rx="5" fill="#C79B62"/><rect x="94" y="110" width="51" height="62" rx="5" fill="#E9D6A9"/>
+<rect x="155" y="92" width="40" height="80" rx="10" fill="#90B8AD"/><rect x="211" y="108" width="47" height="64" rx="6" fill="#D58B4F"/>
+<rect x="267" y="93" width="37" height="79" rx="8" fill="#E2C8A6"/><rect x="313" y="115" width="43" height="57" rx="5" fill="#C8AA68"/>
+<rect x="28" y="202" width="54" height="73" rx="4" fill="#C6A771"/><rect x="90" y="220" width="50" height="55" rx="5" fill="#9CBAA5"/>
+<rect x="151" y="205" width="42" height="70" rx="6" fill="#F4D9A0"/><rect x="203" y="220" width="46" height="55" rx="5" fill="#D19A70"/>
+<rect x="260" y="204" width="41" height="71" rx="6" fill="#D9CBA1"/><rect x="313" y="208" width="45" height="67" rx="9" fill="#B0CCB6"/>
+</g>
+</g>
+<g transform="translate(160,192)"><path d="M0 30 Q0 0 32 0 H148 Q180 0 180 30 V183 H0Z" fill="#DFC89D" stroke="#FFF0D1" stroke-width="6"/>
+<path d="M0 37 H180" stroke="#B68B50" stroke-width="7"/><path d="M20 61 H157 M20 124 H157" stroke="#AB814D" stroke-width="12"/>
+<rect x="34" y="75" width="42" height="42" rx="5" fill="#2B6371"/><rect x="90" y="76" width="50" height="40" rx="4" fill="#B98450"/>
+<rect x="35" y="138" width="48" height="32" rx="3" fill="#97B5A5"/><rect x="96" y="138" width="49" height="32" rx="4" fill="#E7B46C"/></g>
+<path d="M0 388Q130 335 230 385T470 388T800 362V500H0Z" fill="#163C46" opacity=".25"/>
+<rect width="800" height="500" fill="#0B2339" opacity=".10"/>
+</svg>
