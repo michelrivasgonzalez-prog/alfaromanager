@@ -23,7 +23,7 @@ export default defineConfig(({ mode }) => ({
       registerType: "autoUpdate",
       includeAssets: ["favicon.png", "icon-192.png", "icon-512.png"],
       manifest: {
-        id: "/alfarocafe-manager",
+        id: "/", // Identidad anterior del PWA: conservar instalación existente en iPhone
         name: "AlFaroCafé Manager",
         short_name: "AlFaroCafé",
         description: "Cuadres, almacén y cuentas por cobrar de AlFaroCafé.",
