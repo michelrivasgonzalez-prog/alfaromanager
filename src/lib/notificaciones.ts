@@ -243,20 +243,20 @@ export async function solicitarPushDePrueba(): Promise<string> {
 
 
 /**
- * Notificación LOCAL, generada por el service worker del iPhone.
+ * Notificación LOCAL generada por el service worker del dispositivo.
  * No comprueba que el despachador de la nube esté funcionando.
- * Sirve para diagnosticar si iOS muestra banners/sonidos.
+ * Sirve para diagnosticar la presentación de avisos y sonidos del sistema.
  */
 export async function probarBannerLocal(): Promise<void> {
   if (!soportaPush() || !esPWAInstalada()) {
     throw new Error("Abre AlFaroCafé desde el icono de la pantalla de inicio.");
   }
   if (Notification.permission !== "granted") {
-    throw new Error("Autoriza las notificaciones de AlFaroCafé en Ajustes del iPhone.");
+    throw new Error("Autoriza las notificaciones de AlFaroCafé en los ajustes de tu dispositivo.");
   }
   const registration = await navigator.serviceWorker.ready;
   await registration.showNotification("AlFaroCafé · Prueba local", {
-    body: "Si ves esta alerta pero no suena, revisa Sonidos, Silencio y Concentración en el iPhone.",
+    body: "Si ves este aviso pero no suena, revisa los permisos de sonido, Silencio y No molestar del dispositivo.",
     icon: "/icon-192.png",
     badge: "/icon-192.png",
     tag: "alfaro-prueba-local-" + Date.now(),
