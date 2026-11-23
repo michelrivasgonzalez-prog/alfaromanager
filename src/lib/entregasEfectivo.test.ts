@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  codigoEntrega, recogidaDesdeEntrega, totalDenominaciones, validarDenominaciones,
+  codigoEntrega, fajosDuplicadosEnCuadres, recogidaDesdeEntrega, totalDenominaciones, validarDenominaciones,
   type EntregaEfectivo,
 } from "./entregasEfectivo";
 
@@ -44,6 +44,21 @@ describe("entregas de efectivo vinculadas al arqueo", () => {
     expect(recogida.id).toBe(entrega.id);
     expect(recogida.entregaEfectivoId).toBe(entrega.id);
     expect(codigoEntrega(entrega.id)).toBe("EFE-C901A002");
+  });
+
+  it("detecta el mismo fajo dentro de otro cuadre o repetido en el mismo", () => {
+    const r = recogidaDesdeEntrega(entrega);
+    expect(fajosDuplicadosEnCuadres(
+      { id: "nuevo", recogidas: [r] },
+      [{ id: "anterior", recogidas: [r] }],
+    )).toEqual([entrega.id]);
+    expect(fajosDuplicadosEnCuadres(
+      { id: "nuevo", recogidas: [r, r] }, [],
+    )).toEqual([entrega.id]);
+    expect(fajosDuplicadosEnCuadres(
+      { id: "nuevo", recogidas: [r] },
+      [{ id: "nuevo", recogidas: [r] }],
+    )).toEqual([]);
   });
 
   it("rechaza sumar fajos pendientes o con diferencias no resueltas", () => {
