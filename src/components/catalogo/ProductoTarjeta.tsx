@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { History, Package, Pencil, ScanBarcode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { CatalogoItem } from "@/store/cuadreStore";
+import { codigosDeProducto } from "@/lib/codigosBarras";
 
 const dinero = (n: number) => Number(n || 0).toLocaleString("es-ES", {
   minimumFractionDigits: 0, maximumFractionDigits: 2,
@@ -23,6 +24,7 @@ export default function ProductoTarjeta({
   const [fotoFallida, setFotoFallida] = useState(false);
   useEffect(() => setFotoFallida(false), [producto.fotoUrl]);
   const tieneExistencia = existencia > 0;
+  const totalCodigos = codigosDeProducto(producto).length;
 
   return (
     <article
@@ -49,27 +51,47 @@ export default function ProductoTarjeta({
         </div>
         <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">#{numero}</span>
       </div>
-      <div className="flex items-end justify-between gap-2 border-t border-border/60 pt-2.5">
-        <div className="flex min-w-0 flex-1 flex-wrap gap-x-5 gap-y-1">
-          <div>
-            <p className="text-[10px] text-muted-foreground">Venta</p>
-            <p className="text-sm font-semibold tabular-nums">{dinero(producto.precio)} <span className="text-[10px] font-normal text-muted-foreground">CUP</span></p>
+      <div className="space-y-2 border-t border-border/60 pt-2.5">
+        <div className="grid grid-cols-2 gap-x-4">
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">Venta</p>
+            <p className="text-lg font-bold leading-tight tabular-nums sm:text-xl">
+              {dinero(producto.precio)}{" "}
+              <span className="text-[11px] font-normal text-muted-foreground">CUP</span>
+            </p>
           </div>
-          <div>
-            <p className="text-[10px] text-muted-foreground">Costo</p>
-            <p className="text-sm font-semibold tabular-nums">{dinero(producto.costo)} <span className="text-[10px] font-normal text-muted-foreground">CUP</span></p>
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">Costo</p>
+            <p className="text-lg font-bold leading-tight tabular-nums sm:text-xl">
+              {dinero(producto.costo)}{" "}
+              <span className="text-[11px] font-normal text-muted-foreground">CUP</span>
+            </p>
           </div>
         </div>
-        <div className="flex shrink-0 gap-1">
-          <Button type="button" size="icon" variant="ghost" className="h-9 w-9 rounded-xl"
-            title="Códigos de barras" aria-label={"Códigos de barras de " + producto.nombre}
-            onClick={onCodigos}><ScanBarcode className="h-4 w-4" /></Button>
-          <Button type="button" size="icon" variant="ghost" className="h-9 w-9 rounded-xl"
-            title="Historial de movimientos" aria-label={"Historial de " + producto.nombre}
-            onClick={onHistorial}><History className="h-4 w-4" /></Button>
-          <Button type="button" size="icon" variant="outline" className="h-9 w-9 rounded-xl"
-            title="Editar producto" aria-label={"Editar " + producto.nombre}
-            onClick={onEditar}><Pencil className="h-4 w-4" /></Button>
+        <div className="flex items-center justify-between gap-2">
+          <Button type="button" variant="ghost" className="h-9 min-w-0 gap-2 rounded-xl px-2"
+            title={"Ver códigos de barras (" + totalCodigos + ")"}
+            aria-label={"Ver los " + totalCodigos + " códigos de barras de " + producto.nombre}
+            onClick={onCodigos}>
+            <span className="relative inline-flex shrink-0">
+              <ScanBarcode className="h-4 w-4" aria-hidden="true" />
+              {totalCodigos > 0 && (
+                <span aria-hidden="true"
+                  className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-card" />
+              )}
+            </span>
+            <span className="whitespace-nowrap text-xs font-medium">
+              Códigos ({totalCodigos})
+            </span>
+          </Button>
+          <div className="flex shrink-0 items-center gap-1">
+            <Button type="button" size="icon" variant="ghost" className="h-9 w-9 rounded-xl"
+              title="Historial de movimientos" aria-label={"Historial de " + producto.nombre}
+              onClick={onHistorial}><History className="h-4 w-4" /></Button>
+            <Button type="button" size="icon" variant="outline" className="h-9 w-9 rounded-xl"
+              title="Editar producto" aria-label={"Editar " + producto.nombre}
+              onClick={onEditar}><Pencil className="h-4 w-4" /></Button>
+          </div>
         </div>
       </div>
     </article>
