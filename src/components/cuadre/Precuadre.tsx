@@ -273,6 +273,7 @@ export function PrecuadreDependiente({
   const porcentajeTransferencia = settings.porcentajeTransferencia;
   const cargoTransferencia = Math.round((Number(gastoMontoEfectivo) || 0) * porcentajeTransferencia) / 100;
     const [gastoItems, setGastoItems] = useState<{ productoId: string; productoNombre: string; cantidad: number; precio: number }[]>([]);
+  const [editingGastoItemIndex, setEditingGastoItemIndex] = useState<number | null>(null);
   const [gastoProdSelId, setGastoProdSelId] = useState("");
   const [gastoProdCant, setGastoProdCant] = useState("");
   const [gastoProdPrecio, setGastoProdPrecio] = useState("");
@@ -631,6 +632,7 @@ export function PrecuadreDependiente({
     setGastoProdSelId("");
     setGastoProdCant("");
     setGastoProdPrecio("");
+    setEditingGastoItemIndex(null);
   };
 
   // Agregar recogida en el paso 8
@@ -1922,7 +1924,7 @@ export function PrecuadreDependiente({
                 {/* PASO 7 */}
         {paso === 7 && (
           <div className="space-y-4 pt-1">
-            <div className="p-4 bg-card rounded-2xl border border-border shadow-soft space-y-3">
+            <div id="precuadre-form-gasto" className="scroll-mt-28 p-4 bg-card rounded-2xl border border-border shadow-soft space-y-3">
               {/* Categoría */}
               <div>
                 <label className="text-xs font-semibold text-muted-foreground block mb-1">Categoría</label>
@@ -2020,22 +2022,43 @@ export function PrecuadreDependiente({
               ) : (
                 /* Canasta de Productos (igual que el admin) */
                 <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-2">
-                  <div className="text-[11px] font-semibold text-primary">Cesta de productos de esta salida</div>
+                  <div className="flex items-center justify-between gap-2">
+                    <strong className="text-[11px] text-primary">Cesta de productos de esta salida</strong>
+                    <span className="text-[11px] text-muted-foreground">{gastoItems.length} producto(s)</span>
+                  </div>
+                  {editingGastoItemIndex !== null && (
+                    <p className="rounded-lg bg-secondary/10 px-2 py-1.5 text-[11px] font-medium text-secondary">
+                      Edita la cantidad o el precio y guarda los cambios del producto.
+                    </p>
+                  )}
                   {gastoItems.length > 0 && (
                     <div className="space-y-1">
                       {gastoItems.map((it, idx) => (
-                        <div key={idx} className="flex justify-between items-center bg-card p-2 rounded-lg text-xs border">
-                          <span className="truncate flex-1 font-medium">{it.productoNombre}</span>
-                          <span className="text-muted-foreground mx-2">{it.cantidad} × ${dineroCUP(it.precio)}</span>
-                          <strong className="mr-2">${dineroCUP(it.cantidad * it.precio)}</strong>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-destructive"
-                            onClick={() => setGastoItems((prev) => prev.filter((_, i) => i !== idx))}
-                          >
-                            <Trash2 className="h-3 w-3" />
+                        <div key={idx} className={`flex items-center gap-1 rounded-lg border bg-card p-2 text-xs ${editingGastoItemIndex === idx ? "border-secondary" : ""}`}>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate font-medium">{it.productoNombre}</p>
+                            <p className="text-[11px] text-muted-foreground">{it.cantidad} × ${dineroCUP(it.precio)} = ${dineroCUP(it.cantidad * it.precio)}</p>
+                          </div>
+                          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-primary"
+                            aria-label={`Editar ${it.productoNombre} en la cesta`}
+                            onClick={() => {
+                              setEditingGastoItemIndex(idx);
+                              setGastoProdSelId(it.productoId);
+                              setGastoProdCant(String(it.cantidad));
+                              setGastoProdPrecio(String(it.precio));
+                            }}>
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-destructive"
+                            aria-label={`Quitar ${it.productoNombre} de la cesta`}
+                            onClick={() => {
+                              setGastoItems((prev) => prev.filter((_, i) => i !== idx));
+                              setEditingGastoItemIndex(null);
+                              setGastoProdSelId("");
+                              setGastoProdCant("");
+                              setGastoProdPrecio("");
+                            }}>
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
                       ))}
@@ -2125,20 +2148,33 @@ export function PrecuadreDependiente({
                         const cant = Number(gastoProdCant);
                         const prec = Number(gastoProdPrecio);
                         const p = resumenProductos.find((x) => x.id === gastoProdSelId);
-                        if (!p || cant <= 0 || prec <= 0) {
-                          return toast.error("Selecciona producto, cantidad y precio");
+                        if (!p || !Number.isFinite(cant) || !Number.isFinite(prec) || cant <= 0 || prec <= 0) {
+                          return toast.error("Selecciona un producto, cantidad y precio válidos");
                         }
-                        setGastoItems((prev) => [
-                          ...prev,
-                          { productoId: p.id, productoNombre: p.nombre, cantidad: cant, precio: prec },
-                        ]);
+                        const item = { productoId: p.id, productoNombre: p.nombre, cantidad: cant, precio: prec };
+                        if (editingGastoItemIndex !== null) {
+                          setGastoItems((prev) => prev.map((anterior, index) => index === editingGastoItemIndex ? item : anterior));
+                          toast.success("Producto actualizado en la cesta");
+                        } else {
+                          setGastoItems((prev) => [...prev, item]);
+                        }
+                        setEditingGastoItemIndex(null);
                         setGastoProdSelId("");
                         setGastoProdCant("");
                         setGastoProdPrecio("");
                       }}
                     >
-                      + Agregar producto a la cesta
+                      {editingGastoItemIndex !== null ? "Guardar cambios del producto" : "+ Agregar producto a la cesta"}
                     </Button>
+                    {editingGastoItemIndex !== null && (
+                      <Button type="button" variant="outline" size="sm" className="w-full rounded-xl text-xs"
+                        onClick={() => {
+                          setEditingGastoItemIndex(null);
+                          setGastoProdSelId("");
+                          setGastoProdCant("");
+                          setGastoProdPrecio("");
+                        }}>Cancelar edición del producto</Button>
+                    )}
                   </div>
                 </div>
               )}
@@ -2199,6 +2235,7 @@ export function PrecuadreDependiente({
                   setGastoDesc("");
                   setGastoMontoEfectivo("");
                   setGastoItems([]);
+                  setEditingGastoItemIndex(null);
                   setGastoProdSelId("");
                   setGastoProdCant("");
                   setGastoProdPrecio("");
@@ -2232,7 +2269,10 @@ export function PrecuadreDependiente({
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-destructive font-mono">-${dineroCUP(g.monto)}</span>
-                      <Button type="button" variant="ghost" size="icon" aria-label="Editar salida" onClick={() => iniciarEdicionGasto(g)}>
+                      <Button type="button" variant="ghost" size="icon" aria-label="Editar salida" onClick={() => {
+                         iniciarEdicionGasto(g);
+                         document.getElementById("precuadre-form-gasto")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                       }}>
                         <Edit2 className="h-3.5 w-3.5" />
                       </Button>
                       <Button
