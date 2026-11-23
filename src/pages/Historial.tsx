@@ -24,7 +24,6 @@ import {
   MoreHorizontal,
   Coffee,
   Store,
-  CalendarDays,
   AlertTriangle,
   CloudOff,
   RefreshCw,
@@ -52,6 +51,7 @@ import { listClientes, listDeudas, crearDeuda, upsertCliente, actualizarDeuda, e
 import { ajustarDeuda } from "@/lib/corregirDeudas";
 import { formatDiasTrabajados, formatGastoDetalle, gastoLineas, ordenarGastos } from "@/lib/dias";
 import { Input } from "@/components/ui/input";
+import Avatar from "@/components/Avatar";
 import { Label } from "@/components/ui/label";
 import { SesionCaja } from "@/components/SesionCaja";
 import { conciliarSobranteEditado, confirmarAjusteSobrante, confirmarSobrante, consultarSobrante, deudaPorFaltante, fechaCaja, montoCaja, reclasificarSobrante, useSesionCaja } from "@/lib/cajaSobrantes";
@@ -175,8 +175,7 @@ export default function Historial() {
   const [detalle, setDetalle] = useState<Cuadre | null>(null);
   const [deudaFor, setDeudaFor] = useState<{ cuadre: Cuadre; pagada: boolean } | null>(null);
   const [corregirFor, setCorregirFor] = useState<Cuadre | null>(null);
-  const [punto, setPunto] = useState<"Todos" | "Cafetería" | "Mipyme">("Todos");
-  const [periodo, setPeriodo] = useState<"todos" | "30" | "mes">("todos");
+  const [punto, setPunto] = useState<"Cafetería" | "Mipyme">("Cafetería");
   const [expandidoId, setExpandidoId] = useState<string | null>(null);
   const [accionesId, setAccionesId] = useState<string | null>(null);
 
@@ -230,20 +229,11 @@ export default function Historial() {
   const fechaT = (c: Cuadre) => c.diasTrabajados?.[c.diasTrabajados.length - 1] ?? c.fecha;
 
   const lista = useMemo(() => {
-    const ahora = new Date();
-    const inicioMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1).getTime();
-    const inicio30 = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() - 29).getTime();
-    const base = history.filter((c) => {
-      if (punto !== "Todos" && c.puntoVenta !== punto) return false;
-      const fecha = new Date(fechaT(c)).getTime();
-      if (periodo === "mes" && !(fecha >= inicioMes)) return false;
-      if (periodo === "30" && !(fecha >= inicio30)) return false;
-      return true;
-    });
+    const base = history.filter((c) => c.puntoVenta === punto);
     return [...base].sort(
       (a, b) => new Date(fechaT(b)).getTime() - new Date(fechaT(a)).getTime()
     );
-  }, [history, punto, periodo]);
+  }, [history, punto]);
 
   const resumen = useMemo(() => lista.reduce((a, c) => {
     const r = calcCuadre(c);
@@ -272,9 +262,9 @@ export default function Historial() {
     <div className="space-y-4">
       <header className="alfaro-page-header"><h1 className="text-xl font-extrabold sm:text-2xl">Historial de Cuadres</h1><p className="mt-1 text-xs text-muted-foreground sm:text-sm">Consulta, filtra y audita turnos cerrados</p></header>
       <section className="alfaro-surface space-y-3 p-3" aria-label="Filtros de cuadres">
-        <div className="grid grid-cols-3 gap-1 rounded-xl bg-muted/60 p-1">
-          {(["Todos", "Cafetería", "Mipyme"] as const).map((p) => {
-            const Icon = p === "Cafetería" ? Coffee : p === "Mipyme" ? Store : HistoryIcon;
+        <div className="grid grid-cols-2 gap-1 rounded-xl bg-muted/60 p-1">
+          {(["Cafetería", "Mipyme"] as const).map((p) => {
+            const Icon = p === "Cafetería" ? Coffee : Store;
             return (
               <button type="button" key={p} onClick={() => { setPunto(p); setExpandidoId(null); setAccionesId(null); }}
                 aria-pressed={punto === p}
@@ -285,18 +275,6 @@ export default function Historial() {
               </button>
             );
           })}
-        </div>
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <CalendarDays className="h-4 w-4 shrink-0" /> Período
-          </div>
-          <select aria-label="Filtrar por período" value={periodo}
-            onChange={(e) => { setPeriodo(e.target.value as "todos" | "30" | "mes"); setExpandidoId(null); setAccionesId(null); }}
-            className="h-10 min-w-0 rounded-xl border border-input bg-card px-3 text-sm font-medium">
-            <option value="todos">Todo el historial</option>
-            <option value="30">Últimos 30 días</option>
-            <option value="mes">Mes actual</option>
-          </select>
         </div>
       </section>
       <section aria-label="Resumen de los turnos filtrados" className="grid grid-cols-3 gap-2">
@@ -395,10 +373,8 @@ export default function Historial() {
                 setExpandidoId(expandidoId === c.id ? null : c.id);
                 setAccionesId(null);
               }}>
-              <span className={"flex h-11 w-11 shrink-0 items-center justify-center rounded-xl " +
-                (c.puntoVenta === "Cafetería" ? "bg-primary/10 text-primary dark:text-foreground" : "bg-secondary/10 text-secondary")}>
-                {c.puntoVenta === "Cafetería" ? <Coffee className="h-5 w-5" /> : <Store className="h-5 w-5" />}
-              </span>
+              <Avatar nombre={c.dependiente || "Dependiente"} size="lg"
+                className="ring-2 ring-border/60" />
               <span className="min-w-0 flex-1 space-y-1">
                 <span className="block break-words text-sm font-bold">{c.dependiente || "Sin nombre"}</span>
                 <span className="block text-xs text-muted-foreground">
