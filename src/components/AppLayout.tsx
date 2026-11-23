@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Home, History, BarChart3, Package, Users, Settings, LogOut, Warehouse, Wallet, Cloud, CloudOff, RefreshCw, CalendarDays, Banknote, Bell } from "lucide-react";
+import { Home, History, BarChart3, Package, Users, Settings, LogOut, Warehouse, Wallet, Cloud, CloudOff, RefreshCw, CalendarDays, Banknote, Bell, Coffee, Menu, Search, ChevronRight, ClipboardList, CheckCircle2 } from "lucide-react";
 import { useCuadreStore } from "@/store/cuadreStore";
 import { motion } from "framer-motion";
 import { useAuth, AppRole } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { fullSync } from "@/lib/sync";
 import { iniciarBorradoresNube } from "@/lib/borradores";
 import { useQueryClient } from "@tanstack/react-query";
@@ -77,7 +78,37 @@ export default function AppLayout() {
   const [syncState, setSyncState] = useState<"idle" | "syncing" | "ok" | "error">("idle");
   const [lastSync, setLastSync] = useState<number | null>(null);
   const [avisosPendientes, setAvisosPendientes] = useState(0);
+  const [masAbierto, setMasAbierto] = useState(false);
   const usuarioPinId = usePinStore((s) => s.currentUserId);
+
+  const principal = role === "dependiente"
+    ? tabs.filter((t) => ["/", "/cobrar", "/notificaciones"].includes(t.to))
+    : [
+        { to: "/", icon: Home, label: "Inicio" },
+        { to: "/historial", icon: ClipboardList, label: "Cuadres" },
+        { to: "/cobrar", icon: Wallet, label: "Cobros" },
+        { to: "/reportes", icon: BarChart3, label: "Reportes" },
+      ];
+
+  const menuItems = tabs.filter((t) =>
+    !["/", "/cobrar", "/reportes"].includes(t.to)
+  );
+  const estaActivo = (ruta: string) =>
+    ruta === "/"
+      ? location.pathname === "/"
+      : ruta === "/historial"
+        ? location.pathname === "/historial" ||
+          location.pathname.startsWith("/historial/") ||
+          location.pathname.startsWith("/cuadre/")
+        : ruta === "/cobrar"
+          ? location.pathname === "/cobrar" ||
+            location.pathname.startsWith("/cliente/") ||
+            location.pathname.startsWith("/abonar/")
+          : location.pathname === ruta;
+  const masActivo = !principal.some((t) => estaActivo(t.to));
+
+  useEffect(() => setMasAbierto(false), [location.pathname]);
+
 
   useEffect(() => {
     let activo = true;
@@ -164,79 +195,67 @@ export default function AppLayout() {
 
   return (
     <div className="min-h-screen gradient-warm">
-      <div className="mx-auto flex max-w-2xl items-center justify-between px-4 pt-3 text-xs text-muted-foreground">
-        <span className="truncate">
-          {nombre}
-          {role && (
-            <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary">
-              {role === "duena" ? "Dueña" : role === "admin" ? "Admin" : "Dependiente"}
-            </span>
-          )}
-        </span>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            className="relative flex h-8 w-8 items-center justify-center rounded-xl text-primary"
-            aria-label={"Notificaciones: " + avisosPendientes + " pendientes"}
-            onClick={() => navigate("/notificaciones")}
-          >
-            <Bell className="h-4 w-4"/>
-            {avisosPendientes > 0 && (
-              <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-destructive px-1 text-[9px] font-bold text-white">
-                {avisosPendientes > 99 ? "99+" : avisosPendientes}
+      <header className="border-b border-border/40 bg-card/65 backdrop-blur">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-3 py-2.5 sm:px-5">
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-secondary/10 text-secondary">
+              <Coffee className="h-6 w-6" aria-hidden="true" />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-extrabold tracking-tight text-primary dark:text-foreground sm:text-lg">
+                AlFaroCafé <span className="text-secondary dark:text-emerald-300">Manager</span>
+              </p>
+              <p className="truncate text-[11px] text-muted-foreground">
+                {nombre || "Administración"}
+                {role && " · " + (role === "duena" ? "Dueña" : role === "admin" ? "Admin" : "Dependiente")}
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => { void doSync(true); }}
+              aria-label={syncState === "error" ? "Reintentar sincronización" : "Sincronizar datos"}
+              title={lastSync ? "Última sincronización: " + new Date(lastSync).toLocaleString("es-ES") : "Sin sincronización completada todavía"}
+              className={"flex h-9 items-center gap-1 rounded-full px-2.5 text-[11px] font-semibold " +
+                (syncState === "error" ? "bg-destructive/10 text-destructive" :
+                  syncState === "ok" ? "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300" :
+                    "bg-muted text-muted-foreground")}
+            >
+              {syncState === "syncing" ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> :
+                syncState === "error" ? <CloudOff className="h-3.5 w-3.5" /> :
+                  syncState === "ok" ? <CheckCircle2 className="h-3.5 w-3.5" /> :
+                    <Cloud className="h-3.5 w-3.5" />}
+              <span className="hidden min-[360px]:inline">
+                {syncState === "syncing" ? "Sincronizando" :
+                  syncState === "ok" ? "Sincronizado" :
+                    syncState === "error" ? "Error de sync" : "Sin comprobar"}
               </span>
-            )}
-          </button>
-          <button
-            onClick={() => doSync(true)}
-            title={
-              syncState === "syncing"
-                ? "Sincronizando..."
-                : syncState === "error"
-                ? "Error de sincronización — toca para reintentar"
-                : lastSync
-                ? `Sincronizado ${new Date(lastSync).toLocaleTimeString()}`
-                : "Sincronizar ahora"
-            }
-            className={`flex h-7 items-center gap-1 rounded-full px-2 text-[10px] font-semibold ${
-              syncState === "error"
-                ? "bg-destructive/10 text-destructive"
-                : syncState === "syncing"
-                ? "bg-primary/10 text-primary"
-                : "bg-secondary/10 text-secondary"
-            }`}
-          >
-            {syncState === "syncing" ? (
-              <RefreshCw className="h-3 w-3 animate-spin" />
-            ) : syncState === "error" ? (
-              <CloudOff className="h-3 w-3" />
-            ) : (
-              <Cloud className="h-3 w-3" />
-            )}
-            {syncState === "syncing" ? "Sync" : syncState === "error" ? "Sin nube" : "En nube"}
-          </button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={async () => {
-              await signOut();
-              navigate("/auth", { replace: true });
-            }}
-            className="h-7 px-2 text-xs"
-          >
-            <LogOut className="mr-1 h-3 w-3" /> Salir
-          </Button>
+            </button>
+            <button
+              type="button"
+              className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-border/60 bg-card text-primary"
+              aria-label={"Notificaciones: " + avisosPendientes + " pendientes"}
+              onClick={() => navigate("/notificaciones")}
+            >
+              <Bell className="h-5 w-5" />
+              {avisosPendientes > 0 && (
+                <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-destructive px-1 text-center text-[10px] font-bold text-white">
+                  {avisosPendientes > 99 ? "99+" : avisosPendientes}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
-      </div>
+      </header>
 
       <motion.main
         key={location.pathname}
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.25 }}
-        className="mx-auto max-w-2xl px-4 pt-4 safe-bottom"
+        transition={{ duration: 0.22 }}
+        className="mx-auto max-w-5xl px-3 pt-4 safe-bottom sm:px-5"
       >
-                {/* Si es dependiente con permiso ve Cobrar (<Outlet />), si no tiene permiso ve solo Mis Deudas */}
         {role === "dependiente" && location.pathname === "/cobrar" && !tienePermisoCobrar ? (
           <MisDeudasDependiente />
         ) : (
@@ -244,37 +263,63 @@ export default function AppLayout() {
         )}
       </motion.main>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card/95 backdrop-blur-lg">
-        <div className="mx-auto flex max-w-2xl items-center justify-around gap-1 overflow-x-auto px-2 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {tabs.map(({ to, icon: Icon, label }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === "/"}
-              className={({ isActive }) =>
-                `flex flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 text-[10px] font-medium transition-smooth ${
-                  isActive
-                    ? "text-primary"
-                    : "text-muted-foreground hover:text-foreground"
-                }`
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  <div
-                    className={`rounded-lg p-1.5 transition-smooth ${
-                      isActive ? "gradient-primary text-primary-foreground shadow-soft" : ""
-                    }`}
-                  >
-                    <Icon className="h-4 w-4" />
-                  </div>
-                  <span>{label}</span>
-                </>
-              )}
+      <nav className="alfaro-bottom-nav" aria-label="Navegación principal">
+        <div className="mx-auto flex max-w-2xl items-stretch gap-1 px-2 py-1.5">
+          {principal.map(({ to, icon: Icon, label }) => (
+            <NavLink key={to} to={to} end={to === "/"}
+              className={"alfaro-nav-button " + (estaActivo(to) ? "alfaro-nav-active" : "hover:text-foreground")}
+              aria-label={label}>
+              <Icon className="h-[19px] w-[19px]" aria-hidden="true" />
+              <span className="truncate">{label}</span>
             </NavLink>
           ))}
+          <button type="button" onClick={() => setMasAbierto(true)}
+            aria-label="Abrir más secciones" aria-haspopup="dialog" aria-expanded={masAbierto}
+            className={"alfaro-nav-button " + (masActivo ? "alfaro-nav-active" : "hover:text-foreground")}>
+            <Menu className="h-[19px] w-[19px]" />
+            <span>Más</span>
+          </button>
         </div>
       </nav>
+
+      <Sheet open={masAbierto} onOpenChange={setMasAbierto}>
+        <SheetContent side="bottom" className="max-h-[87dvh] overflow-y-auto rounded-t-3xl border-t bg-background px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-5 sm:mx-auto sm:max-w-2xl">
+          <SheetHeader className="mb-4 text-left">
+            <SheetTitle className="flex items-center gap-2 text-lg">
+              <Menu className="h-5 w-5 text-secondary" /> Más secciones
+            </SheetTitle>
+            <SheetDescription>Herramientas y administración según tus permisos.</SheetDescription>
+          </SheetHeader>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {menuItems.map(({ to, icon: Icon, label }) => (
+              <button key={to} type="button" onClick={() => { setMasAbierto(false); navigate(to); }}
+                className="flex min-h-14 items-center gap-3 rounded-2xl border border-border/70 bg-card px-3 text-left transition-colors hover:bg-muted/40">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary/10 text-secondary">
+                  <Icon className="h-5 w-5" />
+                </span>
+                <span className="min-w-0 flex-1 text-sm font-semibold">{label}</span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </button>
+            ))}
+            <button type="button" onClick={() => { setMasAbierto(false); navigate("/buscar"); }}
+              className="flex min-h-14 items-center gap-3 rounded-2xl border border-border/70 bg-card px-3 text-left transition-colors hover:bg-muted/40">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary/10 text-secondary">
+                <Search className="h-5 w-5" />
+              </span>
+              <span className="min-w-0 flex-1 text-sm font-semibold">Búsqueda global</span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+            </button>
+          </div>
+          <Button variant="outline" className="mt-4 h-11 w-full rounded-xl"
+            onClick={async () => {
+              setMasAbierto(false);
+              await signOut();
+              navigate("/auth", { replace: true });
+            }}>
+            <LogOut className="mr-2 h-4 w-4" /> Cerrar sesión
+          </Button>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
