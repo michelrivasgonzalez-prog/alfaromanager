@@ -1385,9 +1385,9 @@ function PreciosMixtosDialog({
     setTramos((ts) => ts.map((t) => (t.id === id ? { ...t, ...patch } : t)));
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
+      <DialogContent className="w-[calc(100vw-1rem)] max-h-[92dvh] max-w-xl overflow-y-auto rounded-3xl p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle>Precios mixtos · {producto.nombre}</DialogTitle>
+          <DialogTitle className="break-words pr-5 text-lg">Precios mixtos · {producto.nombre}</DialogTitle>
         </DialogHeader>
         <p className="text-xs text-muted-foreground">
           Vendidos: <strong>{n2(c.venta)}</strong>. Indica cuántas unidades se vendieron con otro
@@ -1395,43 +1395,67 @@ function PreciosMixtosDialog({
           <strong>{n2(c.resto)}</strong>) usa el precio base {fmt(producto.precio)} / costo{" "}
           {fmt(producto.costo)}.
         </p>
-        <div className="space-y-2">
-          <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 text-[10px] uppercase text-muted-foreground">
-            <span>Cantidad</span><span>Precio</span><span>Costo</span><span />
-          </div>
-          {tramos.map((t) => (
-            <div key={t.id} className="grid grid-cols-[1fr_1fr_1fr_auto] items-center gap-2">
-              <NumberInput value={t.cantidad} onChange={(v) => upd(t.id, { cantidad: v })} className="h-9" />
-              <NumberInput value={t.precio} onChange={(v) => upd(t.id, { precio: v })} className="h-9" />
-              <NumberInput value={t.costo} onChange={(v) => upd(t.id, { costo: v })} className="h-9" />
-              <Button variant="ghost" size="sm" onClick={() => setTramos((ts) => ts.filter((x) => x.id !== t.id))}>
-                ✕
-              </Button>
+        <section className="space-y-2" aria-label="Tramos de precios mixtos">
+          {tramos.length === 0 && (
+            <p className="rounded-xl border border-dashed border-border p-3 text-center text-xs text-muted-foreground">
+              Todavía no hay precios adicionales registrados.
+            </p>
+          )}
+          {tramos.map((t, index) => (
+            <div key={t.id} className="space-y-2 rounded-2xl border border-border/70 bg-card p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-muted-foreground">Precio alternativo {index + 1}</p>
+                <Button type="button" variant="ghost" size="sm" className="h-8 rounded-lg px-2 text-destructive"
+                  aria-label={"Eliminar tramo " + (index + 1)}
+                  onClick={() => setTramos((ts) => ts.filter((x) => x.id !== t.id))}>
+                  <Trash2 className="mr-1 h-3.5 w-3.5"/> Quitar
+                </Button>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <label className="min-w-0 space-y-1">
+                  <span className="text-xs text-muted-foreground">Cantidad</span>
+                  <NumberInput value={t.cantidad}
+                    onChange={(v) => upd(t.id, { cantidad: v })}
+                    className="h-11 w-full rounded-xl px-2 text-right text-sm font-semibold tabular-nums"/>
+                </label>
+                <label className="min-w-0 space-y-1">
+                  <span className="text-xs text-muted-foreground">Precio</span>
+                  <NumberInput value={t.precio}
+                    onChange={(v) => upd(t.id, { precio: v })}
+                    className="h-11 w-full rounded-xl px-2 text-right text-sm font-semibold tabular-nums"/>
+                </label>
+                <label className="min-w-0 space-y-1">
+                  <span className="text-xs text-muted-foreground">Costo</span>
+                  <NumberInput value={t.costo}
+                    onChange={(v) => upd(t.id, { costo: v })}
+                    className="h-11 w-full rounded-xl px-2 text-right text-sm font-semibold tabular-nums"/>
+                </label>
+              </div>
+              <div className="flex items-center justify-between border-t border-border/60 pt-2 text-xs">
+                <span className="text-muted-foreground">Importe del tramo</span>
+                <strong className="tabular-nums">{fmt(Number(t.cantidad) * Number(t.precio))}</strong>
+              </div>
             </div>
           ))}
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full"
+          <Button type="button" variant="outline" size="sm" className="h-11 w-full rounded-xl"
             onClick={() =>
               setTramos((ts) => [
                 ...ts,
                 { id: crypto.randomUUID(), cantidad: 0, precio: producto.precio, costo: producto.costo },
               ])
-            }
-          >
-            + Añadir otro precio
+            }>
+            <Plus className="mr-2 h-4 w-4"/> Añadir otro precio
           </Button>
-        </div>
+        </section>
         {c.resto < 0 && (
           <p className="text-xs text-destructive">Las cantidades superan las unidades vendidas.</p>
         )}
         <div className="rounded-xl bg-muted p-2 text-xs">
           Importe: <strong>{fmt(c.importe)}</strong> · Costo: <strong>{fmt(c.costoTotal)}</strong>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button
+        <DialogFooter className="sticky bottom-0 border-t border-border/60 bg-background/95 pt-3 backdrop-blur">
+          <Button variant="outline" className="h-11 rounded-xl" onClick={onClose}>Cancelar</Button>
+          <Button className="h-11 rounded-xl"
             disabled={c.resto < 0}
             onClick={() => {
               onSave(tramos.filter((t) => t.cantidad > 0));
