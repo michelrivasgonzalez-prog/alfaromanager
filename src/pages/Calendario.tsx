@@ -193,18 +193,18 @@ export default function Calendario() {
 
   return (
     <div className="space-y-4 pb-24">
-      <header className="flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl gradient-primary text-primary-foreground shadow-soft">
-          <CalendarDays className="h-5 w-5" />
+      <header className="alfaro-page-header flex items-center gap-3">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-secondary/10 text-secondary">
+          <CalendarDays className="h-6 w-6" />
         </div>
-        <div>
-          <h1 className="text-xl font-bold text-primary">Calendario de cuadres</h1>
-          <p className="text-xs text-muted-foreground">Cafetería y Mipyme por día trabajado</p>
+        <div className="min-w-0">
+          <h1 className="text-xl font-extrabold">Calendario de Cuadres</h1>
+          <p className="mt-1 text-xs text-muted-foreground">Turnos de Cafetería y MiPyME por día trabajado</p>
         </div>
       </header>
 
-      <div className="rounded-2xl border border-border bg-card p-3 shadow-soft">
-        <div className="flex items-center justify-between">
+      <section className="alfaro-surface p-3 sm:p-4" aria-label="Calendario de turnos">
+        <div className="flex items-center justify-between gap-2">
           <Button
             variant="ghost"
             size="icon"
@@ -251,6 +251,8 @@ export default function Calendario() {
             return (
               <button
                 key={k}
+                type="button"
+                aria-label={"Ver día " + format(d, "d MMMM yyyy", { locale: es })}
                 onClick={() => setDiaSel(k)}
                 className={`flex aspect-square flex-col items-center justify-center rounded-xl border text-xs transition-colors ${
                   fuera ? "opacity-35" : ""
@@ -293,10 +295,10 @@ export default function Calendario() {
             <Ban className="h-3 w-3 text-destructive" /> No trabajado
           </span>
         </div>
-      </div>
+      </section>
 
       {/* Reporte mensual */}
-      <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+      <div className="alfaro-surface p-4">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
             <div className="text-sm font-semibold">Reporte mensual</div>
@@ -343,7 +345,7 @@ export default function Calendario() {
       </div>
 
       <Dialog open={verReporte} onOpenChange={setVerReporte}>
-        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+        <DialogContent className="w-[calc(100vw-1rem)] max-h-[92dvh] max-w-xl overflow-y-auto rounded-3xl">
           <DialogHeader>
             <DialogTitle>Reporte mensual</DialogTitle>
           </DialogHeader>
@@ -352,7 +354,7 @@ export default function Calendario() {
       </Dialog>
 
       <Dialog open={!!diaSel} onOpenChange={(o) => !o && setDiaSel(null)}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogContent className="w-[calc(100vw-1rem)] max-h-[90dvh] max-w-lg overflow-y-auto rounded-3xl">
           <DialogHeader>
             <DialogTitle className="capitalize">
               {diaSel ? format(new Date(diaSel), "EEEE dd 'de' MMMM yyyy", { locale: es }) : ""}
