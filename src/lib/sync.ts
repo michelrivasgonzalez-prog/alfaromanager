@@ -228,7 +228,7 @@ async function syncCatalogo(isAdmin: boolean) {
   const state = useCuadreStore.getState();
   let { data: remote, error } = await (supabase as any)
     .from("catalogo")
-    .select("id, nombre, precio, costo, punto, orden, categoria, codigo_barras, codigos_barras")
+    .select("id, nombre, precio, costo, punto, orden, categoria, codigo_barras, codigos_barras, foto_url")
     .is("deleted_at", null);
   // La migración de códigos múltiples es compatible con el catálogo anterior.
   if (error && /codigos_barras/i.test(error.message ?? "")) {
@@ -257,6 +257,7 @@ async function syncCatalogo(isAdmin: boolean) {
       nombre: r.nombre,
       codigoBarras: r.codigo_barras ?? state.catalogo.find((c) => c.id === r.id)?.codigoBarras,
       codigosAdicionales: r.codigos_barras ?? state.catalogo.find((c) => c.id === r.id)?.codigosAdicionales ?? [],
+      fotoUrl: r.foto_url ?? state.catalogo.find((c) => c.id === r.id)?.fotoUrl ?? undefined,
       precio: Number(r.precio),
       costo: Number(r.costo),
       orden: Number(r.orden ?? 0),
@@ -413,6 +414,7 @@ function filaCatalogo(c: CatalogoItem) {
     punto: c.punto ?? null,
     codigo_barras: c.codigoBarras || null,
     codigos_barras: c.codigosAdicionales ?? [],
+    foto_url: c.fotoUrl || null,
     deleted_at: null,
   };
 }
