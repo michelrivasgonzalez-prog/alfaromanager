@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, BellOff, CheckCheck, Clock, Info, RefreshCw, Smartphone } from "lucide-react";
+import { Bell, BellOff, CheckCheck, Clock, Info, RefreshCw, Smartphone, Send, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
@@ -10,6 +10,7 @@ import {
   clavePublicaPush, configuracionNotificaciones, CATEGORIAS_NOTIFICACION,
   cerrarSesionNotificaciones, desactivarPush, esPWAInstalada, marcarNotificacionLeida,
   PREFERENCIAS_INICIALES, sesionActualNotificaciones, soportaPush,
+  solicitarPushDePrueba, consultarEstadoPush, type EstadoPushDiagnostico,
   type CategoriaNotificacion, type EventoNotificacion, type PreferenciasNotificaciones,
 } from "@/lib/notificaciones";
 
@@ -31,6 +32,8 @@ export default function Notificaciones() {
   const [cargando, setCargando] = useState(true);
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [diagnostico, setDiagnostico] = useState<EstadoPushDiagnostico | null>(null);
+  const [probando, setProbando] = useState(false);
 
   const cargar = useCallback(async () => {
     if (!usuarioId) return;
@@ -52,6 +55,8 @@ export default function Notificaciones() {
       setNotificaciones(bandeja.items);
       setNoLeidas(bandeja.no_leidos);
       setServidorListo(Boolean(key));
+      // El diagnóstico no debe bloquear los avisos si aún no se aplicó la migración.
+      void consultarEstadoPush().then(setDiagnostico).catch(() => setDiagnostico(null));
     } catch (e: any) {
       setError(e?.message ?? "No se pudieron cargar las notificaciones");
     } finally {
@@ -117,6 +122,28 @@ export default function Notificaciones() {
     } catch (e: any) {
       toast.error(e?.message ?? "No se pudo registrar el dispositivo");
     } finally { setOcupado(false); }
+  };
+
+  const probarPush = async () => {
+    setProbando(true);
+    try {
+      await solicitarPushDePrueba();
+      toast.success("Prueba añadida a la cola. El envío depende del despachador del servidor.");
+      await cargar();
+    } catch (e: any) {
+      toast.error(e?.message ?? "No se pudo crear el aviso de prueba");
+    } finally {
+      setProbando(false);
+    }
+  };
+
+  const refrescarDiagnostico = async () => {
+    try {
+      setDiagnostico(await consultarEstadoPush());
+      toast.success("Estado de entregas actualizado");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Diagnóstico no disponible");
+    }
   };
 
   const desactivar = async () => {
@@ -206,6 +233,46 @@ export default function Notificaciones() {
             Los eventos financieros y administrativos son exclusivos de administración.
           </p>
         )}
+      </section>
+
+      <section className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
+        <h2 className="flex items-center gap-2 text-sm font-bold">
+          <Activity className="h-4 w-4" /> Comprobar notificaciones del iPhone
+        </h2>
+        <p className="text-xs text-muted-foreground">
+          Una cifra sobre el icono solo indica avisos pendientes; no garantiza que
+          Apple haya recibido un push. Esta prueba permite comprobar la entrega real.
+        </p>
+        <Button type="button" variant="outline" disabled={!habilitado || probando || !!error}
+          onClick={() => void probarPush()} className="h-11 w-full">
+          <Send className="mr-2 h-4 w-4" />
+          {probando ? "Registrando prueba…" : "Enviar notificación de prueba"}
+        </Button>
+        <Button type="button" variant="ghost" size="sm" className="w-full"
+          onClick={() => void refrescarDiagnostico()}>
+          <RefreshCw className="mr-1.5 h-3.5 w-3.5"/> Consultar entregas al dispositivo
+        </Button>
+        {diagnostico && (
+          <div className="space-y-2 rounded-xl bg-muted/40 p-3 text-xs">
+            <p>Suscripción: <strong>{diagnostico.push_activo ? "Activa" : "Inactiva"}</strong>
+              {" · "}{diagnostico.plataforma ?? "Dispositivo"}</p>
+            {diagnostico.entregas.length === 0
+              ? <p className="text-muted-foreground">Todavía no consta un envío push a este dispositivo.</p>
+              : diagnostico.entregas.map((entrega, i) => (
+                <div key={i} className="border-t border-border pt-2">
+                  <p className="font-medium">{entrega.titulo}</p>
+                  <p>Estado: <strong>{entrega.estado === "enviado" ?
+                    "Aceptado por el servicio push" : entrega.estado}</strong></p>
+                  {entrega.ultimo_error && <p className="text-destructive">{entrega.ultimo_error}</p>}
+                </div>
+              ))}
+          </div>
+        )}
+        <p className="text-[11px] text-muted-foreground">
+          Los envíos se procesan desde GitHub Actions y pueden tardar más de cinco minutos.
+          Si quieres forzar la prueba, abre el flujo «Enviar notificaciones push AlFaroCafé» en GitHub
+          y pulsa Run workflow. Luego consulta las entregas aquí.
+        </p>
       </section>
 
       <section className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
