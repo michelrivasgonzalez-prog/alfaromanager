@@ -87,7 +87,10 @@ export const usePinStore = create<PinState>()(
             const h = await hashPin(pin, u.id);
             if (h === u.pinHash) {
               const sesion = activar(u);
-              // Reutiliza este PIN recién validado, sin mostrar otro formulario.
+              // Misma validación por PIN para abrir la sesión operativa protegida.
+              void import("@/lib/turnosOperativos")
+                .then((m) => m.iniciarSesionTurnos(u.id, pin))
+                .catch((e) => console.warn("Control de turnos: verificación pendiente", e));
               void import("@/lib/notificaciones")
                 .then((m) => m.iniciarNotificacionesConPin(u.id, pin))
                 .catch((e) => console.warn("Notificaciones no disponibles:", e));
@@ -103,6 +106,7 @@ export const usePinStore = create<PinState>()(
         },
 
         logout: () => {
+          void import("@/lib/turnosOperativos").then((m) => m.limpiarSesionTurnos()).catch(console.warn);
           // No dejar suscripciones del usuario anterior activas en el mismo equipo.
           void import("@/lib/notificaciones")
             .then((m) => m.cerrarSesionNotificaciones())
