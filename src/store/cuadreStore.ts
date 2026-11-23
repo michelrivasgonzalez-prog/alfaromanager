@@ -818,6 +818,8 @@ export const useCuadreStore = create<State>()(
             nombre,
             codigoBarras: prev?.codigoBarras ?? p.codigoBarras,
             codigosAdicionales: prev?.codigosAdicionales ?? p.codigosAdicionales,
+            // La foto es metadato del catálogo: nunca forma parte del cuadre.
+            fotoUrl: prev?.fotoUrl,
             precio: agotado ? 0 : p.precio,
             costo: agotado ? 0 : p.costo,
             categoria: p.categoria ?? prev?.categoria,
