@@ -1,7 +1,7 @@
 import { Cuadre, calcCuadre, DENOMINACIONES, catLabel } from "@/store/cuadreStore";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import logoUrl from "@/assets/alfaro-logo.jpg";
+const logoUrl = "/alfaro-logo-oficial.webp";
 import { formatDiasTrabajados, formatGastoDetalle, gastoLineas, ordenarGastos } from "@/lib/dias";
 
 const fechaTrabajada = (c: Cuadre) => c.diasTrabajados?.[0] ?? c.fecha;
