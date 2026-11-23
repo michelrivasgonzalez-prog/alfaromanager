@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, BellOff, CheckCheck, Clock, Info, RefreshCw, Smartphone, Send, Activity } from "lucide-react";
+import { Bell, BellOff, CheckCheck, Clock, Info, RefreshCw, Smartphone, Send, Activity, ChevronDown, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
@@ -188,18 +188,21 @@ export default function Notificaciones() {
 
   return (
     <div className="space-y-4 pb-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold">
-            <Bell className="h-6 w-6"/> Notificaciones
-          </h1>
-          <p className="text-xs text-muted-foreground">Preferencias por usuario PIN y dispositivo</p>
+      <header className="alfaro-page-header flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-secondary/10 text-secondary">
+            <Bell className="h-5 w-5"/>
+          </div>
+          <div>
+            <h1 className="text-xl font-extrabold">Notificaciones</h1>
+            <p className="mt-1 text-xs text-muted-foreground">Avisos y preferencias de este dispositivo</p>
+          </div>
         </div>
-        <Button variant="outline" size="icon" aria-label="Actualizar notificaciones"
-          disabled={cargando} onClick={() => void cargar()}>
+        <Button type="button" variant="outline" size="icon" className="h-10 w-10 shrink-0 rounded-xl"
+          aria-label="Actualizar notificaciones" disabled={cargando} onClick={() => void cargar()}>
           <RefreshCw className={"h-4 w-4 " + (cargando ? "animate-spin" : "")}/>
         </Button>
-      </div>
+      </header>
 
       {error && (
         <div role="alert" className="rounded-xl border border-amber-500/40 bg-card p-3 text-sm">
@@ -207,9 +210,9 @@ export default function Notificaciones() {
         </div>
       )}
 
-      <section className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
+      <section className="alfaro-surface space-y-3 p-4">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-bold">Bandeja de avisos {noLeidas > 0 ? "(" + noLeidas + " nuevos)" : ""}</h2>
+          <h2 className="flex items-center gap-2 text-sm font-bold"><Bell className="h-4 w-4 text-secondary"/> Bandeja de avisos {noLeidas > 0 ? "(" + noLeidas + " nuevos)" : ""}</h2>
           <Button size="sm" variant="outline" disabled={notificaciones.length===0 || !!error}
             onClick={() => void leerTodas()}>
             <CheckCheck className="mr-1 h-3.5 w-3.5"/> Leídos
@@ -223,11 +226,11 @@ export default function Notificaciones() {
         <div className="max-h-[35rem] space-y-2 overflow-y-auto">
           {notificaciones.map((n) => (
             <button key={n.id} type="button" onClick={() => void abrir(n)}
-              className={"w-full rounded-xl border p-3 text-left text-sm " +
-                (n.leido ? "border-border bg-muted/20" : "border-primary/40 bg-primary/5")}>
+              className={"w-full rounded-xl border p-3.5 text-left text-sm transition-colors hover:bg-muted/30 " +
+                (n.leido ? "border-border/70 bg-card" : "border-secondary/40 bg-secondary/5")}>
               <div className="flex items-center justify-between gap-2">
                 <strong>{n.titulo}</strong>
-                {!n.leido && <span className="h-2 w-2 shrink-0 rounded-full bg-primary"/>}
+                {!n.leido && <span className="h-2 w-2 shrink-0 rounded-full bg-secondary"/>}
               </div>
               <p className="mt-0.5 text-xs text-muted-foreground">{n.contenido.replace("tu iPhone está recibiendo notificaciones push", "tu dispositivo está recibiendo notificaciones push")}</p>
               <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground">
@@ -241,7 +244,7 @@ export default function Notificaciones() {
         </div>
       </section>
 
-      <section className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
+      <section className="alfaro-surface space-y-3 p-4">
         <h2 className="flex items-center gap-2 text-sm font-bold">
           <Smartphone className="h-4 w-4"/> Notificaciones push en este equipo
         </h2>
@@ -277,10 +280,17 @@ export default function Notificaciones() {
         )}
       </section>
 
-      <section className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
-        <h2 className="flex items-center gap-2 text-sm font-bold">
-          <Activity className="h-4 w-4" /> Comprobar notificaciones de este dispositivo
-        </h2>
+      <details className="group alfaro-surface overflow-hidden">
+        <summary className="flex min-h-16 cursor-pointer list-none items-center gap-3 px-4 [&::-webkit-details-marker]:hidden">
+          <Activity className="h-5 w-5 shrink-0 text-secondary" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold">Diagnóstico y pruebas</span>
+            <span className="block text-xs text-muted-foreground">Comprobar los envíos a este dispositivo</span>
+          </span>
+          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180"/>
+        </summary>
+        <div className="space-y-3 border-t border-border/60 p-4">
+
         <p className="text-xs text-muted-foreground">
           Una cifra sobre el icono solo indica avisos pendientes; no garantiza que
           el dispositivo haya recibido un push. Esta prueba permite comprobar la entrega real.
@@ -324,9 +334,10 @@ export default function Notificaciones() {
           Si quieres forzar la prueba, abre el flujo «Enviar notificaciones push AlFaroCafé» en GitHub
           y pulsa Run workflow. Luego consulta las entregas aquí.
         </p>
-      </section>
+        </div>
+      </details>
 
-      <section className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
+      <section className="alfaro-surface space-y-3 p-4">
         <h2 className="text-sm font-bold">¿Qué avisos quieres recibir?</h2>
         {CATEGORIAS_NOTIFICACION.map((categoria) => {
           const soloAdmin = rol === "dependiente" && categoria.id !== "precuadres";
