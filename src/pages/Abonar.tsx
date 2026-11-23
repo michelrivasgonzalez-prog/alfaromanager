@@ -4,7 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { ArrowLeft, Wallet, Share2, CheckCircle2, Image as ImageIcon, Download } from "lucide-react";
+import { ArrowLeft, Wallet, Share2, CheckCircle2, Image as ImageIcon, Download, ShieldCheck, AlertTriangle, Receipt, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { toPng } from "html-to-image";
 import { Button } from "@/components/ui/button";
@@ -210,15 +210,37 @@ export default function Abonar() {
 
   return (
     <div className="space-y-4 pb-24">
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={() => nav(-1)}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-xl font-bold text-primary">Registrar abono</h1>
-          <p className="text-xs text-muted-foreground">{cliente.nombre} · Saldo total {fmt(totalSaldo)}</p>
+      <header className="alfaro-page-header">
+        <div className="flex items-center gap-3">
+          <Button type="button" variant="outline" size="icon" aria-label="Volver a la cuenta"
+            className="h-10 w-10 shrink-0 rounded-xl" onClick={() => nav(-1)}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-lg font-extrabold sm:text-xl">Registrar abono</h1>
+            <p className="truncate text-sm text-muted-foreground">{cliente.nombre}</p>
+          </div>
+          <Wallet className="h-6 w-6 shrink-0 text-secondary" aria-hidden="true"/>
         </div>
+      </header>
+      <div className="rounded-3xl bg-primary p-5 text-primary-foreground shadow-soft">
+        <p className="flex items-center gap-2 text-sm font-medium text-white/85">
+          <Receipt className="h-4 w-4"/> Saldo pendiente del cliente
+        </p>
+        <p className="mt-2 break-words text-3xl font-extrabold tabular-nums sm:text-4xl">{fmt(totalSaldo)}</p>
+        <p className="mt-2 text-xs text-white/80">
+          {pendientes.length} deuda{pendientes.length === 1 ? "" : "s"} pendiente{pendientes.length === 1 ? "" : "s"}
+        </p>
       </div>
+      {esDependiente && (
+        <div className="flex gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400"/>
+          <p className="text-muted-foreground">
+            El abono quedará <strong>pendiente de aprobación</strong>. Entrega el efectivo a administración
+            dentro del plazo establecido; el saldo no se descontará hasta su confirmación.
+          </p>
+        </div>
+      )}
 
       {pendientes.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">
@@ -227,25 +249,35 @@ export default function Abonar() {
         </div>
       ) : (
         <>
-          <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-2">
-            <Label>Monto entregado</Label>
-            <NumberInput value={monto} onChange={setMonto} className="h-12 text-lg" />
-            <p className="text-[11px] text-muted-foreground">
-              Se distribuye automáticamente al más antiguo; ajústalo si es necesario.
+          <div className="alfaro-surface space-y-2 p-4">
+            <Label htmlFor="importe-abono" className="text-sm font-semibold">Importe entregado (CUP)</Label>
+            <NumberInput id="importe-abono" min={0} value={monto} onChange={setMonto}
+              className="h-14 rounded-xl text-xl font-extrabold tabular-nums" />
+            <p className="text-xs text-muted-foreground">
+              Se distribuye automáticamente empezando por la deuda más antigua.
+              Puedes ajustar los importes de cada deuda.
             </p>
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold uppercase tracking-wider text-muted-foreground">
-                Distribución
-              </span>
-              <span className={`font-mono ${excede ? "text-destructive" : "text-muted-foreground"}`}>
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <span className="font-bold">Distribución del abono</span>
+              <span className={excede ? "font-semibold tabular-nums text-destructive" : "font-semibold tabular-nums text-secondary"}>
                 {fmt(sumaApp)} / {fmt(monto)}
               </span>
             </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-muted" aria-label="Proporción del abono distribuido">
+              <div className="h-full rounded-full bg-secondary transition-all"
+                style={{ width: (monto > 0 ? Math.max(0, Math.min(100, sumaApp / monto * 100)) : 0) + "%" }}/>
+            </div>
+            {excede && (
+              <p role="alert" className="flex items-start gap-2 rounded-xl bg-destructive/10 p-2.5 text-xs font-medium text-destructive">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                La distribución supera el importe entregado. Corrígela antes de continuar.
+              </p>
+            )}
             {pendientes.map((d) => (
-              <div key={d.id} className="rounded-2xl border border-border bg-card p-3 shadow-soft">
+              <div key={d.id} className="alfaro-surface p-3.5">
                 <div className="flex items-center justify-between gap-2 text-xs">
                   <div className="min-w-0">
                     <div className="truncate font-semibold text-sm">
@@ -261,7 +293,8 @@ export default function Abonar() {
                         [d.id]: Math.min(v, Number(d.saldo)),
                       }))
                     }
-                    className="w-28 text-right"
+                    min={0}
+                    className="h-11 w-28 rounded-xl text-right text-base font-semibold tabular-nums"
                   />
                 </div>
               </div>
@@ -273,13 +306,21 @@ export default function Abonar() {
             <Textarea value={nota} onChange={(e) => setNota(e.target.value)} className="min-h-[60px] rounded-xl" />
           </div>
 
-          <Button
-            disabled={busy || excede || monto <= 0}
-            onClick={submit}
-            className="h-12 w-full rounded-xl gradient-primary text-primary-foreground"
-          >
-            <Wallet className="mr-2 h-4 w-4" /> Confirmar abono {fmt(monto)}
-          </Button>
+          <div className="sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-20 space-y-2 rounded-2xl border border-border/60 bg-card/95 p-3 shadow-elegant backdrop-blur-lg">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <ShieldCheck className="h-4 w-4 shrink-0 text-secondary" />
+              {esDependiente ? "Enviar a aprobación, sin descontar todavía el saldo." : "Verifica el importe antes de registrar el abono."}
+            </div>
+            <Button
+              disabled={busy || excede || monto <= 0}
+              onClick={submit}
+              className="h-12 w-full rounded-xl bg-secondary text-base font-semibold text-secondary-foreground hover:bg-secondary/90"
+            >
+              <Wallet className="mr-2 h-4 w-4" />
+              {busy ? "Registrando…" : esDependiente ? "Enviar solicitud · " + fmt(monto) : "Confirmar abono · " + fmt(monto)}
+              <ChevronRight className="ml-1 h-4 w-4"/>
+            </Button>
+          </div>
         </>
       )}
 
