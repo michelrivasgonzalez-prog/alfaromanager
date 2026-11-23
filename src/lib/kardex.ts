@@ -87,7 +87,7 @@ export function kardexProducto(
   const asc = [...history]
     .filter((c) => c.puntoVenta === punto && c.finalizado)
     .sort((a, b) => {
-      const key = (c: Cuadre) => [...(c.diasTrabajados ?? [])].sort().at(-1) || c.fecha;
+      const key = (c: Cuadre) => { const dias = [...(c.diasTrabajados ?? [])].sort(); return dias[dias.length - 1] || c.fecha || ""; };
       return key(a).localeCompare(key(b)) || a.fecha.localeCompare(b.fecha);
     });
   let prev: { precio: number; costo: number } | null = null;
@@ -108,7 +108,7 @@ export function kardexProducto(
     const precio = cantidad(ps[0].precio);
     const costo = cantidad(ps[0].costo);
     const diasTrabajados = [...(c.diasTrabajados ?? [])].filter(Boolean).sort();
-    const fechaFiltro = (diasTrabajados.at(-1) || c.fecha || "").slice(0, 10);
+    const fechaFiltro = (diasTrabajados[diasTrabajados.length - 1] || c.fecha || "").slice(0, 10);
 
     filas.push({
       cuadreId: c.id,
