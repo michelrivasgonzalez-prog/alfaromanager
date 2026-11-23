@@ -235,7 +235,7 @@ function Wrapper({
       <div className="relative w-full max-w-sm rounded-3xl border border-border/70 bg-card/95 p-5 shadow-elegant sm:p-7">
         <div className="mb-6 space-y-3 text-center">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-secondary/10 text-secondary">
-            <Coffee className="h-8 w-8" />
+            <img src="/alfaro-logo-oficial.webp" alt="Logo oficial de AlFaro Café" className="h-full w-full rounded-2xl object-cover" />
           </div>
           <div>
             <h1 className="text-2xl font-extrabold tracking-tight">
