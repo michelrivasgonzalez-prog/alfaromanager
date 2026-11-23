@@ -35,6 +35,9 @@ import {
   Building2,
   CheckCircle2,
   XCircle,
+  Search,
+  UsersRound,
+  ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PinPad } from "@/components/PinPad";
@@ -58,6 +61,8 @@ export default function Usuarios() {
   const { dependientes, addDependiente, updateDependiente, removeDependiente, settings, history, updateSettings } =
     useCuadreStore();
   const [nuevoDep, setNuevoDep] = useState("");
+  const [filtroDependientes, setFiltroDependientes] = useState<"todos" | "activos" | "inactivos">("todos");
+  const [buscarDependiente, setBuscarDependiente] = useState("");
 
   const [depEditing, setDepEditing] = useState<{
     nombreOriginal: string;
@@ -80,7 +85,21 @@ export default function Usuarios() {
   }
 
   // Ordenar dependientes: primero activos, luego inactivos (y alfabéticamente dentro de cada grupo)
-  const dependientesOrdenados = [...dependientes].sort((a, b) => {
+  const dependientesActivos = dependientes.filter((d) =>
+    !settings.dependientesInactivos?.includes(d));
+  const dependientesInactivos = dependientes.length - dependientesActivos.length;
+  const sinPin = dependientes.filter((d) =>
+    !users.some((u) => u.nombre.trim().toLowerCase() === d.trim().toLowerCase())).length;
+  const dependientesOrdenados = [...dependientes]
+    .filter((d) => {
+      const inactivo = Boolean(settings.dependientesInactivos?.includes(d));
+      if (filtroDependientes === "activos" && inactivo) return false;
+      if (filtroDependientes === "inactivos" && !inactivo) return false;
+      const nombre = d.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+      const busca = buscarDependiente.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+      return !busca || nombre.includes(busca);
+    })
+    .sort((a, b) => {
     const aInactivo = Boolean((settings as any).dependientesInactivos?.includes(a));
     const bInactivo = Boolean((settings as any).dependientesInactivos?.includes(b));
 
@@ -92,7 +111,27 @@ export default function Usuarios() {
 
   return (
     <div className="space-y-4 pb-16">
-      <header className="alfaro-page-header"><h1 className="text-xl font-extrabold sm:text-2xl">Usuarios</h1><p className="mt-1 text-xs text-muted-foreground sm:text-sm">Personal, roles y permisos</p></header>
+      <header className="alfaro-page-header">
+        <h1 className="text-xl font-extrabold sm:text-2xl">Usuarios</h1>
+        <p className="mt-1 text-xs text-muted-foreground sm:text-sm">Personal, roles y PIN de acceso</p>
+      </header>
+      <section className="grid grid-cols-3 gap-2" aria-label="Resumen del personal">
+        <div className="alfaro-surface min-w-0 p-3">
+          <CheckCircle2 className="h-4 w-4 text-secondary" />
+          <p className="mt-2 text-[11px] text-muted-foreground">Activos</p>
+          <p className="text-lg font-extrabold tabular-nums">{dependientesActivos.length}</p>
+        </div>
+        <div className="alfaro-surface min-w-0 p-3">
+          <XCircle className="h-4 w-4 text-muted-foreground" />
+          <p className="mt-2 text-[11px] text-muted-foreground">Inactivos</p>
+          <p className="text-lg font-extrabold tabular-nums">{dependientesInactivos}</p>
+        </div>
+        <div className="alfaro-surface min-w-0 p-3">
+          <KeyRound className="h-4 w-4 text-amber-600" />
+          <p className="mt-2 text-[11px] text-muted-foreground">Sin PIN</p>
+          <p className="text-lg font-extrabold tabular-nums">{sinPin}</p>
+        </div>
+      </section>
 
       {/* Cuentas de acceso administrativas */}
       <div className="flex items-center justify-between">
@@ -179,6 +218,28 @@ export default function Usuarios() {
         <p className="text-xs text-muted-foreground mb-2">
           Gestión de dependientes, foto, punto de venta y PIN de acceso.
         </p>
+        <div className="space-y-2 pb-3">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"/>
+            <Input aria-label="Buscar dependiente" value={buscarDependiente}
+              onChange={(e) => setBuscarDependiente(e.target.value)}
+              placeholder="Buscar dependiente…" className="h-11 rounded-xl pl-10"/>
+          </div>
+          <div className="grid grid-cols-3 gap-1 rounded-xl bg-muted/60 p-1" role="group" aria-label="Estado del personal">
+            {([
+              ["todos", "Todos"],
+              ["activos", "Activos"],
+              ["inactivos", "Inactivos"],
+            ] as const).map(([value, label]) => (
+              <button key={value} type="button" aria-pressed={filtroDependientes === value}
+                onClick={() => setFiltroDependientes(value)}
+                className={"min-h-10 rounded-lg px-2 text-xs font-semibold transition-colors " +
+                  (filtroDependientes === value ? "bg-card text-secondary shadow-sm" : "text-muted-foreground")}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -209,7 +270,7 @@ export default function Usuarios() {
         <div className="space-y-2">
           {dependientesOrdenados.length === 0 && (
             <div className="rounded-2xl border border-dashed border-border bg-card p-4 text-center text-xs text-muted-foreground">
-              No hay dependientes. Añade uno arriba.
+              {dependientes.length ? "No hay personal que coincida con el filtro." : "No hay dependientes. Añade uno arriba."}
             </div>
           )}
 
@@ -221,7 +282,7 @@ export default function Usuarios() {
             return (
               <div
                 key={d}
-                className="flex items-center justify-between rounded-2xl border border-border bg-card p-3 shadow-soft"
+                className="flex items-center justify-between gap-2 rounded-2xl border border-border/70 bg-card p-3.5 shadow-soft"
               >
                 <div className="flex items-center gap-3 min-w-0 flex-1 mr-2">
                   <Avatar nombre={d} size="md" />
@@ -254,7 +315,8 @@ export default function Usuarios() {
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="h-9 w-9 rounded-xl text-muted-foreground hover:bg-muted"
+                  className="h-10 w-10 shrink-0 rounded-xl border border-border/70 text-secondary hover:bg-muted"
+                  aria-label={"Editar dependiente " + d}
                   title="Editar dependiente y PIN"
                   onClick={() => {
                     setDepEditing({
