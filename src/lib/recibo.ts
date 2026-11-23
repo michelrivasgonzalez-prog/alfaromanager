@@ -1,6 +1,6 @@
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import logoUrl from "@/assets/alfaro-logo.jpg";
+const logoUrl = "/alfaro-logo-oficial.webp";
 
 const fmt = (n: number) =>
   `$${Number(n || 0).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
