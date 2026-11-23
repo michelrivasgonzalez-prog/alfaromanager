@@ -1,4 +1,4 @@
-import { DENOMINACIONES, type Denominaciones, type PuntoVenta, type Recogida } from "@/store/cuadreStore";
+import { DENOMINACIONES, type Cuadre, type Denominaciones, type PuntoVenta, type Recogida } from "@/store/cuadreStore";
 import { rpcTurnoProtegido } from "@/lib/turnosOperativos";
 
 export type EstadoEntregaEfectivo = "pendiente" | "confirmada" | "diferencia" | "anulada";
@@ -126,4 +126,23 @@ export function recogidaDesdeEntrega(e: EntregaEfectivo): Recogida {
     entregaEfectivoId: e.id,
     confirmadoEn: e.recibido_en || undefined,
   };
+}
+
+/** Evita incorporar el mismo fajo confirmado en dos cuadres oficiales. */
+export function fajosDuplicadosEnCuadres(
+  cuadre: Pick<Cuadre, "id" | "recogidas">,
+  historico: Array<Pick<Cuadre, "id" | "recogidas">>,
+): string[] {
+  const registrados = new Set(historico.filter((c) => c.id !== cuadre.id)
+    .flatMap((c) => (c.recogidas ?? []).map((r) => r.entregaEfectivoId).filter(Boolean) as string[]));
+  const vistos = new Set<string>();
+  const duplicados = new Set<string>();
+  for (const r of cuadre.recogidas ?? []) {
+    if (!r.entregaEfectivoId) continue;
+    if (registrados.has(r.entregaEfectivoId) || vistos.has(r.entregaEfectivoId)) {
+      duplicados.add(r.entregaEfectivoId);
+    }
+    vistos.add(r.entregaEfectivoId);
+  }
+  return [...duplicados];
 }
