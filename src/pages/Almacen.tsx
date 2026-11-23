@@ -75,7 +75,7 @@ export default function Almacen() {
 
   return (
     <div className="space-y-4 pb-24">
-      <header className="flex items-center gap-3">
+      <header className="alfaro-page-header flex items-center gap-3">
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl gradient-primary text-primary-foreground shadow-soft">
           <Warehouse className="h-5 w-5" />
         </div>
