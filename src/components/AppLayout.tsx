@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Home, History, BarChart3, Package, Users, Settings, LogOut, Warehouse, Wallet, Cloud, CloudOff, RefreshCw, CalendarDays, Banknote } from "lucide-react";
+import { Home, History, BarChart3, Package, Users, Settings, LogOut, Warehouse, Wallet, Cloud, CloudOff, RefreshCw, CalendarDays, Banknote, Bell } from "lucide-react";
 import { useCuadreStore } from "@/store/cuadreStore";
 import { motion } from "framer-motion";
 import { useAuth, AppRole } from "@/hooks/useAuth";
@@ -10,7 +10,9 @@ import { iniciarBorradoresNube } from "@/lib/borradores";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAutoLogout } from "@/hooks/useAutoLogout";
-import MisDeudasDependiente from "@/pages/MisDeudasDependiente"; // <-- Componente exclusivo y seguro para dependientes
+import MisDeudasDependiente from "@/pages/MisDeudasDependiente";
+import { bandejaNotificaciones, sesionActualNotificaciones } from "@/lib/notificaciones";
+import { usePinStore } from "@/store/pinStore"; // <-- Componente exclusivo y seguro para dependientes
 
 const ALL_TABS: { to: string; icon: any; label: string; allow: AppRole[] }[] = [
   { to: "/", icon: Home, label: "Inicio", allow: ["admin", "duena", "dependiente"] },
@@ -22,6 +24,7 @@ const ALL_TABS: { to: string; icon: any; label: string; allow: AppRole[] }[] = [
   { to: "/reportes", icon: BarChart3, label: "Reportes", allow: ["admin", "duena"] },
   { to: "/productos", icon: Package, label: "Productos", allow: ["admin", "duena"] },
   { to: "/usuarios", icon: Users, label: "Usuarios", allow: ["admin", "duena"] },
+  { to: "/notificaciones", icon: Bell, label: "Avisos", allow: ["admin", "duena", "dependiente"] },
   { to: "/ajustes", icon: Settings, label: "Ajustes", allow: ["admin", "duena"] },
 ];
 
@@ -57,7 +60,7 @@ export default function AppLayout() {
   const tabs = ALL_TABS.filter((t) => {
     if (!role) return false;
     if (role === "dependiente") {
-      return t.to === "/" || t.to === "/cobrar";
+      return t.to === "/" || t.to === "/cobrar" || t.to === "/notificaciones";
     }
     return t.allow.includes(role) && !(t.to === "/almacen" && ocultarAlmacen);
     }).map((t) => ({
@@ -73,6 +76,46 @@ export default function AppLayout() {
   const qc = useQueryClient();
   const [syncState, setSyncState] = useState<"idle" | "syncing" | "ok" | "error">("idle");
   const [lastSync, setLastSync] = useState<number | null>(null);
+  const [avisosPendientes, setAvisosPendientes] = useState(0);
+  const usuarioPinId = usePinStore((s) => s.currentUserId);
+
+  useEffect(() => {
+    let activo = true;
+    const actualizarAvisos = async () => {
+      if (!usuarioPinId || !sesionActualNotificaciones(usuarioPinId)) {
+        if (activo) setAvisosPendientes(0);
+        return;
+      }
+      try {
+        const resultado = await bandejaNotificaciones();
+        if (!activo) return;
+        setAvisosPendientes(resultado.no_leidos);
+        const nav = navigator as Navigator & {
+          setAppBadge?: (count: number) => Promise<void>;
+          clearAppBadge?: () => Promise<void>;
+        };
+        if (resultado.no_leidos > 0) void nav.setAppBadge?.(resultado.no_leidos).catch(() => {});
+        else void nav.clearAppBadge?.().catch(() => {});
+      } catch {
+        // No mostrar una alarma global por falta de red o expiración del PIN.
+      }
+    };
+    void actualizarAvisos();
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") void actualizarAvisos();
+    }, 60_000);
+    window.addEventListener("alfaro:notificaciones-sesion", actualizarAvisos);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void actualizarAvisos();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      activo = false;
+      clearInterval(t);
+      window.removeEventListener("alfaro:notificaciones-sesion", actualizarAvisos);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [usuarioPinId, location.pathname]);
 
   const running = useRef(false);
   useAutoLogout(20);
@@ -131,6 +174,19 @@ export default function AppLayout() {
           )}
         </span>
         <div className="flex items-center gap-1">
+          <button
+            type="button"
+            className="relative flex h-8 w-8 items-center justify-center rounded-xl text-primary"
+            aria-label={"Notificaciones: " + avisosPendientes + " pendientes"}
+            onClick={() => navigate("/notificaciones")}
+          >
+            <Bell className="h-4 w-4"/>
+            {avisosPendientes > 0 && (
+              <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-destructive px-1 text-[9px] font-bold text-white">
+                {avisosPendientes > 99 ? "99+" : avisosPendientes}
+              </span>
+            )}
+          </button>
           <button
             onClick={() => doSync(true)}
             title={
