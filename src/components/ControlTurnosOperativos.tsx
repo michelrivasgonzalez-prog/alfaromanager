@@ -30,12 +30,11 @@ export default function ControlTurnosOperativos() {
   const [fuente, setFuente] = useState<Fuente>("manual");
   const [nota, setNota] = useState("");
   const [guardando, setGuardando] = useState(false);
-  const [visible, setVisible] = useState(true);
 
   const entregas = useQuery({
     queryKey: ["alfaro-entregas-fuente-turnos"],
     queryFn: consultarUltimasEntregas,
-    enabled: verificado && visible,
+    enabled: verificado,
     refetchOnWindowFocus: "always",
     staleTime: 30000,
   });
@@ -49,8 +48,8 @@ export default function ControlTurnosOperativos() {
   const ultimoOficial = (punto: PuntoVenta) => [...historial]
     .filter((c) => c.puntoVenta === punto && c.finalizado)
     .sort((a, b) => {
-      const dA = a.diasTrabajados?.at(-1) ?? a.fecha;
-      const dB = b.diasTrabajados?.at(-1) ?? b.fecha;
+      const dA = (a.diasTrabajados?.[a.diasTrabajados.length - 1] ?? a.fecha);
+      const dB = (b.diasTrabajados?.[b.diasTrabajados.length - 1] ?? b.fecha);
       return new Date(dB).getTime() - new Date(dA).getTime();
     })[0];
 
