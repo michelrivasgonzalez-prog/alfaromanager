@@ -172,7 +172,7 @@ export function PrecuadreDependiente({
         id: p.id,
         nombre: p.nombre,
         codigoBarras: p.codigoBarras,
-        precioDefecto: p.precio || recibido?.precio || 0,
+        precioDefecto: recibido?.precio ?? p.precio ?? 0,
         categoria: p.categoria || recibido?.categoria || "Sin categoría",
         inicioDefecto: recibido?.inicio ?? 0,
       };
