@@ -10,7 +10,7 @@ import {
   clavePublicaPush, configuracionNotificaciones, CATEGORIAS_NOTIFICACION,
   cerrarSesionNotificaciones, desactivarPush, esPWAInstalada, marcarNotificacionLeida,
   PREFERENCIAS_INICIALES, sesionActualNotificaciones, soportaPush,
-  solicitarPushDePrueba, consultarEstadoPush, type EstadoPushDiagnostico,
+  solicitarPushDePrueba, consultarEstadoPush, probarBannerLocal, type EstadoPushDiagnostico,
   type CategoriaNotificacion, type EventoNotificacion, type PreferenciasNotificaciones,
 } from "@/lib/notificaciones";
 
@@ -137,6 +137,15 @@ export default function Notificaciones() {
     }
   };
 
+  const probarNotificacionEnTelefono = async () => {
+    try {
+      await probarBannerLocal();
+      toast.success("Prueba local solicitada al iPhone. Comprueba el banner y el sonido.");
+    } catch (e: any) {
+      toast.error(e?.message ?? "No se pudo mostrar la prueba local");
+    }
+  };
+
   const refrescarDiagnostico = async () => {
     try {
       setDiagnostico(await consultarEstadoPush());
@@ -243,10 +252,19 @@ export default function Notificaciones() {
           Una cifra sobre el icono solo indica avisos pendientes; no garantiza que
           Apple haya recibido un push. Esta prueba permite comprobar la entrega real.
         </p>
+        <Button type="button" variant="outline" disabled={!habilitado || !!error}
+          onClick={() => void probarNotificacionEnTelefono()} className="h-11 w-full">
+          <Bell className="mr-2 h-4 w-4" />
+          Probar banner y sonido en este iPhone
+        </Button>
+        <p className="text-[11px] text-muted-foreground">
+          Esta primera prueba se muestra directamente en el iPhone, sin depender
+          del servidor. No confirma que los push remotos se estén entregando.
+        </p>
         <Button type="button" variant="outline" disabled={!habilitado || probando || !!error}
           onClick={() => void probarPush()} className="h-11 w-full">
           <Send className="mr-2 h-4 w-4" />
-          {probando ? "Registrando prueba…" : "Enviar notificación de prueba"}
+          {probando ? "Registrando prueba…" : "Enviar prueba desde el servidor"}
         </Button>
         <Button type="button" variant="ghost" size="sm" className="w-full"
           onClick={() => void refrescarDiagnostico()}>
