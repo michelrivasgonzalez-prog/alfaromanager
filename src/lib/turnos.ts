@@ -27,9 +27,14 @@ export type RecogidaPrecuadre = {
   quien?: string;
   monto: number;
   nota?: string;
+  denominaciones?: Denominaciones;
+  entregaEfectivoId?: string;
+  confirmadoEn?: string;
 };
 
 export type PrecuadreData = {
+  /** Turno físico al que pertenece esta liquidación, independiente del cierre oficial. */
+  turnoOperativoId?: string;
   descartadoComo?: "cancelado" | "eliminado";
   // Paso 1
   diasTrabajados: number;
