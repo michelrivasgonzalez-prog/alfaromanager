@@ -229,16 +229,25 @@ function Wrapper({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen gradient-warm flex items-center justify-center px-4 py-8">
-      <div className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-elegant">
-        <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl gradient-primary text-primary-foreground">
-            <Coffee className="h-6 w-6" />
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-8">
+      <div className="pointer-events-none absolute -left-40 -top-40 h-80 w-80 rounded-full bg-secondary/10 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-32 -right-40 h-80 w-80 rounded-full bg-primary/10 blur-3xl" />
+      <div className="relative w-full max-w-sm rounded-3xl border border-border/70 bg-card/95 p-5 shadow-elegant sm:p-7">
+        <div className="mb-6 space-y-3 text-center">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-secondary/10 text-secondary">
+            <Coffee className="h-8 w-8" />
           </div>
-          <h1 className="text-2xl font-bold">AlFaroCafé</h1>
-          <p className="text-sm text-muted-foreground">{subtitle}</p>
+          <div>
+            <h1 className="text-2xl font-extrabold tracking-tight">
+              AlFaroCafé <span className="text-secondary">Manager</span>
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
+          </div>
         </div>
         {children}
+        <p className="mt-6 text-center text-[11px] text-muted-foreground">
+          Acceso al sistema de gestión del negocio
+        </p>
       </div>
     </div>
   );
