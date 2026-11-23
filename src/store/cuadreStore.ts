@@ -173,6 +173,8 @@ export type Cuadre = {
     entrante?: string;
     firma?: string;
     firmadoEn?: string;
+    /** Vínculo estable al turno físico, independiente del Cuadre Oficial. */
+    turnoOperativoId?: string;
   };
 };
 
@@ -182,6 +184,9 @@ export type Recogida = {
   quien?: string;
   denominaciones: Denominaciones;
   monto: number;
+  /** Identidad del fajo confirmado en la nube; impide duplicarlo o borrarlo. */
+  entregaEfectivoId?: string;
+  confirmadoEn?: string;
 };
 
 export const totalRecogidas = (r?: Recogida[]) =>
@@ -420,6 +425,7 @@ interface State {
   addDivisa: (d: Omit<Divisa, "id">) => void;
   removeDivisa: (id: string) => void;
   addRecogida: (r: Omit<Recogida, "id">) => void;
+  mergeRecogidasConfirmadas: (recogidas: Recogida[]) => void;
   removeRecogida: (id: string) => void;
 
   finalizar: (guardado?: Cuadre) => void;
@@ -780,11 +786,24 @@ export const useCuadreStore = create<State>()(
             recogidas: [...(c.recogidas ?? []), { ...r, id: crypto.randomUUID() }],
           }))
         ),
+      mergeRecogidasConfirmadas: (nuevas) =>
+        set((s) =>
+          updateActive(s, (c) => {
+            const originales = c.recogidas ?? [];
+            const ids = new Set(originales.flatMap((r) =>
+              [r.id, r.entregaEfectivoId].filter(Boolean) as string[]));
+            const faltantes = nuevas.filter((r) => r.entregaEfectivoId &&
+              r.id === r.entregaEfectivoId && !ids.has(r.id));
+            if (!faltantes.length) return c;
+            return { ...c, recogidas: [...originales, ...faltantes] };
+          })
+        ),
       removeRecogida: (id) =>
         set((s) =>
           updateActive(s, (c) => ({
             ...c,
-            recogidas: (c.recogidas ?? []).filter((r) => r.id !== id),
+            recogidas: (c.recogidas ?? []).filter((r) =>
+              r.id !== id || !!r.entregaEfectivoId),
           }))
         ),
       finalizar: (guardado) => {
