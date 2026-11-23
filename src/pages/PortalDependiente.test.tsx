@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { newCuadre, useCuadreStore } from "@/store/cuadreStore";
 import PortalDependiente from "./PortalDependiente";
@@ -44,7 +44,11 @@ describe("PortalDependiente: renderizado del perfil", () => {
       </QueryClientProvider>
     );
     expect(screen.getByText("Salarios cobrados")).toBeTruthy();
-    expect(screen.getByText(`${(2500).toLocaleString("es", { maximumFractionDigits: 2 })} CUP`)).toBeTruthy();
+    const tarjetaSalario = screen.getByText("Salarios cobrados").closest(".rounded-2xl");
+    expect(tarjetaSalario).toBeTruthy();
+    expect(within(tarjetaSalario as HTMLElement)
+      .getByText(`${(2500).toLocaleString("es", { maximumFractionDigits: 2 })} CUP`))
+      .toBeTruthy();
     expect(screen.getByText("Liquidaciones")).toBeTruthy();
   });
 });
