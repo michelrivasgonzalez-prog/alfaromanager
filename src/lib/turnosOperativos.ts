@@ -111,14 +111,21 @@ export async function relevarTurnoOperativo(
 // Copia instantánea de las existencias en el momento del relevo: nunca se
 // actualiza retroactivamente al conciliar un cuadre oficial atrasado.
 export function iniciosDesdeProductos(productos: Array<any>, tomarFinal: boolean): InicioProductoTurno[] {
-  return productos.filter((p) => p && p.id && p.nombre).map((p) => ({
-    id: String(p.id),
-    nombre: String(p.nombre),
-    inicio: Math.max(0, Number(tomarFinal ? p.final : p.inicio) || 0),
-    precio: Number(p.precio) || 0,
-    categoria: p.categoria ? String(p.categoria) : undefined,
-    codigoBarras: p.codigoBarras ? String(p.codigoBarras) : undefined,
-  }));
+  return productos.filter((p) => p && p.id && p.nombre).map((p) => {
+    const inicio = Number(tomarFinal ? p.final : p.inicio);
+    const precio = Number(p.precio ?? 0);
+    if (!Number.isFinite(inicio) || inicio < 0 || !Number.isFinite(precio) || precio < 0) {
+      throw new Error(`Revisa las existencias y el precio de ${p.nombre}: el origen contiene datos inválidos.`);
+    }
+    return {
+      id: String(p.id),
+      nombre: String(p.nombre),
+      inicio,
+      precio,
+      categoria: p.categoria ? String(p.categoria) : undefined,
+      codigoBarras: p.codigoBarras ? String(p.codigoBarras) : undefined,
+    };
+  });
 }
 
 export type EntregaReciente = {
