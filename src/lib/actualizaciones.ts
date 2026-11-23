@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useCuadreStore } from "@/store/cuadreStore";
 
 export const COMPILACION_INSTALADA = __ALFARO_BUILD_ID__;
 
@@ -108,6 +109,7 @@ export const useActualizacionesStore = create<EstadoPwa>((set, get) => ({
 }));
 
 export function hayCambiosPorSincronizar(): boolean {
+  if ((useCuadreStore.getState().pendingCuadres ?? []).length > 0) return true;
   try {
     const pending = JSON.parse(localStorage.getItem("alfaro_turnos_offline_queue") || "[]");
     if (Array.isArray(pending) && pending.length > 0) return true;
