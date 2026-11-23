@@ -68,7 +68,7 @@ const App = () => (
             <Route
               path="/cuadre/:step"
               element={
-                <RequireRole allow={["admin", "duena", "dependiente"]}>
+                <RequireRole allow={["admin", "duena"]}>
                   <Cuadre />
                 </RequireRole>
               }
