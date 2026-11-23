@@ -98,7 +98,7 @@ export default function Notificaciones() {
       return;
     }
     if (!soportaPush()) {
-      toast.error("Este navegador no permite Web Push. En iPhone abre la app desde la pantalla de inicio.");
+      toast.error("Este navegador no permite Web Push. Prueba desde la aplicación instalada en tu dispositivo.");
       return;
     }
     if (!instalada && /iPhone|iPad|iPod/.test(navigator.userAgent)) {
@@ -140,7 +140,7 @@ export default function Notificaciones() {
   const probarNotificacionEnTelefono = async () => {
     try {
       await probarBannerLocal();
-      toast.success("Prueba local solicitada al iPhone. Comprueba el banner y el sonido.");
+      toast.success("Prueba local solicitada a este dispositivo. Comprueba el aviso y el sonido.");
     } catch (e: any) {
       toast.error(e?.message ?? "No se pudo mostrar la prueba local");
     }
@@ -208,12 +208,45 @@ export default function Notificaciones() {
       )}
 
       <section className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-bold">Bandeja de avisos {noLeidas > 0 ? "(" + noLeidas + " nuevos)" : ""}</h2>
+          <Button size="sm" variant="outline" disabled={notificaciones.length===0 || !!error}
+            onClick={() => void leerTodas()}>
+            <CheckCheck className="mr-1 h-3.5 w-3.5"/> Leídos
+          </Button>
+        </div>
+        {notificaciones.length===0 && (
+          <p className="rounded-xl border border-dashed p-5 text-center text-xs text-muted-foreground">
+            Todavía no hay avisos. Se mostrarán cuando ocurran movimientos nuevos en la nube.
+          </p>
+        )}
+        <div className="max-h-[35rem] space-y-2 overflow-y-auto">
+          {notificaciones.map((n) => (
+            <button key={n.id} type="button" onClick={() => void abrir(n)}
+              className={"w-full rounded-xl border p-3 text-left text-sm " +
+                (n.leido ? "border-border bg-muted/20" : "border-primary/40 bg-primary/5")}>
+              <div className="flex items-center justify-between gap-2">
+                <strong>{n.titulo}</strong>
+                {!n.leido && <span className="h-2 w-2 shrink-0 rounded-full bg-primary"/>}
+              </div>
+              <p className="mt-0.5 text-xs text-muted-foreground">{n.contenido}</p>
+              <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground">
+                <span>{nombreCategoria[n.categoria]}</span>
+                <span className="flex items-center gap-1">
+                  <Clock className="h-3 w-3"/>{new Date(n.creado_en).toLocaleString("es")}
+                </span>
+              </div>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
         <h2 className="flex items-center gap-2 text-sm font-bold">
           <Smartphone className="h-4 w-4"/> Notificaciones push en este equipo
         </h2>
         <p className="text-xs text-muted-foreground">
-          Los avisos pueden llegar con la app cerrada. En iPhone hay que abrir
-          AlFaroCafé desde su icono de la pantalla de inicio para autorizar los avisos.
+          Los avisos pueden llegar con la app cerrada. Abre AlFaroCafé desde su icono instalado y permite las notificaciones en los ajustes del dispositivo.
           Se usa el PIN habitual y no se piden otras credenciales.
         </p>
         <div className="flex flex-wrap gap-2 text-[11px]">
@@ -246,7 +279,7 @@ export default function Notificaciones() {
 
       <section className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
         <h2 className="flex items-center gap-2 text-sm font-bold">
-          <Activity className="h-4 w-4" /> Comprobar notificaciones del iPhone
+          <Activity className="h-4 w-4" /> Comprobar notificaciones de este dispositivo
         </h2>
         <p className="text-xs text-muted-foreground">
           Una cifra sobre el icono solo indica avisos pendientes; no garantiza que
@@ -255,10 +288,10 @@ export default function Notificaciones() {
         <Button type="button" variant="outline" disabled={!habilitado || !!error}
           onClick={() => void probarNotificacionEnTelefono()} className="h-11 w-full">
           <Bell className="mr-2 h-4 w-4" />
-          Probar banner y sonido en este iPhone
+          Probar aviso y sonido en este dispositivo
         </Button>
         <p className="text-[11px] text-muted-foreground">
-          Esta primera prueba se muestra directamente en el iPhone, sin depender
+          Esta primera prueba se muestra directamente en este dispositivo, sin depender
           del servidor. No confirma que los push remotos se estén entregando.
         </p>
         <Button type="button" variant="outline" disabled={!habilitado || probando || !!error}
@@ -313,39 +346,7 @@ export default function Notificaciones() {
         })}
       </section>
 
-      <section className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-bold">Bandeja de avisos {noLeidas > 0 ? "(" + noLeidas + " nuevos)" : ""}</h2>
-          <Button size="sm" variant="outline" disabled={notificaciones.length===0 || !!error}
-            onClick={() => void leerTodas()}>
-            <CheckCheck className="mr-1 h-3.5 w-3.5"/> Leídos
-          </Button>
-        </div>
-        {notificaciones.length===0 && (
-          <p className="rounded-xl border border-dashed p-5 text-center text-xs text-muted-foreground">
-            Todavía no hay avisos. Se mostrarán cuando ocurran movimientos nuevos en la nube.
-          </p>
-        )}
-        <div className="max-h-[35rem] space-y-2 overflow-y-auto">
-          {notificaciones.map((n) => (
-            <button key={n.id} type="button" onClick={() => void abrir(n)}
-              className={"w-full rounded-xl border p-3 text-left text-sm " +
-                (n.leido ? "border-border bg-muted/20" : "border-primary/40 bg-primary/5")}>
-              <div className="flex items-center justify-between gap-2">
-                <strong>{n.titulo}</strong>
-                {!n.leido && <span className="h-2 w-2 shrink-0 rounded-full bg-primary"/>}
-              </div>
-              <p className="mt-0.5 text-xs text-muted-foreground">{n.contenido}</p>
-              <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground">
-                <span>{nombreCategoria[n.categoria]}</span>
-                <span className="flex items-center gap-1">
-                  <Clock className="h-3 w-3"/>{new Date(n.creado_en).toLocaleString("es")}
-                </span>
-              </div>
-            </button>
-          ))}
-        </div>
-      </section>
+
     </div>
   );
 }
