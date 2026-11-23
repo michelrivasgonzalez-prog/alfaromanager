@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Banknote, Package, Plus, Trash2 } from "lucide-react";
+import { Banknote, Package, Plus, Trash2, ReceiptText, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -127,11 +127,15 @@ export default function NuevaDeudaDialog({
         }
       }}
     >
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[calc(100vw-1rem)] max-w-xl max-h-[92dvh] overflow-y-auto rounded-3xl p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="flex items-center gap-2 text-lg">
+            <ReceiptText className="h-5 w-5 text-secondary" />
             Nueva deuda{clienteNombre ? ` · ${clienteNombre}` : ""}
           </DialogTitle>
+          <p className="text-xs text-muted-foreground">
+            Registra una deuda manual sin modificar un cuadre anterior.
+          </p>
         </DialogHeader>
         <div className="space-y-3">
           {!clienteId && (
@@ -158,7 +162,7 @@ export default function NuevaDeudaDialog({
               onClick={() => setModo("efectivo")}
               className={`flex flex-col items-center gap-1 rounded-xl border p-3 text-xs transition-colors ${
                 modo === "efectivo"
-                  ? "border-primary bg-primary/10 text-primary"
+                  ? "border-secondary bg-secondary/10 text-secondary"
                   : "border-border bg-card text-muted-foreground"
               }`}
             >
@@ -171,7 +175,7 @@ export default function NuevaDeudaDialog({
               onClick={() => setModo("productos")}
               className={`flex flex-col items-center gap-1 rounded-xl border p-3 text-xs transition-colors ${
                 modo === "productos"
-                  ? "border-primary bg-primary/10 text-primary"
+                  ? "border-secondary bg-secondary/10 text-secondary"
                   : "border-border bg-card text-muted-foreground"
               }`}
             >
@@ -212,39 +216,45 @@ export default function NuevaDeudaDialog({
           {modo === "productos" && (
             <div className="space-y-2">
               {productos.map((p, i) => (
-                <div key={i} className="grid grid-cols-[1fr_auto_auto_auto] items-end gap-1.5">
-                  <Input
-                    value={p.nombre}
-                    onChange={(e) =>
-                      setProductos((rs) =>
-                        rs.map((r, j) => (j === i ? { ...r, nombre: e.target.value } : r))
-                      )
-                    }
-                    placeholder="Producto"
-                    className="h-9 rounded-lg text-xs"
-                  />
-                  <NumberInput
-                    value={p.cantidad}
-                    onChange={(v) =>
-                      setProductos((rs) => rs.map((r, j) => (j === i ? { ...r, cantidad: v } : r)))
-                    }
-                    className="h-9 w-16 rounded-lg text-xs"
-                  />
-                  <NumberInput
-                    value={p.precio}
-                    onChange={(v) =>
-                      setProductos((rs) => rs.map((r, j) => (j === i ? { ...r, precio: v } : r)))
-                    }
-                    className="h-9 w-20 rounded-lg text-xs"
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-9 w-9 text-destructive"
-                    onClick={() => setProductos((rs) => rs.filter((_, j) => j !== i))}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                <div key={i} className="space-y-2 rounded-2xl border border-border/70 bg-card p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-bold text-muted-foreground">Producto {i + 1}</p>
+                    <Button type="button" variant="ghost" size="sm"
+                      aria-label={"Eliminar producto " + (i + 1)}
+                      className="h-8 rounded-lg px-2 text-destructive hover:text-destructive"
+                      disabled={busy}
+                      onClick={() => setProductos((rs) => rs.filter((_, j) => j !== i))}>
+                      <Trash2 className="mr-1 h-3.5 w-3.5" /> Quitar
+                    </Button>
+                  </div>
+                  <label className="block space-y-1">
+                    <span className="text-xs text-muted-foreground">Nombre</span>
+                    <Input value={p.nombre} disabled={busy}
+                      onChange={(e) => setProductos((rs) =>
+                        rs.map((r, j) => (j === i ? { ...r, nombre: e.target.value } : r)))}
+                      placeholder="Nombre del producto"
+                      className="h-11 rounded-xl text-sm" />
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block space-y-1">
+                      <span className="text-xs text-muted-foreground">Cantidad</span>
+                      <NumberInput value={p.cantidad} disabled={busy}
+                        onChange={(v) => setProductos((rs) =>
+                          rs.map((r, j) => (j === i ? { ...r, cantidad: v } : r)))}
+                        className="h-11 w-full rounded-xl text-right text-base" />
+                    </label>
+                    <label className="block space-y-1">
+                      <span className="text-xs text-muted-foreground">Precio unitario</span>
+                      <NumberInput value={p.precio} disabled={busy}
+                        onChange={(v) => setProductos((rs) =>
+                          rs.map((r, j) => (j === i ? { ...r, precio: v } : r)))}
+                        className="h-11 w-full rounded-xl text-right text-base" />
+                    </label>
+                  </div>
+                  <div className="flex justify-between gap-2 border-t border-border/60 pt-2 text-xs">
+                    <span className="text-muted-foreground">Subtotal</span>
+                    <strong className="tabular-nums">{fmt(Number(p.cantidad || 0) * Number(p.precio || 0))}</strong>
+                  </div>
                 </div>
               ))}
               <Button
@@ -260,17 +270,24 @@ export default function NuevaDeudaDialog({
             </div>
           )}
 
-          <div className="flex items-center justify-between rounded-xl bg-muted/60 p-3 text-sm">
-            <span className="text-muted-foreground">Total de la deuda</span>
-            <span className="font-mono font-bold text-destructive tabular-nums">{fmt(total)}</span>
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-secondary/20 bg-secondary/5 p-4">
+            <div>
+              <p className="text-xs text-muted-foreground">Total de la deuda</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">Importe calculado según los datos introducidos</p>
+            </div>
+            <strong className="text-xl font-extrabold tabular-nums text-secondary">{fmt(total)}</strong>
           </div>
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <ShieldCheck className="h-4 w-4 shrink-0 text-secondary" />
+            Se conservarán las verificaciones antes de guardar.
+          </p>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+        <DialogFooter className="sticky bottom-0 border-t border-border/60 bg-background/95 pt-3 backdrop-blur">
+          <Button variant="outline" className="h-11 rounded-xl" disabled={busy} onClick={onClose}>
             Cancelar
           </Button>
-          <Button disabled={busy} onClick={submit}>
-            Guardar deuda
+          <Button className="h-11 rounded-xl" disabled={busy} onClick={submit}>
+            {busy ? "Guardando…" : "Guardar deuda"}
           </Button>
         </DialogFooter>
       </DialogContent>
