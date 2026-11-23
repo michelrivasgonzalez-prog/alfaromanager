@@ -71,10 +71,25 @@ export default function MisDeudasDependiente() {
     );
   }
 
+  if (clientesQuery.isError || deudasQuery.isError) {
+    return (
+      <div role="alert" className="alfaro-surface space-y-3 p-5">
+        <p className="text-sm font-semibold text-destructive">No se pudo consultar el estado de tus deudas.</p>
+        <p className="text-xs text-muted-foreground">
+          Comprueba la conexión. No se mostrará un saldo de cero si faltan datos.
+        </p>
+        <Button type="button" variant="outline" className="h-10 rounded-xl"
+          onClick={() => { void clientesQuery.refetch(); void deudasQuery.refetch(); }}>
+          Reintentar consulta
+        </Button>
+      </div>
+    );
+  }
+
   if (!miCliente) {
     return (
       <div className="space-y-4 pb-24">
-        <header className="flex items-center gap-3">
+        <header className="alfaro-page-header flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl gradient-primary text-primary-foreground shadow-soft">
             <Wallet className="h-5 w-5" />
           </div>
@@ -94,7 +109,7 @@ export default function MisDeudasDependiente() {
   return (
     <div className="space-y-4 pb-24">
       {/* Encabezado */}
-      <header className="flex items-center gap-3">
+      <header className="alfaro-page-header flex items-center gap-3">
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl gradient-primary text-primary-foreground shadow-soft">
           <Wallet className="h-5 w-5" />
         </div>
@@ -119,31 +134,43 @@ export default function MisDeudasDependiente() {
         )}
       </div>
 
-      {/* Tarjetas de Resumen Financiero */}
-      <div className="grid grid-cols-3 gap-2">
-        <div className="rounded-2xl border border-border bg-card p-3 shadow-soft text-center">
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Pendiente</div>
-          <div className="mt-1 font-mono text-sm sm:text-base font-bold text-destructive tabular-nums">
+      {/* Saldo personal protagonista; no modifica la deuda ni los abonos. */}
+      <section className="space-y-2.5" aria-label="Resumen de deudas personales">
+        <div className="relative overflow-hidden rounded-3xl bg-primary p-5 text-primary-foreground shadow-soft">
+          <div className="pointer-events-none absolute -right-8 -top-10 h-40 w-40 rounded-full border-[24px] border-white/10"/>
+          <p className="relative flex items-center gap-2 text-sm font-medium text-white/85">
+            <Wallet className="h-4 w-4"/> Mi saldo pendiente
+          </p>
+          <p className="relative mt-2 break-words text-3xl font-extrabold tabular-nums sm:text-4xl">
             {fmt(estadisticas.saldoPendiente)}
+          </p>
+          <p className="relative mt-2 text-xs text-white/80">
+            {misDeudas.filter((d) => Number(d.saldo) > 0).length} deuda(s) con saldo por pagar
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2.5">
+          <div className="alfaro-surface min-w-0 p-3.5">
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <CheckCircle2 className="h-4 w-4 text-secondary" /> Pagado
+            </p>
+            <p className="mt-2 break-words text-lg font-extrabold tabular-nums text-secondary">
+              {fmt(estadisticas.totalPagado)}
+            </p>
+          </div>
+          <div className="alfaro-surface min-w-0 p-3.5">
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Receipt className="h-4 w-4 text-secondary"/> Total histórico
+            </p>
+            <p className="mt-2 break-words text-lg font-extrabold tabular-nums">
+              {fmt(estadisticas.totalConsumido)}
+            </p>
           </div>
         </div>
-        <div className="rounded-2xl border border-border bg-card p-3 shadow-soft text-center">
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Pagado</div>
-          <div className="mt-1 font-mono text-sm sm:text-base font-bold text-secondary tabular-nums">
-            {fmt(estadisticas.totalPagado)}
-          </div>
-        </div>
-        <div className="rounded-2xl border border-border bg-card p-3 shadow-soft text-center">
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Total Histórico</div>
-          <div className="mt-1 font-mono text-sm sm:text-base font-bold text-primary tabular-nums">
-            {fmt(estadisticas.totalConsumido)}
-          </div>
-        </div>
-      </div>
+      </section>
 
       {/* Listado Histórico de Deudas */}
       <div className="space-y-3 pt-2">
-        <h2 className="text-sm font-semibold text-muted-foreground px-1">Historial de consumos y deudas</h2>
+        <h2 className="flex items-center gap-2 px-1 text-sm font-bold"><Receipt className="h-4 w-4 text-secondary"/> Historial de consumos y deudas</h2>
         
         {misDeudas.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground shadow-soft">
@@ -152,7 +179,7 @@ export default function MisDeudasDependiente() {
           </div>
         ) : (
           misDeudas.map((d) => (
-            <div key={d.id} className="rounded-2xl border border-border bg-card p-3.5 shadow-soft space-y-3">
+            <div key={d.id} className="alfaro-surface space-y-3 p-3.5">
               <div className="flex items-start justify-between gap-2">
                 <div className="space-y-1">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
