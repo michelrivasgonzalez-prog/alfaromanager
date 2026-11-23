@@ -4,6 +4,9 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 
+// Cada compilación publicada tiene un identificador distinto y consultable sin caché.
+const alfaroBuildId = new Date().toISOString();
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
@@ -13,14 +16,26 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
   },
+  define: { __ALFARO_BUILD_ID__: JSON.stringify(alfaroBuildId) },
   plugins: [
     react(),
+    {
+      name: "alfaro-version-published",
+      apply: "build" as const,
+      generateBundle() {
+        this.emitFile({
+          type: "asset",
+          fileName: "version.json",
+          source: JSON.stringify({ buildId: alfaroBuildId }),
+        });
+      },
+    },
     mode === "development" && componentTagger(),
     VitePWA({
       strategies: "injectManifest",
       srcDir: "src",
       filename: "sw.ts",
-      registerType: "autoUpdate",
+      registerType: "prompt",
       includeAssets: ["favicon.png", "icon-192.png", "icon-512.png"],
       manifest: {
         id: "/", // Identidad anterior del PWA: conservar instalación existente en iPhone
