@@ -20,7 +20,8 @@ import * as XLSX from "xlsx";
 import { pushCatalogItem, deleteCatalogItem } from "@/lib/sync";
 import { KardexDialog } from "@/components/KardexDialog";
 import BarcodeScanner from "@/components/BarcodeScanner";
-import { buscarDuplicadoCatalogo, buscarPorCodigo, esCodigoBarrasValido, limpiarCodigoBarras, normalizarNombreProducto } from "@/lib/codigosBarras";
+import CodigosAsociados from "@/components/catalogo/CodigosAsociados";
+import { buscarDuplicadoCatalogo, buscarPorCodigo, codigosAdicionalesValidos, esCodigoBarrasValido, limpiarCodigoBarras, normalizarNombreProducto } from "@/lib/codigosBarras";
 import {
   Dialog,
   DialogContent,
@@ -47,6 +48,10 @@ export default function Productos() {
   const [kardex, setKardex] = useState<string | null>(null);
   const [nuevo, setNuevo] = useState({ nombre: "", precio: 0, costo: 0, categoria: "", codigoBarras: "" });
   const [scannerDestino, setScannerDestino] = useState<string | null>(null);
+  const [aliasDraft, setAliasDraft] = useState<{ productoId: string; indice?: number; codigo: string; etiqueta: string } | null>(null);
+  const [codigoPendiente, setCodigoPendiente] = useState<string | null>(null);
+  const [filtroAsociar, setFiltroAsociar] = useState("");
+  const [etiquetaAsociar, setEtiquetaAsociar] = useState("");
   const [codigosBorrador, setCodigosBorrador] = useState<Record<string, string>>({});
   const history = useCuadreStore((s) => s.history);
 
@@ -103,21 +108,28 @@ export default function Productos() {
     const anterior = useCuadreStore.getState().catalogo.find((c) => c.id === id);
     if (!anterior) return;
     const siguiente = { ...anterior, ...patch };
+    if (!codigosAdicionalesValidos(siguiente.codigoBarras, siguiente.codigosAdicionales ?? [])) {
+      toast.error("Un código está repetido o no es válido dentro de este producto.");
+      return false;
+    }
     const duplicado = buscarDuplicadoCatalogo(
       useCuadreStore.getState().catalogo, punto,
-      { nombre: siguiente.nombre, codigoBarras: siguiente.codigoBarras }, id
+      { nombre: siguiente.nombre, codigoBarras: siguiente.codigoBarras,
+        codigosAdicionales: siguiente.codigosAdicionales }, id
     );
     if (duplicado) {
       toast.error('Ya existe "' + duplicado.nombre + '" en ' + punto);
-      return;
+      return false;
     }
     updateCatalogItem(id, patch);
     try {
       const actualizado = useCuadreStore.getState().catalogo.find((c) => c.id === id);
       if (actualizado) await pushCatalogItem(actualizado);
+      return true;
     } catch (e: any) {
       updateCatalogItem(id, anterior);
       toast.error(e?.message ?? "No se pudo guardar el producto");
+      return false;
     }
   };
 
@@ -132,6 +144,10 @@ export default function Productos() {
       toast.error("Código inválido. Revisa los dígitos EAN / UPC / GTIN.");
       return;
     }
+    if (!codigosAdicionalesValidos(codigo, item.codigosAdicionales ?? [])) {
+      toast.error("Ese código ya está asociado a una variante de este producto.");
+      return;
+    }
     const duplicado = buscarDuplicadoCatalogo(catalogo, punto, { codigoBarras: codigo }, id);
     if (duplicado) {
       toast.warning('El código ya corresponde a "' + duplicado.nombre + '". No se duplicó.');
@@ -140,6 +156,38 @@ export default function Productos() {
     }
     setCodigosBorrador((prev) => { const n = { ...prev }; delete n[id]; return n; });
     void updateAndSync(id, { codigoBarras: codigo || undefined });
+  };
+
+  const guardarAlias = async () => {
+    if (!aliasDraft) return;
+    const item = useCuadreStore.getState().catalogo.find((p) => p.id === aliasDraft.productoId);
+    if (!item) return;
+    const codigo = limpiarCodigoBarras(aliasDraft.codigo);
+    if (!esCodigoBarrasValido(codigo)) {
+      toast.error("Introduce o escanea un código EAN/UPC válido.");
+      return;
+    }
+    const adicionales = [...(item.codigosAdicionales ?? [])];
+    const entrada = { codigo, etiqueta: aliasDraft.etiqueta.trim() || undefined };
+    if (aliasDraft.indice === undefined) {
+      adicionales.push(entrada);
+    } else {
+      adicionales[aliasDraft.indice] = entrada;
+    }
+    const guardado = await updateAndSync(item.id, { codigosAdicionales: adicionales });
+    if (guardado) {
+      setAliasDraft(null);
+      toast.success("Código asociado a " + item.nombre + " sin crear otro producto.");
+    }
+  };
+
+  const eliminarAlias = async (item: CatalogoItem, indice: number) => {
+    const alias = item.codigosAdicionales?.[indice];
+    if (!alias || !window.confirm('¿Desvincular el código "' + alias.codigo + '" de ' + item.nombre + '?')) return;
+    const guardado = await updateAndSync(item.id, {
+      codigosAdicionales: (item.codigosAdicionales ?? []).filter((_, i) => i !== indice),
+    });
+    if (guardado) toast.success("Código desvinculado. Las existencias se conservaron.");
   };
 
   const escaneado = (codigoRaw: string) => {
@@ -152,14 +200,25 @@ export default function Productos() {
     const destino = scannerDestino;
     setScannerDestino(null);
     const encontrado = buscarPorCodigo(catalogo, punto, codigo);
+    if (destino?.startsWith("alias:")) {
+      const id = destino.slice("alias:".length);
+      if (encontrado) {
+        toast.warning('Este código ya está asociado a "' + encontrado.nombre + '".');
+      } else {
+        setAliasDraft({ productoId: id, codigo, etiqueta: "" });
+      }
+      return;
+    }
     if (destino === "buscar") {
       if (encontrado) {
         toast.success('Producto encontrado: ' + encontrado.nombre);
         setTimeout(() => document.getElementById("producto-" + encontrado.id)?.scrollIntoView({ behavior: "smooth", block: "center" }), 120);
       } else {
-        setNuevo((v) => ({ ...v, codigoBarras: codigo }));
-        setNuevoOpen(true);
-        toast.info("Código nuevo. Comprueba el nombre antes de crear el producto.");
+        // Antes de crear otra ficha permite vincular el sabor a un producto existente.
+        setCodigoPendiente(codigo);
+        setFiltroAsociar("");
+        setEtiquetaAsociar("");
+        toast.info("Código nuevo: puedes asociarlo a una ficha ya existente.");
       }
       return;
     }
@@ -474,6 +533,18 @@ export default function Productos() {
                   onClick={() => setScannerDestino(p.id)}><ScanBarcode className="h-4 w-4" /></Button>
               </div>
             </div>
+            <CodigosAsociados
+              producto={p}
+              onAgregar={() => setAliasDraft({ productoId: p.id, codigo: "", etiqueta: "" })}
+              onEscanear={() => setScannerDestino("alias:" + p.id)}
+              onEditar={(indice) => {
+                const entrada = p.codigosAdicionales?.[indice];
+                if (entrada) setAliasDraft({
+                  productoId: p.id, indice, codigo: entrada.codigo, etiqueta: entrada.etiqueta ?? "",
+                });
+              }}
+              onEliminar={(indice) => { void eliminarAlias(p, indice); }}
+            />
             <label className="mt-2 block text-xs">
               <span className="text-muted-foreground">Categoría</span>
               {categorias.length > 0 ? (
