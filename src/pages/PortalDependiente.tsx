@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { normalizarDependiente } from "@/lib/cobrar";
 import { listarPrecuadresEnviados } from "@/lib/turnos";
 import { useAuth } from "@/hooks/useAuth";
+import { useControlTurnos } from "@/hooks/useControlTurnos";
+import { Input } from "@/components/ui/input";
 import { Calendar, Clock, Send, Wallet, Store, ClipboardCheck, CheckCircle2, AlertTriangle } from "lucide-react";
 import { formatDiasTrabajados } from "@/lib/dias";
 import Avatar from "@/components/Avatar";
@@ -14,8 +16,11 @@ import { PrecuadreDependiente } from "@/components/cuadre/Precuadre";
 const monto = (valor: number) => `${valor.toLocaleString("es", { maximumFractionDigits: 2 })} CUP`;
 
 export default function PortalDependiente() {
-  const { nombre } = useAuth();
-  const { history, currents, activePunto, catalogo, settings } = useCuadreStore();
+  const { nombre, user } = useAuth();
+  const { history, activePunto, settings } = useCuadreStore();
+  const { turnos, verificado, verificar, cargando: cargandoTurnos, error: errorTurnos, recargar } = useControlTurnos(user?.id);
+  const [pinTurnos, setPinTurnos] = useState("");
+  const [validandoPinTurnos, setValidandoPinTurnos] = useState(false);
 
   // 1. Inicia directamente en "historial" (Mis Liquidaciones)
   const [tab, setTab] = useState<"historial" | "turno" | "enviados">("historial");
@@ -46,86 +51,48 @@ export default function PortalDependiente() {
     setPuntoSeleccionado(puntoHabitualDep);
   }, [puntoHabitualDep]);
 
-  const cuadreActual = currents[puntoSeleccionado];
+  // Una dependienta nunca obtiene inicios de otro usuario ni del último
+  // cuadre oficial: se usan exclusivamente sus turnos operativos asignados.
+  const turnoOperativo = useMemo(() => turnos.find((t) =>
+    t.punto_venta === puntoSeleccionado && t.usuario_id === user?.id
+  ), [turnos, puntoSeleccionado, user?.id]);
 
-  // 3. Último cuadre cerrado del punto correspondiente
-  const ultimoCuadre = useMemo(() => {
-    return history
-      .filter((c) => c.puntoVenta === puntoSeleccionado)
-      .sort(
-        (a, b) =>
-          new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
-      )[0];
-  }, [history, puntoSeleccionado]);
+  useEffect(() => {
+    if (turnos.length && !turnos.some((t) => t.punto_venta === puntoSeleccionado)) {
+      setPuntoSeleccionado(turnos[0].punto_venta);
+    }
+  }, [turnos, puntoSeleccionado]);
 
-  // Cuadres trabajados históricamente por la dependienta
   const misCuadres = useMemo(() => {
     if (!nombre) return [];
-
-    return history.filter(
-      (c) => normalizarDependiente(c.dependiente) === normalizarDependiente(nombre)
+    return history.filter((c) =>
+      normalizarDependiente(c.dependiente) === normalizarDependiente(nombre)
     );
   }, [history, nombre]);
 
-  // Solo mostramos los pagos efectivamente registrados; el salario calculado
-  // no representa un saldo pendiente de pago para la dependienta.
-  const totalCobrado = useMemo(() => misCuadres.reduce((total, cuadre) => {
-    const pagado = calcCuadre(cuadre).salarioPagado;
-    return total + (pagado ?? 0);
-  }, 0), [misCuadres]);
-
-  // Productos del turno: existencias iniciales tomadas del último turno del punto de venta correcto
-  const productosTurno = useMemo(() => {
-    let prods: {
-      id: string;
-      nombre: string;
-      inicio: number;
-      entradas: number;
-      traslados: number;
-      precio: number;
-      categoria?: string;
-    }[] = [];
-
-    if (cuadreActual?.productos && cuadreActual.productos.length > 0) {
-      prods = cuadreActual.productos.map((p) => ({
+  // Copia inmutable del inventario que recibió la persona al iniciar su turno,
+  // aunque exista un cuadre oficial anterior pendiente de conciliación.
+  const productosTurno = useMemo(() => sortProductos(
+    (turnoOperativo?.inicios ?? [])
+      .filter((p) => p.inicio > 0)
+      .map((p) => ({
         id: p.id,
         nombre: p.nombre,
-        inicio: p.inicio || 0,
-        entradas: p.entradas || 0,
-        traslados: p.traslados || 0,
-        precio: p.precio || 0,
+        inicio: p.inicio,
+        entradas: 0,
+        traslados: 0,
+        precio: p.precio,
         categoria: p.categoria,
-      }));
-    } else {
-      prods = catalogo
-        .filter((c) => !c.punto || c.punto === puntoSeleccionado)
-        .map((c) => {
-          const anterior = ultimoCuadre?.productos?.find(
-            (p) => p.id === c.id || p.nombre === c.nombre
-          );
-
-          return {
-            id: c.id,
-            nombre: c.nombre,
-            inicio: anterior?.final ?? 0,
-            entradas: 0,
-            traslados: 0,
-            precio: c.precio,
-            categoria: c.categoria,
-          };
-        });
-    }
-
-    // Solo los productos con existencias al inicio del turno
-    return sortProductos(prods.filter((p) => p.inicio > 0), settings.categorias);
-  }, [cuadreActual, catalogo, puntoSeleccionado, ultimoCuadre, settings.categorias]);
+      })), settings.categorias,
+  ), [turnoOperativo, settings.categorias]);
 
   // Página completa de entrega del turno
-  if (entregandoTurno) {
+  if (entregandoTurno && turnoOperativo && verificado && !errorTurnos) {
     return (
       <PrecuadreDependiente
         puntoInicial={puntoSeleccionado}
         dependienteInicial={nombre || ""}
+        turnoOperativo={turnoOperativo}
         onCancelar={() => {
           if (
             window.confirm(
@@ -139,6 +106,7 @@ export default function PortalDependiente() {
           setEntregandoTurno(false);
           setTab("enviados");
           void enviados.refetch();
+          void recargar();
         }}
       />
     );
@@ -316,6 +284,56 @@ export default function PortalDependiente() {
       {/* Turno en curso */}
       {tab === "turno" && (
         <div className="space-y-4">
+          {!verificado || !!errorTurnos ? (
+            <div className="alfaro-surface space-y-3 p-4">
+              <div className="flex items-center gap-2">
+                <Clock className="h-5 w-5 text-secondary" />
+                <p className="text-sm font-bold">Verificar identidad del turno</p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Confirma tu PIN para consultar únicamente los inicios del turno que tienes asignado.
+              </p>
+              <div className="flex gap-2">
+                <Input type="password" inputMode="numeric" maxLength={6}
+                  placeholder="PIN de 6 dígitos" value={pinTurnos}
+                  onChange={(e) => setPinTurnos(e.target.value.replace(/\D/g, ""))}
+                  className="h-10 rounded-xl" />
+                <Button type="button" disabled={validandoPinTurnos || pinTurnos.length !== 6}
+                  onClick={async () => {
+                    setValidandoPinTurnos(true);
+                    try {
+                      await verificar(pinTurnos);
+                      setPinTurnos("");
+                    } catch (e) {
+                      const mensaje = e instanceof Error ? e.message : "PIN no válido";
+                      alert(mensaje);
+                    } finally {
+                      setValidandoPinTurnos(false);
+                    }
+                  }}>Validar</Button>
+              </div>
+              {errorTurnos && <p className="text-xs text-destructive">{errorTurnos.message}</p>}
+            </div>
+          ) : cargandoTurnos ? (
+            <div className="alfaro-surface p-5 text-sm text-muted-foreground">
+              Comprobando el turno asignado…
+            </div>
+          ) : !turnoOperativo ? (
+            <div className="alfaro-surface space-y-2 p-6 text-center">
+              <Clock className="mx-auto h-8 w-8 text-muted-foreground" />
+              <p className="font-bold">No tienes un turno activo en {puntoSeleccionado === "Mipyme" ? "MiPyME" : puntoSeleccionado}</p>
+              <p className="text-xs text-muted-foreground">
+                Tus liquidaciones personales siguen disponibles. El administrador debe asignarte
+                un turno antes de mostrar sus existencias o permitir su entrega.
+              </p>
+              <Button type="button" variant="outline" size="sm" className="rounded-xl"
+                onClick={() => { void recargar(); }}>Actualizar asignación</Button>
+            </div>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground">
+                Turno asignado a ti desde {new Date(turnoOperativo.inicio).toLocaleString("es-CU")}.
+              </p>
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
@@ -380,6 +398,8 @@ export default function PortalDependiente() {
               })
             )}
           </div>
+            </>
+          )}
         </div>
       )}
     </div>
