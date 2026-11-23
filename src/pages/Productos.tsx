@@ -737,6 +737,89 @@ export default function Productos() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <Dialog open={aliasDraft !== null} onOpenChange={(abierto) => { if (!abierto) setAliasDraft(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{aliasDraft?.indice === undefined ? "Asociar otro código" : "Editar código asociado"}</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            Variantes o sabores comparten la misma ficha, el mismo precio y la misma existencia.
+          </p>
+          <label className="space-y-1 text-xs">
+            <span>Código de barras</span>
+            <div className="flex gap-2">
+              <Input inputMode="numeric" value={aliasDraft?.codigo ?? ""}
+                onChange={(e) => setAliasDraft((actual) => actual ? { ...actual, codigo: e.target.value } : null)}
+                className="h-10 font-mono" placeholder="EAN/UPC/GTIN" />
+              <Button variant="outline" size="icon" type="button"
+                aria-label="Escanear código asociado"
+                onClick={() => {
+                  const id = aliasDraft?.productoId;
+                  setAliasDraft(null);
+                  if (id) setScannerDestino("alias:" + id);
+                }}>
+                <ScanBarcode className="h-4 w-4"/>
+              </Button>
+            </div>
+          </label>
+          <label className="space-y-1 text-xs">
+            <span>Sabor o variante (opcional)</span>
+            <Input value={aliasDraft?.etiqueta ?? ""} placeholder="Ej. Rosas, Violetas, Cola…"
+              onChange={(e) => setAliasDraft((actual) => actual ? { ...actual, etiqueta: e.target.value } : null)}
+              className="h-10" />
+          </label>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAliasDraft(null)}>Cancelar</Button>
+            <Button onClick={() => { void guardarAlias(); }}>Guardar código</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={codigoPendiente !== null}
+        onOpenChange={(abierto) => { if (!abierto) setCodigoPendiente(null); }}>
+        <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>¿A qué producto corresponde este código?</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            Código detectado: <strong className="font-mono">{codigoPendiente}</strong>.
+            Puedes asociarlo a una ficha existente, como un nuevo sabor, sin duplicar el inventario.
+          </p>
+          <label className="space-y-1 text-xs">
+            <span>Identificar variante (opcional)</span>
+            <Input value={etiquetaAsociar} placeholder="Ej. Naranja, Rosas, Violetas"
+              onChange={(e) => setEtiquetaAsociar(e.target.value)}/>
+          </label>
+          <Input placeholder="Buscar producto por nombre…"
+            value={filtroAsociar} onChange={(e) => setFiltroAsociar(e.target.value)}/>
+          <div className="max-h-52 overflow-y-auto space-y-1.5">
+            {productosPunto.filter((p) =>
+              normalizarNombreProducto(p.nombre).includes(normalizarNombreProducto(filtroAsociar))
+            ).map((p) => (
+              <Button key={p.id} type="button" variant="outline"
+                className="w-full justify-start h-auto min-h-10 whitespace-normal text-left"
+                onClick={() => {
+                  if (!codigoPendiente) return;
+                  setAliasDraft({
+                    productoId: p.id, codigo: codigoPendiente, etiqueta: etiquetaAsociar,
+                  });
+                  setCodigoPendiente(null);
+                }}>
+                {p.nombre}
+              </Button>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCodigoPendiente(null)}>Cancelar</Button>
+            <Button type="button" onClick={() => {
+              setNuevo((v) => ({ ...v, codigoBarras: codigoPendiente ?? "" }));
+              setCodigoPendiente(null);
+              setNuevoOpen(true);
+            }}>Crear producto nuevo</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <BarcodeScanner open={scannerDestino !== null}
         onOpenChange={(abierto) => { if (!abierto) setScannerDestino(null); }}
         onScan={escaneado} titulo="Escáner de productos" />
