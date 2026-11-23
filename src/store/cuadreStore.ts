@@ -42,6 +42,8 @@ export type CatalogoItem = {
   codigoBarras?: string;
   /** Otros sabores/variantes que comparten esta misma existencia. */
   codigosAdicionales?: CodigoBarraAdicional[];
+  /** Miniatura pública opcional para catálogo; nunca se copia al cuadre. */
+  fotoUrl?: string;
   precio: number;
   costo: number;
   orden?: number;
