@@ -85,7 +85,14 @@ export const usePinStore = create<PinState>()(
         login: async (pin) => {
           for (const u of get().users) {
             const h = await hashPin(pin, u.id);
-            if (h === u.pinHash) return activar(u);
+            if (h === u.pinHash) {
+              const sesion = activar(u);
+              // Reutiliza este PIN recién validado, sin mostrar otro formulario.
+              void import("@/lib/notificaciones")
+                .then((m) => m.iniciarNotificacionesConPin(u.id, pin))
+                .catch((e) => console.warn("Notificaciones no disponibles:", e));
+              return sesion;
+            }
           }
           return null;
         },
@@ -96,6 +103,10 @@ export const usePinStore = create<PinState>()(
         },
 
         logout: () => {
+          // No dejar suscripciones del usuario anterior activas en el mismo equipo.
+          void import("@/lib/notificaciones")
+            .then((m) => m.cerrarSesionNotificaciones())
+            .catch(console.warn);
           set({ currentUserId: null });
         },
       };
