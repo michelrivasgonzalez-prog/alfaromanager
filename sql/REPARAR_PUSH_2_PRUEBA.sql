@@ -39,7 +39,7 @@ BEGIN
     'prueba_push:'||v_user.usuario_id::text||':'||gen_random_uuid()::text,
     'precuadres',
     'Prueba de notificación AlFaroCafé',
-    'Si aparece este aviso, tu iPhone está recibiendo notificaciones push.',
+    'Si aparece este aviso, tu dispositivo está recibiendo notificaciones push.',
     '/notificaciones',
     ARRAY[v_user.rol]::text[],
     v_user.nombre
