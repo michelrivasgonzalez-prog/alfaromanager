@@ -475,7 +475,7 @@ export default function Reportes() {
       </div>
 
       {/* Pestañas Temáticas de Navegación */}
-      <div className="grid grid-cols-4 gap-1.5 p-1 bg-muted/50 border border-border rounded-2xl">
+      <div className="grid grid-cols-4 gap-1.5 rounded-2xl border border-border/70 bg-card p-1 shadow-soft">
         {[
           { key: "ventas", label: "Ventas", icon: BarChart3 },
           { key: "dependientes", label: "Faltantes", icon: Users },
@@ -488,9 +488,9 @@ export default function Reportes() {
             <button
               key={tab.key}
               onClick={() => setSeccion(tab.key as SeccionActiva)}
-              className={`flex flex-col sm:flex-row items-center justify-center gap-1 py-2 px-1 rounded-xl text-xs font-semibold transition-all ${
+              className={`flex min-h-12 flex-col sm:flex-row items-center justify-center gap-1 px-1 py-2 rounded-xl text-xs font-semibold transition-all ${
                 activo
-                  ? "bg-card text-foreground shadow-soft"
+                  ? "bg-secondary/10 text-secondary shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -506,61 +506,96 @@ export default function Reportes() {
          ======================================================== */}
       {seccion === "ventas" && (
         <div className="space-y-4">
-          {/* KPI Cards Maestras */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="rounded-2xl gradient-primary p-4 text-primary-foreground shadow-soft">
-              <div className="flex items-center justify-between opacity-80 text-[10px] uppercase tracking-wider font-semibold">
-                <span>Venta Total</span>
-                <DollarSign className="h-4 w-4" />
+          {/* Jerarquía clara: venta principal, ganancia y márgenes secundarios. */}
+          <section aria-label="Indicadores del período" className="space-y-2.5">
+            <div className="relative overflow-hidden rounded-3xl bg-primary p-5 text-primary-foreground shadow-soft sm:p-6">
+              <div className="pointer-events-none absolute -right-8 -top-10 h-44 w-44 rounded-full border-[26px] border-white/10" />
+              <div className="relative flex items-center gap-2 text-sm font-semibold text-white/85">
+                <DollarSign className="h-5 w-5" /> Ventas del período
               </div>
-              <div className="mt-1 text-2xl font-black tracking-tight">
+              <div className="relative mt-2 break-words text-3xl font-extrabold tracking-tight tabular-nums sm:text-4xl">
                 {fmt(metricasVentas.totalVenta)}
               </div>
-              <div className="mt-1 text-[11px] opacity-85">
-                {metricasVentas.turnosCount} turnos analizados
+              <p className="relative mt-2 text-xs text-white/80">
+                {metricasVentas.turnosCount} turnos analizados · {puntoFiltro === "Mipyme" ? "MiPyME" : puntoFiltro}
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+              <div className="alfaro-surface min-w-0 p-3.5">
+                <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <TrendingUp className="h-4 w-4 text-secondary" /> Ganancia neta
+                </p>
+                <p className="mt-1 break-all text-lg font-extrabold tabular-nums text-secondary">
+                  {fmt(metricasVentas.gananciaNeta)}
+                </p>
+              </div>
+              <div className="alfaro-surface min-w-0 p-3.5">
+                <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Percent className="h-4 w-4 text-secondary" /> Margen neto
+                </p>
+                <p className="mt-1 text-lg font-extrabold tabular-nums">
+                  {metricasVentas.margenNeto.toFixed(1)}%
+                </p>
+              </div>
+              <div className="alfaro-surface col-span-2 min-w-0 p-3.5 sm:col-span-1">
+                <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <BarChart3 className="h-4 w-4 text-secondary" /> Promedio por turno
+                </p>
+                <p className="mt-1 break-all text-lg font-extrabold tabular-nums">
+                  {fmt(metricasVentas.promedioVentaTurno)}
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5 text-xs">
+              <div className="rounded-xl border border-border/60 bg-muted/25 p-3">
+                <p className="text-muted-foreground">Ganancia bruta</p>
+                <p className="mt-1 text-sm font-bold tabular-nums">{fmt(metricasVentas.gananciaBruta)}</p>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-muted/25 p-3">
+                <p className="text-muted-foreground">Gastos por turno</p>
+                <p className="mt-1 text-sm font-bold tabular-nums">
+                  {fmt(metricasVentas.turnosCount > 0 ? metricasVentas.totalGastos / metricasVentas.turnosCount : 0)}
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* Gráfico de Ventas y Ganancias */}
+          <div className="alfaro-surface space-y-3 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-bold">Evolución de ventas</h2>
+                <p className="text-[11px] text-muted-foreground">
+                  Comparativa de Venta vs Ganancia Neta
+                </p>
               </div>
             </div>
 
-            <div className="rounded-2xl gradient-emerald p-4 text-secondary-foreground shadow-soft">
-              <div className="flex items-center justify-between opacity-80 text-[10px] uppercase tracking-wider font-semibold">
-                <span>Ganancia Neta</span>
-                <TrendingUp className="h-4 w-4" />
+            {dataGrafico.length === 0 ? (
+              <div className="py-12 text-center text-sm text-muted-foreground">
+                No hay turnos registrados en este período
               </div>
-              <div className="mt-1 text-2xl font-black tracking-tight">
-                {fmt(metricasVentas.gananciaNeta)}
-              </div>
-              <div className="mt-1 text-[11px] font-semibold opacity-85">
-                Margen neto: {metricasVentas.margenNeto.toFixed(1)}%
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
-              <div className="flex items-center justify-between text-muted-foreground text-[10px] uppercase tracking-wider font-semibold">
-                <span>Promedio / Turno</span>
-                <BarChart3 className="h-4 w-4 text-primary" />
-              </div>
-              <div className="mt-1 text-2xl font-bold font-mono tabular-nums">
-                {fmt(metricasVentas.promedioVentaTurno)}
-              </div>
-              <div className="mt-1 text-[11px] text-muted-foreground">
-                Gto. promedio: {fmt(metricasVentas.turnosCount > 0 ? metricasVentas.totalGastos / metricasVentas.turnosCount : 0)}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
-              <div className="flex items-center justify-between text-muted-foreground text-[10px] uppercase tracking-wider font-semibold">
-                <span>Ganancia Bruta</span>
-                <Percent className="h-4 w-4 text-secondary" />
-              </div>
-              <div className="mt-1 text-2xl font-bold font-mono tabular-nums text-secondary">
-                {fmt(metricasVentas.gananciaBruta)}
-              </div>
-              <div className="mt-1 text-[11px] text-muted-foreground">
-                Margen bruto: {metricasVentas.margenBruto.toFixed(1)}%
-              </div>
-            </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={dataGrafico} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.6} />
+                  <XAxis dataKey="name" fontSize={11} stroke="hsl(var(--muted-foreground))" />
+                  <YAxis fontSize={11} stroke="hsl(var(--muted-foreground))" />
+                  <Tooltip
+                    contentStyle={{
+                      background: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: 12,
+                      fontSize: "12px",
+                    }}
+                    formatter={(value: number) => [fmt(value), ""]}
+                  />
+                  <Bar dataKey="Venta" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} name="Venta" />
+                  <Bar dataKey="Ganancia" fill="hsl(var(--secondary))" radius={[6, 6, 0, 0]} name="Ganancia Neta" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
-
           {/* Comparativa Cafetería vs Mipyme si estamos en Todos */}
           {puntoFiltro === "Todos" && (
             <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3">
@@ -626,42 +661,7 @@ export default function Reportes() {
             </div>
           )}
 
-          {/* Gráfico de Ventas y Ganancias */}
-          <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-bold">Comportamiento Turno a Turno</h2>
-                <p className="text-[11px] text-muted-foreground">
-                  Comparativa de Venta vs Ganancia Neta
-                </p>
-              </div>
-            </div>
 
-            {dataGrafico.length === 0 ? (
-              <div className="py-12 text-center text-sm text-muted-foreground">
-                No hay turnos registrados en este período
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={dataGrafico} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.6} />
-                  <XAxis dataKey="name" fontSize={11} stroke="hsl(var(--muted-foreground))" />
-                  <YAxis fontSize={11} stroke="hsl(var(--muted-foreground))" />
-                  <Tooltip
-                    contentStyle={{
-                      background: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: 12,
-                      fontSize: "12px",
-                    }}
-                    formatter={(value: number) => [fmt(value), ""]}
-                  />
-                  <Bar dataKey="Venta" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} name="Venta" />
-                  <Bar dataKey="Ganancia" fill="hsl(var(--secondary))" radius={[6, 6, 0, 0]} name="Ganancia Neta" />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
         </div>
       )}
 
