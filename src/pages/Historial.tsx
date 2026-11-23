@@ -386,29 +386,55 @@ export default function Historial() {
           0
         );
         return (
-          <div
-            key={c.id}
-            className="rounded-2xl border border-border bg-card p-4 shadow-soft"
-          >
-            <div className="flex items-start justify-between">
-              <div>
-                <div className="font-semibold">{c.dependiente || "Sin nombre"}</div>
-                <div className="text-xs text-muted-foreground">
-                  {formatDiasTrabajados(c.diasTrabajados)}
-                </div>
+          <article key={c.id} className={"overflow-hidden rounded-2xl border bg-card shadow-soft " +
+            (r.diferencia < 0 ? "border-amber-500/35" : "border-border")}>
+            <button type="button" className="flex w-full items-start gap-3 px-3.5 py-3.5 text-left transition-colors hover:bg-muted/30 sm:px-4"
+              aria-expanded={expandidoId === c.id}
+              aria-label={"Ver detalles del cuadre de " + (c.dependiente || "sin nombre")}
+              onClick={() => {
+                setExpandidoId(expandidoId === c.id ? null : c.id);
+                setAccionesId(null);
+              }}>
+              <span className={"flex h-11 w-11 shrink-0 items-center justify-center rounded-xl " +
+                (c.puntoVenta === "Cafetería" ? "bg-primary/10 text-primary dark:text-foreground" : "bg-secondary/10 text-secondary")}>
+                {c.puntoVenta === "Cafetería" ? <Coffee className="h-5 w-5" /> : <Store className="h-5 w-5" />}
+              </span>
+              <span className="min-w-0 flex-1 space-y-1">
+                <span className="block break-words text-sm font-bold">{c.dependiente || "Sin nombre"}</span>
+                <span className="block text-xs text-muted-foreground">
+                  {c.puntoVenta === "Mipyme" ? "MiPyME" : c.puntoVenta}
+                  {" · "}{formatDiasTrabajados(c.diasTrabajados) || fechaT(c).slice(0, 10)}
+                </span>
                 {pendientes.includes(c.id) && (
-                  <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-400">
                     <CloudOff className="h-3 w-3" /> Pendiente de sincronizar
                   </span>
                 )}
-              </div>
-              <div className="text-right">
-                <div className="text-xs text-muted-foreground">Ganancia neta</div>
-                <div className="font-mono text-lg font-bold text-secondary">
-                  {fmt(r.gananciaNeta)}
-                </div>
-              </div>
-            </div>
+                {r.diferencia < 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-semibold text-destructive">
+                    <AlertTriangle className="h-3 w-3" /> Faltante de caja
+                  </span>
+                )}
+                {r.diferencia > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-secondary/10 px-2 py-0.5 text-[11px] font-semibold text-secondary">
+                    Sobrante en caja
+                  </span>
+                )}
+              </span>
+              <span className="flex shrink-0 items-start gap-1.5">
+                <span className="space-y-2 text-right">
+                  <span className="block text-[11px] text-muted-foreground">Ventas</span>
+                  <span className="block text-xs font-semibold tabular-nums sm:text-sm">{fmt(r.totalVenta)}</span>
+                  <span className="block text-[11px] text-muted-foreground">Ganancia neta</span>
+                  <span className="block text-sm font-extrabold tabular-nums text-secondary">{fmt(r.gananciaNeta)}</span>
+                </span>
+                {expandidoId === c.id ?
+                  <ChevronUp className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" /> :
+                  <ChevronDown className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />}
+              </span>
+            </button>
+            {expandidoId === c.id && (
+              <div className="space-y-3 border-t border-border/60 bg-muted/10 px-3.5 py-3.5 sm:px-4">
             <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
               <Mini label="Venta" value={fmt(r.totalVenta)} />
               <Mini label="Gastos Yanitza" value={fmt(gastosYanitza)} />
@@ -428,6 +454,15 @@ export default function Historial() {
                 <Mini label="Salario pagado" value={r.salarioPagado === null ? "Sin desglose" : fmt(r.salarioPagado)} />
               )}
             </div>
+            <section className="space-y-2">
+              <button type="button" aria-expanded={accionesId === c.id}
+                onClick={() => setAccionesId(accionesId === c.id ? null : c.id)}
+                className="flex min-h-10 w-full items-center justify-between gap-2 rounded-xl border border-border bg-card px-3 text-sm font-semibold hover:bg-muted/40">
+                <span className="flex items-center gap-2"><MoreHorizontal className="h-4 w-4" /> Más acciones y gestiones</span>
+                {accionesId === c.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </button>
+              {accionesId === c.id && (
+                <div className="space-y-2 rounded-xl border border-border/60 bg-card p-2">
             {canEdit && !pendientes.includes(c.id) && (r.deudaDependiente > 0 || c.deudaDependienteId || c.fondoFaltante) && (
               <Button size="sm" variant="outline" className="mt-2 w-full" onClick={() => nav(`/historial/${c.id}/salario`)}>
                 Salario · Gestionar faltante
@@ -510,25 +545,8 @@ export default function Historial() {
                 </div>
               );
             })()}
-            <div className="mt-3 flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                className="flex-1 rounded-xl"
-                onClick={() => setDetalle(c)}
-              >
-                <Eye className="mr-1.5 h-3.5 w-3.5" /> Ver
-              </Button>
-              {canPDF && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="flex-1 rounded-xl"
-                onClick={() => generarPDF(c)}
-              >
-                <FileDown className="mr-1.5 h-3.5 w-3.5" /> PDF
-              </Button>
-              )}
+
+                  <div className="flex flex-wrap gap-2">
               {canEdit && !c.abonoDeudasId && (
               <Button
                 size="sm"
@@ -558,8 +576,33 @@ export default function Historial() {
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
               )}
+                  </div>
+                </div>
+              )}
+            </section>
+            <div className="mt-3 flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 rounded-xl"
+                onClick={() => setDetalle(c)}
+              >
+                <Eye className="mr-1.5 h-3.5 w-3.5" /> Ver
+              </Button>
+              {canPDF && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 rounded-xl"
+                onClick={() => generarPDF(c)}
+              >
+                <FileDown className="mr-1.5 h-3.5 w-3.5" /> PDF
+              </Button>
+              )}
             </div>
-          </div>
+              </div>
+            )}
+          </article>
         );
       })}
       </section>
