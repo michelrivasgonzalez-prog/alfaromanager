@@ -1088,7 +1088,111 @@ function Step5() {
         )}
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-soft lg:-mx-40 xl:-mx-64">
+      {/* Vista móvil: la tabla completa continúa en escritorio sin cambios contables. */}
+      <section className="space-y-2.5 md:hidden" aria-label="Resultados por producto">
+        <h2 className="px-1 text-sm font-bold">Resultados por producto · {visibles.length}</h2>
+        {visibles.map((p) => {
+          const c = calcProducto(p);
+          const tramos = (p.tramos ?? []).filter((t) => Number(t.cantidad) > 0);
+          const catalogoPrevio = refCat(p.nombre);
+          return (
+            <div key={p.id} className={"alfaro-surface space-y-3 p-3.5 " +
+              (p.final > c.total || c.resto < 0 ? "border-destructive/50" : "")}>
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="min-w-0 break-words text-sm font-bold leading-snug">{p.nombre}</h3>
+                {isAdmin && c.venta > 0 && (
+                  <Button type="button" size="sm" variant="outline" className="h-9 shrink-0 rounded-xl px-2.5 text-xs"
+                    onClick={() => setMixtoId(p.id)}>
+                    {c.mixto ? "Editar mixtos" : "+ Precio mixto"}
+                  </Button>
+                )}
+              </div>
+              <div className="grid grid-cols-3 gap-2 rounded-xl bg-muted/35 p-3">
+                {([
+                  ["Inicio", p.inicio],
+                  ["Entradas", p.entradas],
+                  ["Traslados", p.traslados],
+                  ["Disponible", c.total],
+                  ["Final", p.final],
+                  ["Vendidos", c.venta],
+                ] as const).map(([label, valor]) => (
+                  <div key={label} className="min-w-0">
+                    <p className="text-[11px] text-muted-foreground">{label}</p>
+                    <p className="mt-1 text-sm font-semibold tabular-nums">{n2(valor)}</p>
+                  </div>
+                ))}
+              </div>
+              {isAdmin && (
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="min-w-0 space-y-1">
+                    <span className="text-xs text-muted-foreground">Precio de venta</span>
+                    <NumberInput value={p.precio}
+                      onChange={(v) => updateProducto(p.id, { precio: v })}
+                      onBlur={() => syncProductoToCatalog(p.id)}
+                      className="h-11 w-full rounded-xl text-right text-base font-semibold tabular-nums"/>
+                    {catalogoPrevio && Number(catalogoPrevio.precio) > 0 &&
+                      Number(catalogoPrevio.precio) !== Number(p.precio) && (
+                      <button type="button" title="Usar precio del catálogo"
+                        onClick={() => updateProducto(p.id, { precio: Number(catalogoPrevio.precio) })}
+                        className="text-xs font-medium text-secondary underline-offset-2 hover:underline">
+                        Antes: {fmt(Number(catalogoPrevio.precio))}
+                      </button>
+                    )}
+                  </label>
+                  <label className="min-w-0 space-y-1">
+                    <span className="text-xs text-muted-foreground">Costo</span>
+                    <NumberInput value={p.costo}
+                      onChange={(v) => updateProducto(p.id, { costo: v })}
+                      onBlur={() => syncProductoToCatalog(p.id)}
+                      className="h-11 w-full rounded-xl text-right text-base font-semibold tabular-nums"/>
+                    {catalogoPrevio && Number(catalogoPrevio.costo) > 0 &&
+                      Number(catalogoPrevio.costo) !== Number(p.costo) && (
+                      <button type="button" title="Usar costo del catálogo"
+                        onClick={() => updateProducto(p.id, { costo: Number(catalogoPrevio.costo) })}
+                        className="text-xs font-medium text-secondary underline-offset-2 hover:underline">
+                        Antes: {fmt(Number(catalogoPrevio.costo))}
+                      </button>
+                    )}
+                  </label>
+                </div>
+              )}
+              {c.mixto && (
+                <div className="space-y-1.5 rounded-xl border border-secondary/20 bg-secondary/5 p-2.5 text-xs">
+                  <p className="font-semibold text-secondary">Precios mixtos del turno</p>
+                  {tramos.map((t) => (
+                    <div key={t.id} className="flex items-center justify-between gap-2">
+                      <span>{n2(Number(t.cantidad))} × {fmt(Number(t.precio))}</span>
+                      <strong className="tabular-nums">{fmt(Number(t.cantidad) * Number(t.precio))}</strong>
+                    </div>
+                  ))}
+                  {c.resto > 0 && <p className="text-muted-foreground">
+                    {n2(c.resto)} unidad(es) a precio base: {fmt(p.precio)}
+                  </p>}
+                </div>
+              )}
+              {(p.final > c.total || c.resto < 0) && (
+                <p className="flex items-start gap-1.5 rounded-xl bg-destructive/10 p-2.5 text-xs font-medium text-destructive">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0"/>
+                  {p.final > c.total ? "Existencia final mayor que lo disponible." :
+                    "Los tramos de precios mixtos superan las unidades vendidas."}
+                </p>
+              )}
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-3">
+                <div>
+                  <p className="text-[11px] text-muted-foreground">Importe de venta</p>
+                  <p className="text-lg font-extrabold tabular-nums text-secondary">{fmt(c.importe)}</p>
+                </div>
+                {isAdmin && <div className="text-right">
+                  <p className="text-[11px] text-muted-foreground">Ganancia</p>
+                  <p className="text-lg font-extrabold tabular-nums">{fmt(c.ganancia)}</p>
+                </div>}
+              </div>
+            </div>
+          );
+        })}
+      </section>
+
+      <div className="hidden overflow-x-auto rounded-2xl border border-border bg-card shadow-soft md:block lg:-mx-40 xl:-mx-64">
         <table className="w-full min-w-[640px] text-xs lg:min-w-0">
           <thead className="bg-muted/60 text-[10px] uppercase tracking-wider text-muted-foreground">
             <tr>
