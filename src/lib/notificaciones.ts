@@ -208,3 +208,35 @@ export async function marcarNotificacionLeida(id?: string): Promise<void> {
     p_token: tokenVigente(), p_evento_id: id ?? null,
   });
 }
+
+
+export type EntregaPushDiagnostico = {
+  titulo: string;
+  creado_en: string;
+  estado: "pendiente" | "enviado" | "error" | "expirado";
+  ultimo_error: string | null;
+  enviado_en: string | null;
+};
+export type EstadoPushDiagnostico = {
+  push_activo: boolean;
+  plataforma: string | null;
+  suscrito_en: string | null;
+  entregas: EntregaPushDiagnostico[];
+};
+
+/** Comprobación real del servidor; no confundir badge local con push enviado. */
+export async function consultarEstadoPush(): Promise<EstadoPushDiagnostico> {
+  const data = await rpc<EstadoPushDiagnostico>("alfaro_notif_estado", {
+    p_token: tokenVigente(),
+    p_dispositivo_id: idDispositivoNotificaciones(),
+  });
+  return { ...data, entregas: Array.isArray(data.entregas) ? data.entregas : [] };
+}
+
+/** Crea un único evento de prueba para la suscripción del usuario PIN actual. */
+export async function solicitarPushDePrueba(): Promise<string> {
+  return rpc<string>("alfaro_notif_prueba", {
+    p_token: tokenVigente(),
+    p_dispositivo_id: idDispositivoNotificaciones(),
+  });
+}
