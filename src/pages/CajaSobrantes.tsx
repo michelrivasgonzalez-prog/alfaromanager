@@ -488,7 +488,7 @@ function Fondo() {
               </DrawerHeader>
               <div className="overflow-y-auto overscroll-contain px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
                 {operacion === "compensacion" && (
-                  <CompensarDeudaFondo disponible={saldo.saldo_disponible} />
+                  <CompensarDeudaFondo disponible={saldo.saldo_disponible} embedded />
                 )}
               </div>
             </DrawerContent>
