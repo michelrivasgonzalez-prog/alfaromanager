@@ -14,13 +14,12 @@ import {
   Trash2,
   PenLine,
   UserCheck,
-  ArrowDownRight,
-  AlertTriangle,
   Boxes,
   ChevronDown,
   ChevronRight,
   ClipboardList,
   LayoutDashboard,
+  TrendingUp,
   Wallet,
 } from "lucide-react";
 import coffeeHero from "@/assets/coffee-hero.jpg";
