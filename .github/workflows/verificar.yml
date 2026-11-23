@@ -19,7 +19,7 @@ jobs:
         run: |
           test -s dist/version.json
           test -s dist/sw.js
-          node -e "const f = require('fs'); const v=JSON.parse(f.readFileSync('dist/version.json','utf8')); if(!v.buildId || !/^\\d{4}-\\d{2}-\\d{2}T/.test(v.buildId)) process.exit(1); console.log('Build PWA:',v.buildId)"
+          node -e "const f = require('fs'); const v=JSON.parse(f.readFileSync('dist/version.json','utf8')); if(!v.buildId || !/^\d{4}-\d{2}-\d{2}T/.test(v.buildId)) process.exit(1); console.log('Build PWA:',v.buildId)"
       - run: npm test
       - uses: denoland/setup-deno@v2
         with:
