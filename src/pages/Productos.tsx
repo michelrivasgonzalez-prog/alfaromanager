@@ -15,6 +15,7 @@ import {
   ScanBarcode,
   Pencil,
   History,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -50,6 +51,7 @@ export default function Productos() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [nuevoOpen, setNuevoOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [herramientasAbiertas, setHerramientasAbiertas] = useState(false);
   const [kardex, setKardex] = useState<string | null>(null);
   const [nuevo, setNuevo] = useState({ nombre: "", precio: 0, costo: 0, categoria: "", codigoBarras: "" });
   const [scannerDestino, setScannerDestino] = useState<string | null>(null);
@@ -447,7 +449,14 @@ export default function Productos() {
         })}
       </div>
 
-      {/* Importación Excel */}
+      <Button type="button" variant="outline" aria-expanded={herramientasAbiertas}
+        onClick={() => setHerramientasAbiertas((open) => !open)}
+        className="h-10 w-full justify-between rounded-xl">
+        <span className="flex items-center gap-2"><Upload className="h-4 w-4" /> Herramientas · Excel y catálogo</span>
+        <ChevronDown className={"h-4 w-4 transition-transform " + (herramientasAbiertas ? "rotate-180" : "")} />
+      </Button>
+      {herramientasAbiertas && (
+
       <div className="rounded-2xl border border-border bg-card p-3 shadow-soft">
         <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Importar desde Excel
@@ -519,13 +528,21 @@ export default function Productos() {
           <Trash2 className="mr-1.5 h-4 w-4" /> Eliminar todos los de {punto}
         </Button>
       </div>
+      )}
 
       <div className="space-y-2">
         <div className="rounded-xl border border-border bg-card p-3 space-y-2">
           <p className="text-xs text-muted-foreground">Primero: productos con existencia, agrupados por categoría. Después: productos sin existencia, también por categoría. Dentro de cada categoría, productos A–Z.</p>
-          <Button type="button" variant="outline" onClick={() => setScannerDestino("buscar")} className="w-full rounded-xl h-10">
-            <ScanBarcode className="mr-2 h-4 w-4" /> Buscar por código de barras con cámara
-          </Button>
+          <div className="grid grid-cols-2 gap-2">
+            <Button type="button" variant="outline" onClick={() => setScannerDestino("buscar")}
+              className="h-10 rounded-xl px-2 text-xs sm:text-sm">
+              <ScanBarcode className="mr-1.5 h-4 w-4" /> Buscar / Escanear
+            </Button>
+            <Button type="button" onClick={() => setNuevoOpen(true)}
+              className="h-10 rounded-xl px-2 text-xs sm:text-sm">
+              <Plus className="mr-1.5 h-4 w-4" /> Nuevo producto
+            </Button>
+          </div>
         </div>
         {productosPunto.length === 0 && (
           <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center">
@@ -601,13 +618,6 @@ export default function Productos() {
         onEliminar={(item, indice) => { void eliminarAlias(item, indice); }}
       />
       <KardexDialog nombre={kardex} punto={punto} onClose={() => setKardex(null)} />
-      <Button
-        className="h-11 w-full rounded-xl gradient-primary text-primary-foreground"
-        onClick={() => setNuevoOpen(true)}
-      >
-        <Plus className="mr-2 h-4 w-4" /> Nuevo producto
-      </Button>
-
       <Dialog open={exportOpen} onOpenChange={setExportOpen}>
         <DialogContent>
           <DialogHeader>
