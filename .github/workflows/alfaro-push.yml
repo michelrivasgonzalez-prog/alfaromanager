@@ -1,0 +1,26 @@
+name: Enviar notificaciones push AlFaroCafé
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  entregar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Entregar Web Push cifrado desde Edge Function
+        env:
+          ALFARO_EDGE_DISPATCH_URL: ${{ secrets.ALFARO_EDGE_DISPATCH_URL }}
+          ALFARO_SERVICE_ROLE_KEY: ${{ secrets.ALFARO_SERVICE_ROLE_KEY }}
+        run: |
+          if [ -z "$ALFARO_EDGE_DISPATCH_URL" ] || [ -z "$ALFARO_SERVICE_ROLE_KEY" ]; then
+            echo "Pendiente de configurar secretos de GitHub: URL y clave del servidor."
+            exit 0
+          fi
+          curl --fail-with-body --silent --show-error --max-time 45 \
+            --request POST \
+            --header "Content-Type: application/json" \
+            --header "Authorization: Bearer $ALFARO_SERVICE_ROLE_KEY" \
+            --data '{}' \
+            "$ALFARO_EDGE_DISPATCH_URL"
