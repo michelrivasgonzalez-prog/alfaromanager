@@ -763,69 +763,52 @@ export function PrecuadreDependiente({
 
   return (
     <div className="min-h-screen bg-background pb-12">
-      {/* Barra superior con navegación */}
-      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-border px-4 py-3">
-        <div className="max-w-md mx-auto flex items-center justify-between">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-xs text-muted-foreground hover:text-foreground"
-            onClick={onCancelar}
-          >
-            <X className="h-4 w-4 mr-1" />
-            Salir
+      {/* Navegación visual del precuadre: cálculos, pasos y validaciones existentes intactos. */}
+      <header className="sticky top-0 z-30 border-b border-border/70 bg-card/95 px-3 py-3 backdrop-blur-lg">
+        <div className="mx-auto flex max-w-lg items-center justify-between gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={onCancelar}
+            className="h-9 shrink-0 rounded-xl px-2 text-xs" aria-label="Salir del precuadre">
+            <X className="mr-1 h-4 w-4"/> Salir
           </Button>
-
-          <div className="text-center">
-            <span className="text-xs font-bold uppercase tracking-wider text-primary">
-              Pre-cuadre Dependiente
-            </span>
-
-            <div className="text-[11px] text-muted-foreground">
-              Paso {paso} de 9
-            </div>
+          <div className="min-w-0 text-center">
+            <p className="truncate text-xs font-extrabold tracking-wide text-secondary">
+              Precuadre de Turno
+            </p>
+            <p className="text-[11px] text-muted-foreground">Paso {paso} de 9</p>
           </div>
-
-          <Badge
-            variant="outline"
-            className="text-[10px] font-bold"
-          >
-            {punto}
+          <Badge variant="outline" className="max-w-24 truncate rounded-full px-2 py-1 text-[11px] font-bold">
+            {punto === "Mipyme" ? "MiPyME" : punto}
           </Badge>
         </div>
-      </div>
+        <div className="mx-auto mt-3 grid max-w-lg grid-cols-9 gap-1" role="progressbar"
+          aria-label="Progreso de entrega del turno" aria-valuemin={1} aria-valuemax={9}
+          aria-valuenow={paso}>
+          {Array.from({length:9},(_,i)=>(
+            <div key={i} className={"h-1.5 rounded-full transition-colors " +
+              (i < paso ? "bg-secondary" : "bg-muted")}/>
+          ))}
+        </div>
+      </header>
 
-      <div className="max-w-md mx-auto p-4 space-y-4">
-        {/* Título de cada paso */}
-        <div className="border-b border-border/60 pb-2">
-          <h1 className="text-lg font-extrabold text-foreground">
-            {paso === 1 &&
-              "Paso 1: Datos del Turno"}
-
-            {paso === 2 &&
-              "Paso 2: Inventario Inicial (Bajo Candado)"}
-
-            {paso === 3 &&
-              "Paso 3: Entradas y Traslados"}
-
-            {paso === 4 &&
-              "Paso 4: Conteo Físico Final"}
-
-            {paso === 5 &&
-              "Paso 5: Relevo y Firma Digital"}
-
-            {paso === 6 &&
-              "Paso 6: Resultados y Precios"}
-
-            {paso === 7 &&
-              "Paso 7: Gastos, Transferencias y Salidas"}
-
-            {paso === 8 &&
-              "Paso 8: Recogidas y Arqueo de Efectivo"}
-
-            {paso === 9 &&
-              "Paso 9: Resumen y Confirmación"}
+      <div className="mx-auto max-w-lg space-y-4 p-3 sm:p-4">
+        <div className="alfaro-page-header space-y-1">
+          <p className="text-xs font-semibold text-secondary">Entrega de turno · {paso}/9</p>
+          <h1 className="text-lg font-extrabold leading-tight sm:text-xl">
+            {[
+              "Datos del turno",
+              "Inventario inicial protegido",
+              "Entradas y traslados",
+              "Conteo físico final",
+              "Relevo y firma digital",
+              "Resultados y precios",
+              "Gastos, transferencias y salidas",
+              "Recogidas y arqueo de efectivo",
+              "Resumen y confirmación",
+            ][paso-1]}
           </h1>
+          <p className="text-xs text-muted-foreground">
+            Completa este paso antes de continuar al siguiente.
+          </p>
         </div>
 
         {/* PASO 1 */}
@@ -1233,7 +1216,7 @@ export function PrecuadreDependiente({
                     {(i === 0 || productosOrdenadosPaso3.conInicio[i - 1].categoria !== p.categoria) && (
                       <h3 className="pt-1 text-xs font-bold text-muted-foreground">{p.categoria || "Varios"}</h3>
                     )}
-                    <div className="space-y-2 rounded-2xl border border-border bg-card p-3 shadow-soft">
+                    <div className="alfaro-surface space-y-2 p-3.5">
                       <div className="flex justify-between items-center">
                         <p className="text-sm font-bold truncate">{p.nombre}</p>
                         <span className="text-[11px] font-semibold text-muted-foreground">
@@ -1257,7 +1240,7 @@ export function PrecuadreDependiente({
                                 const numero = Number(e.target.value);
                                 guardar((prev) => ({ ...prev, [p.id]: numero }));
                               }}
-                              className="mt-0.5 h-9 px-2 text-right font-medium"
+                              className="mt-1 h-11 rounded-xl px-2 text-right text-sm font-semibold tabular-nums"
                             />
                           </label>
                         ))}
@@ -1300,7 +1283,7 @@ export function PrecuadreDependiente({
                                 const numero = Number(e.target.value);
                                 guardar((prev) => ({ ...prev, [p.id]: numero }));
                               }}
-                              className="mt-0.5 h-9 px-2 text-right"
+                              className="mt-1 h-11 rounded-xl px-2 text-right text-sm font-semibold tabular-nums"
                             />
                           </label>
                         ))}
