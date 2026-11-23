@@ -404,15 +404,6 @@ function StepInventario({
       )
     : base;
 
-  const gruposVisibles = Array.from(visibles.reduce((map, p) => {
-    const categoria = p.categoria?.trim() || "Sin categoría";
-    const productos = map.get(categoria) ?? [];
-    productos.push(p);
-    map.set(categoria, productos);
-    return map;
-  }, new Map<string, typeof visibles>()).entries())
-    .sort((a, b) => a[0].localeCompare(b[0], "es"));
-
   const focusNext = (currentId: string) => {
     const ids = visibles
       .filter((p) => !(isInicio && p.bloqueado))
@@ -468,146 +459,137 @@ function StepInventario({
           className="h-11 rounded-xl pl-9"
         />
       </div>
-      <section aria-label={title + " por categorías"} className="space-y-3">
-        <div className="flex items-center justify-between gap-2 px-1">
-          <h2 className="text-sm font-bold text-foreground">
-            {isInicio ? "Existencia inicial" : "Existencia final"} · {visibles.length} productos
-          </h2>
-          <span className="text-xs text-muted-foreground">{gruposVisibles.length} categorías</span>
-        </div>
-        {visibles.length === 0 && (
-          <div className="alfaro-surface p-6 text-center text-sm text-muted-foreground">
-            No hay productos para la búsqueda actual.
-          </div>
-        )}
-        {gruposVisibles.map(([categoria, productos]) => (
-          <section key={categoria} className="alfaro-surface overflow-hidden">
-            <div className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted/30 px-3.5 py-3">
-              <h3 className="min-w-0 break-words text-sm font-bold">{categoria}</h3>
-              <span className="shrink-0 rounded-full bg-secondary/10 px-2 py-1 text-[11px] font-semibold text-secondary">
-                {productos.length} producto{productos.length === 1 ? "" : "s"}
-              </span>
-            </div>
-            <div className="divide-y divide-border/60">
-              {productos.map((p) => {
-                const totalPrevio = calcProducto(p).total;
-                const finalImposible = !isInicio && (p.final > totalPrevio || p.final < 0);
-                return (
-                  <div key={p.id} className={"space-y-2 p-3.5 " +
-                    (finalImposible ? "bg-destructive/5" : "")}>
-                    <div className="flex min-w-0 items-start gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex min-w-0 items-center gap-1.5">
-                          {isInicio && p.bloqueado && (
-                            <Lock className="h-4 w-4 shrink-0 text-muted-foreground" />
-                          )}
-                          {editingName === p.id && !(isInicio && p.bloqueado) ? (
-                            <Input
-                              autoFocus
-                              defaultValue={p.nombre}
-                              onBlur={(e) => {
-                                const nombre = e.target.value.trim();
-                                if (nombre) updateProducto(p.id, { nombre });
-                                setEditingName(null);
-                              }}
-                              className="h-10 min-w-0 rounded-xl text-sm"
-                            />
-                          ) : (
-                            <button type="button" disabled={isInicio && p.bloqueado}
-                              className="min-w-0 break-words text-left text-sm font-semibold leading-snug enabled:hover:underline"
-                              title={isInicio && p.bloqueado ? "Producto bloqueado" : "Editar nombre de producto"}
-                              onClick={() => setEditingName(p.id)}>
-                              {p.nombre}
-                            </button>
-                          )}
-                        </div>
-                        {!isInicio && (
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            Disponible antes del conteo: <strong className="tabular-nums text-foreground">{fmtCant(totalPrevio)}</strong>
-                          </p>
+      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/60">
+            <tr className="text-left">
+              <th className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Producto
+              </th>
+              <th className="px-3 py-1 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Cantidad
+              </th>
+              <th className="px-2 py-1 w-20"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibles.length === 0 && (
+              <tr>
+                <td colSpan={3} className="px-3 py-6 text-center text-muted-foreground">
+                  Sin resultados
+                </td>
+              </tr>
+            )}
+            {visibles.map((p) => (
+              <tr key={p.id} className="border-t border-border">
+                <td className="px-3 py-1.5 font-medium min-w-[11rem] leading-tight">
+                  <div className="flex items-center gap-2">
+                    {isInicio && p.bloqueado && (
+                      <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                    )}
+                    {editingName === p.id && !(isInicio && p.bloqueado) ? (
+                      <Input
+                        autoFocus
+                        defaultValue={p.nombre}
+                        onBlur={(e) => {
+                          const v = e.target.value.trim();
+                          if (v) updateProducto(p.id, { nombre: v });
+                          setEditingName(null);
+                        }}
+                        className="h-8 rounded-lg"
+                      />
+                    ) : (
+                      <span
+                        className={cn(
+                          !(isInicio && p.bloqueado) &&
+                            "cursor-pointer underline-offset-2 hover:underline"
                         )}
-                        {isInicio && p.notaDesbloqueo && (
-                          <p className="mt-1 text-xs text-muted-foreground">Nota: {p.notaDesbloqueo}</p>
-                        )}
-                      </div>
-                      <div className="shrink-0 space-y-1">
-                        <Label className="block text-right text-[11px] text-muted-foreground">
-                          {isInicio ? "Inicial" : "Final"}
-                        </Label>
-                        {isInicio && p.bloqueado ? (
-                          <p className="flex h-11 w-28 items-center justify-end rounded-xl border border-border bg-muted px-3 font-semibold tabular-nums text-muted-foreground">
-                            {fmtCant(p[field])}
-                          </p>
-                        ) : (
-                          <NumberInput
-                            value={p[field]}
-                            onChange={(v) => updateProducto(p.id, { [field]: v } as any)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.preventDefault();
-                                focusNext(p.id);
-                              }
-                            }}
-                            ref={(el) => { inputRefs.current[p.id] = el; }}
-                            className={"h-11 w-28 rounded-xl text-right text-base font-semibold tabular-nums " +
-                              (finalImposible ? "border-destructive text-destructive" : "")}
-                          />
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
-                        {!isInicio && <span className="rounded-lg bg-muted px-2 py-1">
-                          Inicial: {fmtCant(p.inicio)}
-                        </span>}
-                        {!isInicio && <span className="rounded-lg bg-muted px-2 py-1">
-                          Entradas: +{fmtCant(p.entradas)}
-                        </span>}
-                        {!isInicio && p.traslados !== 0 && <span className="rounded-lg bg-muted px-2 py-1">
-                          Traslados: −{fmtCant(p.traslados)}
-                        </span>}
-                      </div>
-                      <div className="flex shrink-0 gap-1">
-                        {isInicio && p.bloqueado ? (
-                          <Button type="button" variant="outline" size="icon"
-                            className="h-9 w-9 rounded-lg" aria-label={"Desbloquear " + p.nombre}
-                            title="Desbloquear (requiere nota)"
-                            onClick={() => { setUnlockId(p.id); setUnlockNote(""); }}>
-                            <Lock className="h-4 w-4 text-destructive" />
-                          </Button>
-                        ) : (
-                          <Button type="button" variant="ghost" size="icon"
-                            className="h-9 w-9 rounded-lg" aria-label={"Editar nombre de " + p.nombre}
-                            title="Editar nombre"
-                            onClick={() => setEditingName(p.id)}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                        )}
-                        <Button type="button" variant="ghost" size="icon"
-                          className="h-9 w-9 rounded-lg text-destructive" title="Eliminar de este cuadre"
-                          aria-label={"Eliminar " + p.nombre + " del cuadre"}
-                          onClick={() => {
-                            if (!confirm("¿Eliminar " + p.nombre + " de este cuadre?")) return;
-                            removeProducto(p.id);
-                            toast.success("Producto eliminado");
-                          }}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                    {finalImposible && (
-                      <p className="flex items-start gap-1.5 rounded-lg bg-destructive/10 p-2 text-xs font-medium text-destructive">
-                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                        Existencia final fuera del rango disponible. Revisa el conteo.
-                      </p>
+                        onClick={() => {
+                          if (!(isInicio && p.bloqueado)) setEditingName(p.id);
+                        }}
+                      >
+                        {p.nombre}
+                      </span>
                     )}
                   </div>
-                );
-              })}
-            </div>
-          </section>
-        ))}
-      </section>
+                  {isInicio && p.notaDesbloqueo && (
+                    <div className="mt-0.5 text-[10px] text-muted-foreground">
+                      Nota: {p.notaDesbloqueo}
+                    </div>
+                  )}
+                </td>
+                <td className="px-3 py-1 text-right">
+                  {!isInicio && (
+                    <div className="text-[10px] text-muted-foreground leading-tight">
+                      Existencia previa: <span className="font-semibold tabular-nums">{fmtCant(calcProducto(p).total)}</span>
+                    </div>
+                  )}
+                  {isInicio && p.bloqueado ? (
+                    <span className="font-mono tabular-nums text-muted-foreground">{p[field]}</span>
+                  ) : (
+                    <NumberInput
+                      value={p[field]}
+                      onChange={(v) => updateProducto(p.id, { [field]: v } as any)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          focusNext(p.id);
+                        }
+                      }}
+                      ref={(el) => {
+                        inputRefs.current[p.id] = el;
+                      }}
+                      className="ml-auto h-9 w-24 rounded-lg text-right"
+                    />
+                  )}
+                </td>
+                <td className="px-2 py-1 text-right">
+                  <div className="flex items-center justify-end gap-0.5">
+                    {isInicio && p.bloqueado ? (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 rounded-lg"
+                        title="Desbloquear (requiere nota)"
+                        onClick={() => {
+                          setUnlockId(p.id);
+                          setUnlockNote("");
+                        }}
+                      >
+                        <Lock className="h-3.5 w-3.5 text-destructive" />
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 rounded-lg"
+                        title="Cambiar nombre"
+                        onClick={() => setEditingName(p.id)}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 rounded-lg text-destructive"
+                      title="Eliminar producto de este cuadre"
+                      onClick={() => {
+                        if (!confirm(`¿Eliminar "${p.nombre}" de este cuadre?`)) return;
+                        removeProducto(p.id);
+                        toast.success("Producto eliminado");
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+
+          </tbody>
+        </table>
+      </div>
       <p className="text-center text-xs text-muted-foreground">
         Pulsa el botón "Siguiente" del teclado para avanzar de producto en producto.
       </p>
