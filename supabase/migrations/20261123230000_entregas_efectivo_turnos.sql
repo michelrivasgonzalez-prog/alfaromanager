@@ -62,7 +62,7 @@ BEGIN
     END IF;
     v_total:=v_total+(v_key::numeric)*(v_value::text::numeric);
   END LOOP;
-  IF v_total<=0 OR v_total>1000000000000 THEN
+  IF v_total<0 OR v_total>1000000000000 THEN
     RAISE EXCEPTION 'El importe del fajo debe ser positivo y estar dentro del límite permitido.';
   END IF;
   RETURN v_total;
@@ -85,6 +85,9 @@ BEGIN
     RETURN jsonb_build_object('error','Solo la dependienta del turno activo puede enviar dinero.');
   END IF;
   v_total:=public.alfaro_efectivo_sumar(p_den);
+  IF v_total=0 THEN
+    RETURN jsonb_build_object('error','No puedes enviar un fajo sin billetes.');
+  END IF;
   INSERT INTO public.alfaro_efectivo_entregas(
     turno_operativo_id,punto_venta,dependiente_id,dependiente,
     denominaciones_declaradas,total_declarado,observacion)
