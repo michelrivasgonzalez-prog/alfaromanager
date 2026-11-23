@@ -417,7 +417,7 @@ export default function Productos() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Catálogo de productos</h1>
+      <header className="alfaro-page-header"><h1 className="text-xl font-extrabold sm:text-2xl">Catálogo de Productos</h1><p className="mt-1 text-xs text-muted-foreground sm:text-sm">Información de productos y edición rápida</p></header>
       <p className="text-xs text-muted-foreground">
         Estos productos y precios se cargarán automáticamente al iniciar un nuevo cuadre.
         Cambiar precios aquí <strong>no afecta</strong> los cuadres ya guardados.
