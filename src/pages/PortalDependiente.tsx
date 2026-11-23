@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { listClientes, listDeudas, listAbonos, normalizarDependiente, resumirAbonos } from "@/lib/cobrar";
 import { listarPrecuadresEnviados } from "@/lib/turnos";
 import { useAuth } from "@/hooks/useAuth";
-import { Calendar, Clock, Send, Wallet, Store } from "lucide-react";
+import { Calendar, Clock, Send, Wallet, Store, ClipboardCheck, CheckCircle2, AlertTriangle, ChevronRight, ShieldCheck } from "lucide-react";
 import { formatDiasTrabajados } from "@/lib/dias";
 import Avatar from "@/components/Avatar";
 import { Button } from "@/components/ui/button";
@@ -183,84 +183,96 @@ export default function PortalDependiente() {
 
   return (
     <div className="space-y-6 pb-6">
-      <header className="flex items-center gap-4 rounded-3xl border bg-card p-4 shadow-soft">
-        <Avatar nombre={nombre || "Dependiente"} size={80} className="shrink-0 rounded-2xl" />
-        <div className="min-w-0">
-          <p className="whitespace-nowrap text-[11px] font-bold uppercase text-muted-foreground">
-            Portal de dependienta
-          </p>
-          <h1 className="text-xl font-bold">{nombre || "Dependiente"}</h1>
-                    <div className="mt-1 flex items-center gap-1.5">
-            {PUNTOS.map((p) => {
-              const activo = puntoSeleccionado === p;
-              return (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setPuntoSeleccionado(p)}
-                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold transition-all ${
-                    activo
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80"
-                  }`}
-                  title={activo ? `Punto asignado: ${p}` : `Cambiar a ${p} (suplencia)`}
-                >
-                                    <Store className="h-3 w-3" /> {p}
-                </button>
-              );
-            })}
+      <header className="alfaro-page-header space-y-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <Avatar nombre={nombre || "Dependiente"} size={64} className="shrink-0 rounded-2xl"/>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold text-secondary">Portal de Dependientes</p>
+            <h1 className="truncate text-xl font-extrabold">{nombre || "Dependiente"}</h1>
+            <p className="mt-0.5 text-xs text-muted-foreground">Mis turnos, liquidaciones y entregas</p>
           </div>
+        </div>
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Punto de venta del portal">
+          {PUNTOS.map((p) => {
+            const activo = puntoSeleccionado === p;
+            return (
+              <button type="button" key={p} aria-pressed={activo}
+                onClick={() => setPuntoSeleccionado(p)}
+                title={activo ? "Punto seleccionado" : "Cambiar punto de venta (suplencia)"}
+                className={"inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border px-2 text-xs font-bold transition-colors " +
+                  (activo ? "border-secondary bg-secondary text-secondary-foreground" :
+                    "border-border bg-card text-muted-foreground")}>
+                <Store className="h-4 w-4"/> {p === "Mipyme" ? "MiPyME" : p}
+              </button>
+            );
+          })}
         </div>
       </header>
 
-      {/* Pestañas */}
-      <div className="flex flex-wrap rounded-2xl border border-border bg-muted/40 p-1">
-        <button
-          onClick={() => setTab("historial")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${
-            tab === "historial"
-              ? "bg-card text-foreground shadow-sm"
-              : "text-muted-foreground"
-          }`}
-        >
-          <Calendar className="h-4 w-4" />
-          Mis Liquidaciones
-        </button>
-
-        <button
-          onClick={() => setTab("turno")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${
-            tab === "turno"
-              ? "bg-card text-foreground shadow-sm"
-              : "text-muted-foreground"
-          }`}
-        >
-          <Clock className="h-4 w-4" />
-          Turno en Curso
-        </button>
-        <button
-          onClick={() => setTab("enviados")}
-          className={`flex-1 rounded-xl px-2 py-2.5 text-xs font-bold ${tab === "enviados" ? "bg-card shadow-sm" : "text-muted-foreground"}`}
-        >
-          Precuadres enviados
-        </button>
-      </div>
+      <nav className="grid grid-cols-3 gap-1 rounded-2xl border border-border/70 bg-card p-1 shadow-soft"
+        aria-label="Secciones del portal">
+        {([
+          ["historial", "Liquidaciones", Calendar],
+          ["turno", "Mi turno", Clock],
+          ["enviados", "Entregas", Send],
+        ] as const).map(([value, label, Icon]) => (
+          <button type="button" key={value} aria-current={tab === value ? "page" : undefined}
+            onClick={() => setTab(value)}
+            className={"flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[11px] font-semibold transition-colors sm:flex-row sm:text-sm " +
+              (tab === value ? "bg-secondary/10 text-secondary shadow-sm" : "text-muted-foreground hover:bg-muted/40")}>
+            <Icon className="h-4 w-4"/> {label}
+          </button>
+        ))}
+      </nav>
 
       {tab === "enviados" && (
-        <section className="space-y-2 rounded-2xl border bg-card p-4">
-          {enviados.isLoading && <p>Buscando precuadres…</p>}
-          {enviados.isError && <p>No se pudo consultar el historial.</p>}
-          {enviados.isSuccess && !enviados.data.length && <p>Todavía no hay precuadres enviados.</p>}
-          {enviados.data?.map((turno) => (
-            <div key={turno.id} className="flex items-center justify-between gap-2 border-b py-2 text-xs">
-              <span>{turno.punto_venta} · {turno.enviado_en ? new Date(turno.enviado_en).toLocaleDateString("es-CU") : "Sin fecha"}</span>
-              <Badge variant="outline">
-                {turno.estado === "conciliado" ? "Conciliado" : turno.estado === "descartado"
-                  ? turno.data?.descartadoComo === "eliminado" ? "Eliminado" : "Cancelado"
-                  : "En espera"}
-              </Badge>
+        <section className="space-y-3">
+          <h2 className="flex items-center gap-2 text-base font-bold">
+            <ClipboardCheck className="h-5 w-5 text-secondary"/> Precuadres enviados
+          </h2>
+          {enviados.isLoading && (
+            <div role="status" className="alfaro-surface p-5 text-sm text-muted-foreground">
+              Consultando entregas anteriores…
             </div>
-          ))}
+          )}
+          {enviados.isError && (
+            <div role="alert" className="alfaro-surface space-y-2 p-4">
+              <p className="text-sm text-destructive">No fue posible consultar las entregas.</p>
+              <Button type="button" variant="outline" size="sm" className="rounded-xl"
+                onClick={() => { void enviados.refetch(); }}>Reintentar</Button>
+            </div>
+          )}
+          {enviados.isSuccess && !enviados.data.length && (
+            <div className="alfaro-surface p-6 text-center text-sm text-muted-foreground">
+              Todavía no has enviado precuadres.
+            </div>
+          )}
+          {enviados.data?.map((turno) => {
+            const conciliado = turno.estado === "conciliado";
+            const descartado = turno.estado === "descartado";
+            const estado = conciliado ? "Conciliado" : descartado
+              ? turno.data?.descartadoComo === "eliminado" ? "Eliminado" : "Cancelado"
+              : "En espera";
+            return (
+              <div key={turno.id} className="alfaro-surface flex items-center gap-3 p-3.5">
+                <div className={"flex h-10 w-10 shrink-0 items-center justify-center rounded-xl " +
+                  (conciliado ? "bg-secondary/10 text-secondary" :
+                    descartado ? "bg-destructive/10 text-destructive" :
+                      "bg-amber-500/10 text-amber-700 dark:text-amber-400")}>
+                  {conciliado ? <CheckCircle2 className="h-5 w-5"/> :
+                    descartado ? <AlertTriangle className="h-5 w-5"/> :
+                      <Clock className="h-5 w-5"/>}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold">{turno.punto_venta === "Mipyme" ? "MiPyME" : turno.punto_venta}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {turno.enviado_en ? new Date(turno.enviado_en).toLocaleDateString("es-CU") : "Fecha no disponible"}
+                  </p>
+                </div>
+                <Badge variant="outline" className="shrink-0 text-[11px]">{estado}</Badge>
+              </div>
+            );
+          })}
         </section>
       )}
 
