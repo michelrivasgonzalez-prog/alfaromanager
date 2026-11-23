@@ -120,3 +120,25 @@ export function iniciosDesdeProductos(productos: Array<any>, tomarFinal: boolean
     codigoBarras: p.codigoBarras ? String(p.codigoBarras) : undefined,
   }));
 }
+
+export type EntregaReciente = {
+  id: string;
+  punto_venta: PuntoVenta;
+  dependiente: string;
+  estado: string;
+  enviado_en?: string;
+  data?: { productos?: Array<any> };
+};
+
+/** Consulta las últimas entregas para preparar nuevas asignaciones administrativas. */
+export async function consultarUltimasEntregas(): Promise<EntregaReciente[]> {
+  if (!(await ensureCloudSession())) throw new Error("No hay conexión para consultar entregas.");
+  const { data, error } = await (supabase as any).from("turnos_dependiente")
+    .select("id,punto_venta,dependiente,estado,enviado_en,data")
+    .in("estado", ["precuadrado", "conciliado"])
+    .is("deleted_at", null)
+    .order("enviado_en", { ascending: false })
+    .limit(100);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as EntregaReciente[];
+}
