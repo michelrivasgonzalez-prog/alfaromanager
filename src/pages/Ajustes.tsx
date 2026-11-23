@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { useCuadreStore, PUNTOS, SALARIO_MODOS, SalarioModo } from "@/store/cuadreStore";
 import { usePinStore } from "@/store/pinStore";
 import { useAuth } from "@/hooks/useAuth";
@@ -18,6 +19,7 @@ import {
   ClipboardList,
   Warehouse,
   Plus,
+  Bell,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -153,6 +155,14 @@ export default function Ajustes() {
             Offline siempre activo
           </span>
         </div>
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-2">
+        <h2 className="flex items-center gap-2 text-sm font-semibold"><Bell className="h-4 w-4 text-primary" /> Notificaciones por dispositivo</h2>
+        <p className="text-xs text-muted-foreground">Configura Precuadres, Caja, Existencias, Cuentas por Cobrar y Auditoría. Usa el mismo PIN de acceso.</p>
+        <Button asChild className="h-10 w-full rounded-xl" variant="outline">
+          <Link to="/notificaciones">Administrar notificaciones</Link>
+        </Button>
       </div>
 
       {/* Preferencias de navegación */}
