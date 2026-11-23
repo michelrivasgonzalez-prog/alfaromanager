@@ -20,6 +20,12 @@ import {
   Pencil,
   CheckCircle2,
   ChevronDown,
+  ChevronUp,
+  MoreHorizontal,
+  Coffee,
+  Store,
+  CalendarDays,
+  AlertTriangle,
   CloudOff,
   RefreshCw,
 } from "lucide-react";
@@ -169,7 +175,10 @@ export default function Historial() {
   const [detalle, setDetalle] = useState<Cuadre | null>(null);
   const [deudaFor, setDeudaFor] = useState<{ cuadre: Cuadre; pagada: boolean } | null>(null);
   const [corregirFor, setCorregirFor] = useState<Cuadre | null>(null);
-  const [punto, setPunto] = useState<"Cafetería" | "Mipyme">("Cafetería");
+  const [punto, setPunto] = useState<"Todos" | "Cafetería" | "Mipyme">("Todos");
+  const [periodo, setPeriodo] = useState<"todos" | "30" | "mes">("todos");
+  const [expandidoId, setExpandidoId] = useState<string | null>(null);
+  const [accionesId, setAccionesId] = useState<string | null>(null);
 
   // Efecto robusto para abrir el modal automáticamente cuando existe ?cuadreId en la URL
   useEffect(() => {
@@ -221,11 +230,28 @@ export default function Historial() {
   const fechaT = (c: Cuadre) => c.diasTrabajados?.[c.diasTrabajados.length - 1] ?? c.fecha;
 
   const lista = useMemo(() => {
-    const base = history.filter((c) => c.puntoVenta === punto);
+    const ahora = new Date();
+    const inicioMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1).getTime();
+    const inicio30 = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() - 29).getTime();
+    const base = history.filter((c) => {
+      if (punto !== "Todos" && c.puntoVenta !== punto) return false;
+      const fecha = new Date(fechaT(c)).getTime();
+      if (periodo === "mes" && !(fecha >= inicioMes)) return false;
+      if (periodo === "30" && !(fecha >= inicio30)) return false;
+      return true;
+    });
     return [...base].sort(
       (a, b) => new Date(fechaT(b)).getTime() - new Date(fechaT(a)).getTime()
     );
-  }, [history, punto]);
+  }, [history, punto, periodo]);
+
+  const resumen = useMemo(() => lista.reduce((a, c) => {
+    const r = calcCuadre(c);
+    a.ventas += r.totalVenta;
+    a.ganancia += r.gananciaNeta;
+    if (r.diferencia < 0) a.diferencias++;
+    return a;
+  }, { ventas: 0, ganancia: 0, diferencias: 0 }), [lista]);
 
   // Agrupado por mes (más recientes primero)
   const grupos = useMemo(() => {
@@ -245,19 +271,51 @@ export default function Historial() {
   return (
     <div className="space-y-4">
       <header className="alfaro-page-header"><h1 className="text-xl font-extrabold sm:text-2xl">Historial de Cuadres</h1><p className="mt-1 text-xs text-muted-foreground sm:text-sm">Consulta, filtra y audita turnos cerrados</p></header>
-      <div className="grid grid-cols-2 gap-1 rounded-2xl bg-muted/60 p-1">
-        {(["Cafetería", "Mipyme"] as const).map((p) => (
-          <button
-            key={p}
-            onClick={() => setPunto(p)}
-            className={`rounded-xl px-2 py-2 text-xs font-semibold transition-smooth ${
-              punto === p ? "bg-card shadow-soft text-primary" : "text-muted-foreground"
-            }`}
-          >
-            {p}
-          </button>
-        ))}
-      </div>
+      <section className="alfaro-surface space-y-3 p-3" aria-label="Filtros de cuadres">
+        <div className="grid grid-cols-3 gap-1 rounded-xl bg-muted/60 p-1">
+          {(["Todos", "Cafetería", "Mipyme"] as const).map((p) => {
+            const Icon = p === "Cafetería" ? Coffee : p === "Mipyme" ? Store : HistoryIcon;
+            return (
+              <button type="button" key={p} onClick={() => { setPunto(p); setExpandidoId(null); setAccionesId(null); }}
+                aria-pressed={punto === p}
+                className={"flex min-h-10 items-center justify-center gap-1 rounded-lg px-1 text-[11px] font-semibold transition-colors sm:text-sm " +
+                  (punto === p ? "bg-secondary text-secondary-foreground shadow-sm" : "text-muted-foreground hover:bg-card")}>
+                <Icon className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{p === "Mipyme" ? "MiPyME" : p}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <CalendarDays className="h-4 w-4 shrink-0" /> Período
+          </div>
+          <select aria-label="Filtrar por período" value={periodo}
+            onChange={(e) => { setPeriodo(e.target.value as "todos" | "30" | "mes"); setExpandidoId(null); setAccionesId(null); }}
+            className="h-10 min-w-0 rounded-xl border border-input bg-card px-3 text-sm font-medium">
+            <option value="todos">Todo el historial</option>
+            <option value="30">Últimos 30 días</option>
+            <option value="mes">Mes actual</option>
+          </select>
+        </div>
+      </section>
+      <section aria-label="Resumen de los turnos filtrados" className="grid grid-cols-3 gap-2">
+        <div className="alfaro-surface min-w-0 p-3">
+          <p className="text-[11px] text-muted-foreground">Turnos</p>
+          <p className="mt-1 text-lg font-extrabold tabular-nums">{lista.length}</p>
+        </div>
+        <div className="alfaro-surface min-w-0 p-3">
+          <p className="text-[11px] text-muted-foreground">Ganancia neta</p>
+          <p className="mt-1 break-all text-sm font-extrabold tabular-nums text-secondary sm:text-lg">{fmt(resumen.ganancia)}</p>
+        </div>
+        <div className="alfaro-surface min-w-0 p-3">
+          <p className="text-[11px] text-muted-foreground">Faltantes de caja</p>
+          <p className={"mt-1 text-lg font-extrabold tabular-nums " +
+            (resumen.diferencias ? "text-destructive" : "text-secondary")}>
+            {resumen.diferencias}
+          </p>
+        </div>
+      </section>
       {pendientes.length > 0 && (
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3">
           <div className="flex items-center gap-2 text-xs">
