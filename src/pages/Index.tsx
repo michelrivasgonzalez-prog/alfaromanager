@@ -42,7 +42,15 @@ import {
   marcarPrecuadreDescartado,
 } from "@/lib/turnos";
 
+// La selección de perfil no puede interrumpir la ejecución de hooks del
+// mismo componente: React exige idéntico orden en todos los renderizados.
 export default function Index() {
+  const { role } = useAuth();
+  if (role === "dependiente") return <PortalDependiente />;
+  return <InicioAdministracion />;
+}
+
+function InicioAdministracion() {
   const nav = useNavigate();
   const {
     currents,
@@ -55,11 +63,6 @@ export default function Index() {
     cargarPrecuadre,
   } = useCuadreStore();
   const { role } = useAuth();
-
-  // Si entra con rol de dependiente, se le muestra directamente su portal
-  if (role === "dependiente") {
-    return <PortalDependiente />;
-  }
 
   const canStart = role === "admin" || role === "duena";
   const catalogo = useCuadreStore((s) => s.catalogo);
