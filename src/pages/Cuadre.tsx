@@ -99,7 +99,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { marcarPrecuadreConciliado } from "@/lib/turnos";
 import { useAuth } from "@/hooks/useAuth";
 import { useControlTurnos } from "@/hooks/useControlTurnos";
-import { listarEntregasEfectivo, recogidaDesdeEntrega, codigoEntrega } from "@/lib/entregasEfectivo";
+import { listarEntregasEfectivo, recogidaDesdeEntrega, codigoEntrega, fajosDuplicadosEnCuadres } from "@/lib/entregasEfectivo";
 import { ensureCloudSession } from "@/lib/cloudBootstrap";
 import { pushAllCatalogo, pushCuadre } from "@/lib/sync";
 import { fmtDinero, fmtCant } from "@/lib/format";
@@ -3149,6 +3149,14 @@ function Step10({ onClose }: { onClose: () => void }) {
         toast.error("El salario disponible cambió. Revisa los abonos en el paso Salario.");
         return;
       }
+    }
+    // Nunca conciliar el mismo fajo verificado dos veces, ni dentro del
+    // mismo cuadre ni dentro de otro ya guardado en el historial.
+    const fajosRepetidos = fajosDuplicadosEnCuadres(current, useCuadreStore.getState().history);
+    if (fajosRepetidos.length > 0) {
+      toast.error("Recogida duplicada: " + fajosRepetidos.map(codigoEntrega).join(", ") +
+        ". Ya aparece en otro cuadre o está repetida. Revisa el arqueo antes de cerrar.");
+      return;
     }
     const guardabaHistoricoConFondo = cobertura !== undefined &&
       useCuadreStore.getState().history.some((item) => item.id === current.id);
