@@ -1,5 +1,6 @@
 import { puntoHabitual, sortProductos, catLabel, type GastoCategoria } from "@/store/cuadreStore";
 import BarcodeScanner from "@/components/BarcodeScanner";
+import { type TurnoOperativo, relevarTurnoOperativo } from "@/lib/turnosOperativos";
 import { buscarPorCodigo, buscarDuplicadoCatalogo, limpiarCodigoBarras, esCodigoBarrasValido, normalizarNombreProducto } from "@/lib/codigosBarras";
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import type { PrecioTramo } from "@/store/cuadreStore";
@@ -97,6 +98,7 @@ const emptyDen = (): Denominaciones => ({
 });
 
 interface PrecuadreDependienteProps {
+  turnoOperativo: TurnoOperativo;
   puntoInicial?: PuntoVenta;
   dependienteInicial?: string;
   onFinalizado: () => void;
@@ -104,6 +106,7 @@ interface PrecuadreDependienteProps {
 }
 
 export function PrecuadreDependiente({
+  turnoOperativo,
   puntoInicial = "Cafetería",
   dependienteInicial = "",
   onFinalizado,
@@ -134,18 +137,6 @@ export function PrecuadreDependiente({
     (nombre) => puntoHabitual(nombre, settings, history) === punto
   ), [dependientesActivos, settings, history, punto]);
 
-  // Último cuadre cerrado
-  const ultimoCuadrePunto = useMemo(() => {
-    const ordenados = [...history]
-      .filter((c) => c.puntoVenta === punto)
-      .sort(
-        (a, b) =>
-          new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
-      );
-
-    return ordenados[0] || null;
-  }, [history, punto]);
-
   // Lista base de productos
   const [productosNuevosLocal, setProductosNuevosLocal] = useState<
     {
@@ -158,32 +149,35 @@ export function PrecuadreDependiente({
   >([]);
 
   const productosBase = useMemo(() => {
-    const todos = [
+    const catalogados = [
       ...catalogo.filter((c) => !c.punto || c.punto === punto),
       ...productosNuevosLocal,
     ];
-
-    return sortProductos(todos, settings.categorias).map((p) => {
-      const pAnterior = ultimoCuadrePunto?.productos?.find(
-        (ap) =>
-          ap.nombre.toLowerCase().trim() ===
-          p.nombre.toLowerCase().trim()
+    const recibidos = turnoOperativo.inicios ?? [];
+    // Mantener también productos del relevo que aún no estén en el catálogo.
+    const heredados = recibidos.filter((r) => !catalogados.some((c) =>
+      c.id === r.id || c.nombre.trim().toLowerCase() === r.nombre.trim().toLowerCase()
+    )).map((r) => ({
+      id: r.id,
+      nombre: r.nombre,
+      precio: r.precio,
+      categoria: r.categoria || "Sin categoría",
+      codigoBarras: r.codigoBarras,
+    }));
+    return sortProductos([...catalogados, ...heredados], settings.categorias).map((p) => {
+      const recibido = recibidos.find((r) =>
+        r.id === p.id || r.nombre.trim().toLowerCase() === p.nombre.trim().toLowerCase()
       );
-
-      const inicioDefecto = pAnterior
-        ? pAnterior.final ?? 0
-        : 0;
-
       return {
         id: p.id,
         nombre: p.nombre,
         codigoBarras: p.codigoBarras,
-        precioDefecto: p.precio ?? 0,
-        categoria: p.categoria || "Sin categoría",
-        inicioDefecto,
+        precioDefecto: p.precio || recibido?.precio || 0,
+        categoria: p.categoria || recibido?.categoria || "Sin categoría",
+        inicioDefecto: recibido?.inicio ?? 0,
       };
     });
-  }, [catalogo, productosNuevosLocal, ultimoCuadrePunto, punto, settings.categorias]);
+  }, [catalogo, productosNuevosLocal, turnoOperativo, punto, settings.categorias]);
 
   // Paso 2: Inicios
   const [inicios, setInicios] =
@@ -751,7 +745,37 @@ export function PrecuadreDependiente({
         return;
       }
 
-      toast.success("Pre-cuadre guardado");
+      // El relevo operativo utiliza los finales entregados y no depende del cierre oficial.
+      try {
+        const actualId = usePinStore.getState().currentUserId;
+        if (!actualId) throw new Error("Debes iniciar sesión para entregar el turno.");
+        const usuarios = usePinStore.getState().users;
+        const receptores = usuarios.filter((u) =>
+          tipoRelevo === "admin"
+            ? u.role === "admin" || u.role === "duena"
+            : u.role === "dependiente" &&
+              u.nombre.trim().toLowerCase() === entranteNombre.trim().toLowerCase()
+        );
+        let receptorId: string | undefined;
+        for (const receptor of receptores) {
+          if ((await hashPin(pinInput, receptor.id)) === receptor.pinHash) {
+            receptorId = receptor.id;
+            break;
+          }
+        }
+        if (!receptorId || !pinValidado) throw new Error("Vuelve a validar el PIN del receptor.");
+        const relevo = await relevarTurnoOperativo(
+          actualId, turnoOperativo.id, turnoId, receptorId, pinInput
+        );
+        toast.success(relevo.nuevo_turno
+          ? `Precuadre enviado y turno activado para ${relevo.nuevo_turno.dependiente}`
+          : "Precuadre enviado. El administrador puede asignar el próximo turno.");
+      } catch (error) {
+        toast.warning("Precuadre guardado, pero el relevo operativo está pendiente.", {
+          description: error instanceof Error ? error.message : "Revisa la conexión y la asignación.",
+          duration: 8000,
+        });
+      }
       onFinalizado();
     } catch (e: any) {
       toast.error(
@@ -819,7 +843,7 @@ export function PrecuadreDependiente({
             <div className="p-4 rounded-2xl border border-border bg-card space-y-3 shadow-soft">
               <div>
                 <label className="text-xs font-semibold text-muted-foreground block mb-1">
-                  Punto de Venta
+                  Punto de Venta (asignado por administración)
                 </label>
 
                                 <div className="flex gap-2">
@@ -827,6 +851,7 @@ export function PrecuadreDependiente({
                     <Button
                       key={p}
                       type="button"
+                       disabled
                       variant={
                         punto === p
                           ? "default"
@@ -848,11 +873,12 @@ export function PrecuadreDependiente({
 
               <div>
                 <label className="text-xs font-semibold text-muted-foreground block mb-1">
-                  Dependienta en Turno
+                  Dependienta en Turno (asignada)
                 </label>
 
                 <Select
-                  value={dependiente}
+                   disabled
+                   value={dependiente}
                   onValueChange={setDependiente}
                 >
                   <SelectTrigger className="rounded-xl h-10 font-medium">
@@ -944,8 +970,7 @@ export function PrecuadreDependiente({
               </div>
 
               <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Importados de los finales del último
-                turno cerrado. Si necesitas corregir
+                Importados del inventario recibido al comenzar el turno. Si necesitas corregir
                 alguno, pulsa el candado e indica el
                 motivo.
               </p>
@@ -954,7 +979,7 @@ export function PrecuadreDependiente({
             <div className="space-y-2">
               {productosBase
                 .filter(
-                  (p) => p.inicioDefecto > 0
+                  (p) => p.inicioDefecto > 0 || turnoOperativo.fuente === "manual"
                 )
                 .map((p) => {
                   const estaDesbloqueado =
