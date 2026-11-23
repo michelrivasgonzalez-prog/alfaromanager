@@ -13,6 +13,8 @@ import {
   Coffee,
   Store,
   ScanBarcode,
+  Pencil,
+  History,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -20,7 +22,9 @@ import * as XLSX from "xlsx";
 import { pushCatalogItem, deleteCatalogItem } from "@/lib/sync";
 import { KardexDialog } from "@/components/KardexDialog";
 import BarcodeScanner from "@/components/BarcodeScanner";
-import CodigosAsociados from "@/components/catalogo/CodigosAsociados";
+import EditarProductoDialog, { type EdicionCatalogo } from "@/components/catalogo/EditarProductoDialog";
+import CodigosProductoDialog from "@/components/catalogo/CodigosProductoDialog";
+import { subirFotoProducto, borrarFotoProducto } from "@/lib/fotoCatalogo";
 import { buscarDuplicadoCatalogo, buscarPorCodigo, codigosAdicionalesValidos, esCodigoBarrasValido, limpiarCodigoBarras, normalizarNombreProducto } from "@/lib/codigosBarras";
 import {
   Dialog,
@@ -52,7 +56,8 @@ export default function Productos() {
   const [codigoPendiente, setCodigoPendiente] = useState<string | null>(null);
   const [filtroAsociar, setFiltroAsociar] = useState("");
   const [etiquetaAsociar, setEtiquetaAsociar] = useState("");
-  const [codigosBorrador, setCodigosBorrador] = useState<Record<string, string>>({});
+  const [editandoProductoId, setEditandoProductoId] = useState<string | null>(null);
+  const [codigosProductoId, setCodigosProductoId] = useState<string | null>(null);
   const history = useCuadreStore((s) => s.history);
 
 
@@ -133,29 +138,75 @@ export default function Productos() {
     }
   };
 
-  const guardarCodigo = (id: string, valor: string) => {
+  const guardarCodigo = async (id: string, valor: string): Promise<boolean> => {
     const codigo = limpiarCodigoBarras(valor);
-    const item = catalogo.find((p) => p.id === id);
-    if (!item || codigo === (item.codigoBarras ?? "")) {
-      setCodigosBorrador((prev) => { const n = { ...prev }; delete n[id]; return n; });
-      return;
-    }
+    const item = useCuadreStore.getState().catalogo.find((p) => p.id === id);
+    if (!item) return false;
+    if (codigo === (item.codigoBarras ?? "")) return true;
     if (codigo && !esCodigoBarrasValido(codigo)) {
       toast.error("Código inválido. Revisa los dígitos EAN / UPC / GTIN.");
-      return;
+      return false;
     }
     if (!codigosAdicionalesValidos(codigo, item.codigosAdicionales ?? [])) {
       toast.error("Ese código ya está asociado a una variante de este producto.");
-      return;
+      return false;
     }
-    const duplicado = buscarDuplicadoCatalogo(catalogo, punto, { codigoBarras: codigo }, id);
+    const duplicado = buscarDuplicadoCatalogo(
+      useCuadreStore.getState().catalogo, punto, { codigoBarras: codigo }, id
+    );
     if (duplicado) {
       toast.warning('El código ya corresponde a "' + duplicado.nombre + '". No se duplicó.');
-      document.getElementById("producto-" + duplicado.id)?.scrollIntoView({ behavior: "smooth", block: "center" });
-      return;
+      return false;
     }
-    setCodigosBorrador((prev) => { const n = { ...prev }; delete n[id]; return n; });
-    void updateAndSync(id, { codigoBarras: codigo || undefined });
+    const guardado = await updateAndSync(id, { codigoBarras: codigo || undefined });
+    if (guardado) toast.success("Código principal actualizado.");
+    return !!guardado;
+  };
+
+  const guardarEdicion = async (
+    id: string, datos: EdicionCatalogo, nuevaFoto: File | null, quitarFoto: boolean
+  ): Promise<boolean> => {
+    const anterior = useCuadreStore.getState().catalogo.find((p) => p.id === id);
+    if (!anterior) return false;
+    let fotoUrl = anterior.fotoUrl;
+    let subida: string | null = null;
+    try {
+      if (nuevaFoto) {
+        subida = await subirFotoProducto(id, nuevaFoto);
+        fotoUrl = subida;
+      } else if (quitarFoto) {
+        fotoUrl = undefined;
+      }
+      const cambios: Partial<CatalogoItem> = { ...datos, fotoUrl };
+      const guardado = await updateAndSync(id, cambios);
+      if (!guardado) {
+        if (subida) await borrarFotoProducto(subida);
+        return false;
+      }
+      if (anterior.fotoUrl && anterior.fotoUrl !== fotoUrl) {
+        void borrarFotoProducto(anterior.fotoUrl);
+      }
+      toast.success("Producto actualizado.");
+      return true;
+    } catch (error: any) {
+      if (subida) await borrarFotoProducto(subida);
+      toast.error(error?.message ?? "No se pudo guardar la fotografía.");
+      return false;
+    }
+  };
+
+  const eliminarProducto = async (item: CatalogoItem) => {
+    if (!window.confirm('¿Eliminar "' + item.nombre + '" del catálogo de ' + punto +
+      '? Los cuadres anteriores se conservarán.')) return;
+    try {
+      await deleteCatalogItem(item.id);
+      removeCatalogItem(item.id);
+      setEditandoProductoId(null);
+      if (item.fotoUrl) void borrarFotoProducto(item.fotoUrl);
+      toast.success("Producto eliminado del catálogo.");
+    } catch (error: any) {
+      toast.error(error?.message ?? "No se pudo eliminar el producto.");
+    }
   };
 
   const guardarAlias = async () => {
@@ -177,6 +228,7 @@ export default function Productos() {
     const guardado = await updateAndSync(item.id, { codigosAdicionales: adicionales });
     if (guardado) {
       setAliasDraft(null);
+      setCodigosProductoId(item.id);
       toast.success("Código asociado a " + item.nombre + " sin crear otro producto.");
     }
   };
@@ -200,6 +252,13 @@ export default function Productos() {
     const destino = scannerDestino;
     setScannerDestino(null);
     const encontrado = buscarPorCodigo(catalogo, punto, codigo);
+    if (destino?.startsWith("primary:")) {
+      const id = destino.slice("primary:".length);
+      void guardarCodigo(id, codigo).then((guardado) => {
+        if (guardado) setCodigosProductoId(id);
+      });
+      return;
+    }
     if (destino?.startsWith("alias:")) {
       const id = destino.slice("alias:".length);
       if (encontrado) {
@@ -230,7 +289,7 @@ export default function Productos() {
       } else setNuevo((v) => ({ ...v, codigoBarras: codigo }));
       return;
     }
-    if (destino) guardarCodigo(destino, codigo);
+    if (destino) void guardarCodigo(destino, codigo);
   };
 
   const descargarPlantilla = () => {
