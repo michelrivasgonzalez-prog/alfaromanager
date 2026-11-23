@@ -82,13 +82,14 @@ export const useActualizacionesStore = create<EstadoPwa>((set, get) => ({
 
         const compilacionRemota = (json as { buildId: string }).buildId;
         const nueva = versionRemotaDiferente(COMPILACION_INSTALADA, compilacionRemota);
+        const esVersionDistintaAAnterior = compilacionRemota !== get().compilacionRemota;
         set({
           compilacionRemota,
           ultimoChequeo: Date.now(),
           disponible: nueva || get().disponible,
           estado: nueva || get().disponible ? "disponible" : "actualizada",
           mensaje: null,
-          avisoDescartado: nueva ? false : get().avisoDescartado,
+          avisoDescartado: nueva && esVersionDistintaAAnterior ? false : get().avisoDescartado,
         });
 
         if ("serviceWorker" in navigator) {
