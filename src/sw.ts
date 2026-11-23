@@ -9,8 +9,14 @@ declare const self: ServiceWorkerGlobalScope & {
   __WB_MANIFEST: Array<{url:string;revision?:string|null}>;
 };
 
-self.skipWaiting();
+// Nunca activar una versión nueva hasta que el usuario pulse «Actualizar ahora».
+// Las notificaciones push siguen funcionando con el SW activo anterior.
 clientsClaim();
+self.addEventListener("message", (event: ExtendableMessageEvent) => {
+  if (event.data?.type === "SKIP_WAITING") {
+    void self.skipWaiting();
+  }
+});
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
 
