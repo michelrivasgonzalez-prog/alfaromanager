@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import InstallPrompt from "@/components/InstallPrompt";
+import PWAUpdateManager from "@/components/PWAUpdateManager";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -52,6 +53,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <InstallPrompt />
+      <PWAUpdateManager />
       <BrowserRouter>
         <Routes>
           <Route path="/auth" element={<Auth />} />
