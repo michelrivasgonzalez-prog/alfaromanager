@@ -92,7 +92,7 @@ export default function Usuarios() {
 
   return (
     <div className="space-y-4 pb-16">
-      <h1 className="text-2xl font-bold">Usuarios</h1>
+      <header className="alfaro-page-header"><h1 className="text-xl font-extrabold sm:text-2xl">Usuarios</h1><p className="mt-1 text-xs text-muted-foreground sm:text-sm">Personal, roles y permisos</p></header>
 
       {/* Cuentas de acceso administrativas */}
       <div className="flex items-center justify-between">
