@@ -17,6 +17,9 @@ import {
   Printer,
   Receipt,
   ExternalLink,
+  ShieldCheck,
+  Clock3,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -88,7 +91,23 @@ export default function ClienteDetalle() {
   const totalComprado = (deudas.data ?? []).reduce((s, d) => s + Number(d.total), 0);
   const totalPagado = (abonos.data ?? []).reduce((s, a) => s + Number(a.monto), 0);
 
-  if (!cliente) return <div className="p-4 text-sm text-muted-foreground">Cliente no encontrado</div>;
+  if (clientes.isPending) {
+    return <div role="status" className="alfaro-surface space-y-3 p-5">
+      <div className="h-5 w-48 animate-pulse rounded-lg bg-muted" />
+      <div className="h-12 w-full animate-pulse rounded-xl bg-muted" />
+      <p className="text-xs text-muted-foreground">Consultando la cuenta del cliente…</p>
+    </div>;
+  }
+  if (clientes.isError) {
+    return <div role="alert" className="alfaro-surface space-y-3 p-5">
+      <p className="font-semibold text-destructive">No se pudo consultar la cuenta del cliente.</p>
+      <Button type="button" variant="outline" className="rounded-xl"
+        onClick={() => { void clientes.refetch(); }}>Reintentar consulta</Button>
+    </div>;
+  }
+  if (!cliente) return <div className="alfaro-surface p-5 text-sm text-muted-foreground">
+    No se encontró este cliente en las cuentas registradas.
+  </div>;
 
   const mensajeWhatsApp = () => {
     const primerNombre = cliente.nombre.split(" ")[0] || cliente.nombre;
@@ -136,35 +155,69 @@ export default function ClienteDetalle() {
 
   return (
     <div className="space-y-4 pb-24">
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={() => nav(-1)}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted text-foreground shrink-0">
-          <UserIcon className="h-5 w-5" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-xl font-bold text-primary">{cliente.nombre}</h1>
-          {cliente.telefono ? (
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Phone className="h-3 w-3" /> {cliente.telefono}
-            </div>
-          ) : (
-            <div className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-semibold text-destructive">
-              <PhoneOff className="h-3 w-3" /> Sin teléfono registrado
-            </div>
+      <header className="alfaro-page-header">
+        <div className="flex items-center gap-3">
+          <Button type="button" variant="outline" size="icon" onClick={() => nav(-1)}
+            className="h-10 w-10 shrink-0 rounded-xl" aria-label="Volver a cuentas por cobrar">
+            <ArrowLeft className="h-4 w-4"/>
+          </Button>
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-secondary/10 text-secondary">
+            <UserIcon className="h-5 w-5"/>
+          </div>
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-lg font-extrabold sm:text-xl">{cliente.nombre}</h1>
+            <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+              {cliente.telefono ? <>
+                <Phone className="h-3.5 w-3.5"/> {cliente.telefono}
+              </> : <>
+                <PhoneOff className="h-3.5 w-3.5"/> Sin teléfono registrado
+              </>}
+            </p>
+          </div>
+          {role !== "dependiente" && (
+            <Button type="button" variant="outline" size="icon" onClick={() => setEditing(true)}
+              className="h-10 w-10 shrink-0 rounded-xl" aria-label="Editar datos del cliente">
+              <Pencil className="h-4 w-4"/>
+            </Button>
           )}
         </div>
-        {role !== "dependiente" && <Button variant="ghost" size="icon" onClick={() => setEditing(true)} title="Editar cliente">
-          <Pencil className="h-4 w-4" />
-        </Button>}
-      </div>
-
-      <div className="grid grid-cols-3 gap-2">
-        <Kpi label="Saldo" value={fmt(totalDeuda)} tone="danger" />
-        <Kpi label="Comprado" value={fmt(totalComprado)} />
-        <Kpi label="Pagado" value={fmt(totalPagado)} tone="ok" />
-      </div>
+      </header>
+      {(deudas.isError || abonos.isError) && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-3">
+          <p className="text-xs font-medium text-destructive">No se pudieron consultar todos los saldos o abonos.</p>
+          <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg"
+            onClick={() => { void deudas.refetch(); void abonos.refetch(); }}>Reintentar</Button>
+        </div>
+      )}
+      <section aria-label="Resumen de cuenta">
+        <div className="relative overflow-hidden rounded-3xl bg-primary p-5 text-primary-foreground shadow-soft">
+          <div className="pointer-events-none absolute -right-6 -top-8 h-40 w-40 rounded-full border-[24px] border-white/10"/>
+          <p className="relative flex items-center gap-2 text-sm font-medium text-white/85">
+            <Wallet className="h-4 w-4"/> Saldo pendiente
+          </p>
+          <p className="relative mt-2 break-words text-3xl font-extrabold tabular-nums sm:text-4xl">
+            {deudas.isPending ? "Consultando…" : deudas.isError ? "No disponible" : fmt(totalDeuda)}
+          </p>
+          <p className="relative mt-2 text-xs text-white/80">
+            {deudas.isPending ? "Cargando deudas…" : deudas.isError ? "La consulta de deudas falló." :
+              pend.length + " deuda" + (pend.length === 1 ? "" : "s") + " pendiente" + (pend.length === 1 ? "" : "s")}
+          </p>
+        </div>
+        <div className="mt-2.5 grid grid-cols-2 gap-2.5">
+          <div className="alfaro-surface min-w-0 p-3.5">
+            <p className="text-xs text-muted-foreground">Total comprado</p>
+            <p className="mt-1 break-words text-lg font-extrabold tabular-nums">
+              {deudas.isPending ? "…" : deudas.isError ? "—" : fmt(totalComprado)}
+            </p>
+          </div>
+          <div className="alfaro-surface min-w-0 p-3.5">
+            <p className="text-xs text-muted-foreground">Abonos registrados</p>
+            <p className="mt-1 break-words text-lg font-extrabold tabular-nums text-secondary">
+              {abonos.isPending ? "…" : abonos.isError ? "—" : fmt(totalPagado)}
+            </p>
+          </div>
+        </div>
+      </section>
 
       {cliente.observaciones && (
         <div className="rounded-2xl border border-border bg-card p-3 text-xs text-muted-foreground shadow-soft">
@@ -174,7 +227,7 @@ export default function ClienteDetalle() {
 
       <div className="grid grid-cols-2 gap-2">
                 <Button
-          className="h-11 rounded-xl gradient-primary text-primary-foreground"
+          className="h-11 rounded-xl bg-secondary font-semibold text-secondary-foreground hover:bg-secondary/90"
           onClick={() => nav(`/cobrar/clientes/${id}/abonar`)}
           disabled={pend.length === 0}
         >
@@ -206,7 +259,7 @@ export default function ClienteDetalle() {
       <Collapsible open={deudasOpen} onOpenChange={setDeudasOpen}>
         <div className="flex items-center gap-2">
           <CollapsibleTrigger asChild>
-            <button className="flex flex-1 items-center justify-between rounded-xl bg-muted/50 px-3 py-2 text-sm font-semibold">
+            <button className="flex min-h-11 flex-1 items-center justify-between rounded-xl border border-border/60 bg-card px-3 py-2 text-sm font-semibold">
               <span>Deudas ({(deudas.data ?? []).length})</span>
               <ChevronDown
                 className={`h-4 w-4 transition-transform ${deudasOpen ? "rotate-180" : ""}`}
@@ -241,7 +294,7 @@ export default function ClienteDetalle() {
       </Collapsible>
 
       <section className="space-y-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Historial de abonos</h2>
+        <h2 className="flex items-center gap-2 text-sm font-bold"><Clock3 className="h-4 w-4 text-secondary" /> Historial de abonos</h2>
         {(abonos.data ?? []).length === 0 && (
           <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center text-xs text-muted-foreground">
             Sin abonos aún
@@ -256,7 +309,7 @@ export default function ClienteDetalle() {
             deudaRef?.cuadre_label ??
             (deudaRef ? format(new Date(deudaRef.fecha), "dd MMM yyyy", { locale: es }) : "Crédito a favor");
           return (
-            <div key={a.id} className="rounded-xl border border-border bg-card p-3 shadow-soft">
+            <div key={a.id} className="alfaro-surface p-3.5">
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <div className="text-xs text-muted-foreground">
@@ -418,7 +471,7 @@ function DeudaCard({
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-3 shadow-soft">
+    <div className="alfaro-surface p-3.5">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="text-sm font-semibold">{label}</div>
