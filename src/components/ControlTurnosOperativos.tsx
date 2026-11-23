@@ -71,8 +71,13 @@ export default function ControlTurnosOperativos() {
     const oficial = ultimoOficial(editando);
     if (fuente === "precuadre" && !pre) return toast.error("No hay una entrega disponible.");
     if (fuente === "cuadre" && !oficial) return toast.error("No hay un cuadre cerrado disponible.");
-    const inicios = fuente === "precuadre" ? iniciosDesdeProductos(pre!.data!.productos!, true)
-      : fuente === "cuadre" ? iniciosDesdeProductos(oficial!.productos, true) : [];
+    let inicios: AsignacionOperativa["inicios"] = [];
+    try {
+      inicios = fuente === "precuadre" ? iniciosDesdeProductos(pre!.data!.productos!, true)
+        : fuente === "cuadre" ? iniciosDesdeProductos(oficial!.productos, true) : [];
+    } catch (error) {
+      return toast.error(error instanceof Error ? error.message : "Inventario inicial no válido.");
+    }
     if (fuente === "manual" && !nota.trim()) {
       return toast.error("Indica cómo se verificará el inventario inicial de este turno.");
     }
