@@ -23,6 +23,7 @@ import {
   Wallet,
 } from "lucide-react";
 import coffeeHero from "@/assets/coffee-hero.jpg";
+const mipymeHero = "/mipyme-hero.svg";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useCuadreStore, PUNTOS, PuntoVenta, calcCuadre } from "@/store/cuadreStore";
@@ -139,7 +140,7 @@ export default function Index() {
       <header className="alfaro-page-header">
         <div className="relative z-10 flex items-center gap-3">
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-secondary/10 text-secondary">
-            <LayoutDashboard className="h-6 w-6" aria-hidden="true" />
+            <img src="/alfaro-logo-oficial.webp" alt="Logo oficial de AlFaro Café" className="h-full w-full rounded-2xl object-cover" />
           </span>
           <div className="min-w-0">
             <p className="text-xs font-medium text-secondary dark:text-emerald-300">AlFaroCafé Manager</p>
@@ -160,10 +161,8 @@ export default function Index() {
                 "alfaro-action-tile min-w-0",
                 p === "Cafetería" ? "bg-primary" : "bg-secondary"
               )}>
-                {p === "Cafetería" && (
-                  <img src={coffeeHero} alt="" aria-hidden="true"
-                    className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-35" />
-                )}
+                <img src={p === "Cafetería" ? coffeeHero : mipymeHero} alt="" aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-45" />
                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-black/10" />
                 <button type="button" onClick={() => onStart(p)}
                   className="relative z-10 flex h-full w-full flex-col justify-between gap-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
