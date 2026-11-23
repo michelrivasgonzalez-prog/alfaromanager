@@ -617,7 +617,9 @@ export default function Productos() {
         }}
         onEliminar={(item, indice) => { void eliminarAlias(item, indice); }}
       />
-      <KardexDialog nombre={kardex} punto={punto} onClose={() => setKardex(null)} />
+      <KardexDialog nombre={kardex} punto={punto}
+        producto={catalogo.find((p) => p.nombre === kardex && (p.punto ?? "Cafetería") === punto) ?? null}
+        onClose={() => setKardex(null)} />
       <Dialog open={exportOpen} onOpenChange={setExportOpen}>
         <DialogContent>
           <DialogHeader>
