@@ -20,6 +20,7 @@ import {
   Warehouse,
   Plus,
   Bell,
+  Download,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -43,6 +44,7 @@ import {
 import { pushCuadre } from "@/lib/sync";
 import AuditoriaPanel from "@/components/AuditoriaPanel";
 import { format } from "date-fns";
+import { COMPILACION_INSTALADA, mostrarCompilacion, useActualizacionesStore } from "@/lib/actualizaciones";
 
 export default function Ajustes() {
   const { history, settings, setSalarioBasePunto, updateSettings, importCuadresBulk } =
@@ -50,6 +52,9 @@ export default function Ajustes() {
   const { role } = useAuth();
   const { logout } = usePinStore();
   const isAdmin = role === "admin";
+  const { estado: estadoVersion, disponible: versionDisponible,
+    compilacionRemota, mensaje: mensajeVersion, verificar: verificarVersion } =
+    useActualizacionesStore();
   const [cloudOk, setCloudOk] = useState(false);
   const [busy, setBusy] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -163,6 +168,58 @@ export default function Ajustes() {
         <Button asChild className="h-10 w-full rounded-xl" variant="outline">
           <Link to="/notificaciones">Administrar notificaciones</Link>
         </Button>
+      </div>
+
+      {/* Versión instalada y actualización controlada, sin borrar cachés manualmente */}
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3">
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          <RefreshCw className="h-4 w-4 text-primary" />
+          Versión y actualizaciones
+        </div>
+        <div className="space-y-1 text-xs text-muted-foreground">
+          <p>Versión instalada: <strong className="text-foreground">
+            {mostrarCompilacion(COMPILACION_INSTALADA)}
+          </strong></p>
+          {compilacionRemota && (
+            <p>Última versión publicada: <strong className="text-foreground">
+              {mostrarCompilacion(compilacionRemota)}
+            </strong></p>
+          )}
+          <p className={versionDisponible ? "font-semibold text-primary" : ""}>
+            {versionDisponible
+              ? "Hay una actualización disponible."
+              : estadoVersion === "actualizada"
+                ? "Tu aplicación está actualizada."
+                : estadoVersion === "buscando"
+                  ? "Buscando versión nueva…"
+                  : estadoVersion === "sin_conexion"
+                    ? "Sin conexión para comprobar versiones."
+                    : mensajeVersion ?? "Comprobación automática cuando la app está en línea."}
+          </p>
+        </div>
+        <Button type="button" variant="outline" className="h-10 w-full rounded-xl"
+          disabled={estadoVersion === "buscando"}
+          onClick={() => {
+            void verificarVersion().then(() => {
+              const estadoFinal = useActualizacionesStore.getState().estado;
+              if (estadoFinal === "actualizada") toast.success("Ya tienes la versión más reciente.");
+              if (estadoFinal === "disponible") toast.info("Nueva versión detectada: pulsa «Actualizar ahora».");
+              if (estadoFinal === "error") toast.error("No se pudo comprobar el despliegue. Inténtalo de nuevo.");
+            });
+          }}>
+          <RefreshCw className={"mr-2 h-4 w-4 " + (estadoVersion === "buscando" ? "animate-spin" : "")} />
+          Buscar actualizaciones
+        </Button>
+        {versionDisponible && (
+          <Button type="button" className="h-10 w-full rounded-xl"
+            onClick={() => window.dispatchEvent(new Event("alfaro:pwa-aplicar"))}>
+            <Download className="mr-2 h-4 w-4"/> Actualizar ahora
+          </Button>
+        )}
+        <p className="text-[11px] text-muted-foreground">
+          No es necesario desinstalar ni borrar el historial de Safari o Chrome.
+          Antes de actualizar, guarda los formularios y sincroniza cualquier precuadre pendiente.
+        </p>
       </div>
 
       {/* Preferencias de navegación */}
