@@ -203,7 +203,7 @@ export default function AppLayout() {
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-3 py-2.5 sm:px-5">
           <div className="flex min-w-0 items-center gap-2">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-secondary/10 text-secondary">
-              <Coffee className="h-6 w-6" aria-hidden="true" />
+              <img src="/alfaro-logo-oficial.webp" alt="Logo oficial de AlFaro Café" className="h-full w-full rounded-2xl object-cover" />
             </div>
             <div className="min-w-0">
               <p className="truncate text-sm font-extrabold tracking-tight text-primary dark:text-foreground sm:text-lg">
