@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Camera, CameraOff, RefreshCw, ScanBarcode, Flashlight, FlashlightOff,
+  Volume2, VolumeX,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { esCodigoBarrasValido, limpiarCodigoBarras } from "@/lib/codigosBarras";
+import { prepararSonidoEscaner, reproducirBeepEscaner } from "@/lib/sonidoEscaner";
 
 type Dispositivo = { deviceId: string; label: string };
 type ControlesEscaner = {
@@ -36,6 +38,8 @@ export default function BarcodeScanner({
   const onScanRef = useRef(onScan);
   const onOpenChangeRef = useRef(onOpenChange);
   const detectadoRef = useRef(false);
+  const sonidoRef = useRef(true);
+  const [sonidoHabilitado, setSonidoHabilitado] = useState(true);
   const [facing, setFacing] = useState<"environment" | "user">("environment");
   const [deviceId, setDeviceId] = useState("");
   const [dispositivos, setDispositivos] = useState<Dispositivo[]>([]);
@@ -51,6 +55,22 @@ export default function BarcodeScanner({
     onScanRef.current = onScan;
     onOpenChangeRef.current = onOpenChange;
   }, [onScan, onOpenChange]);
+
+  // Safari en iPhone necesita activar Web Audio durante un toque real.
+  // Este listener captura también el toque del botón que ABRE el escáner.
+  useEffect(() => {
+    const prepararDuranteGesto = () => {
+      if (sonidoRef.current) prepararSonidoEscaner();
+    };
+    document.addEventListener("pointerdown", prepararDuranteGesto, true);
+    document.addEventListener("touchstart", prepararDuranteGesto, true);
+    document.addEventListener("keydown", prepararDuranteGesto, true);
+    return () => {
+      document.removeEventListener("pointerdown", prepararDuranteGesto, true);
+      document.removeEventListener("touchstart", prepararDuranteGesto, true);
+      document.removeEventListener("keydown", prepararDuranteGesto, true);
+    };
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -132,6 +152,9 @@ export default function BarcodeScanner({
 
             detectadoRef.current = true;
             setEstado("Código reconocido: " + codigo);
+            // El beep confirma la lectura válida, no que exista en el catálogo.
+            // La llamada no bloquea el procesamiento del producto.
+            if (sonidoRef.current) reproducirBeepEscaner();
             try {
               onScanRef.current(codigo);
               controlesActuales.stop();
@@ -271,6 +294,25 @@ export default function BarcodeScanner({
             {torch ? <FlashlightOff className="mr-1.5 h-4 w-4" /> :
               <Flashlight className="mr-1.5 h-4 w-4" />}
             {torch ? "Apagar flash" : "Flash"}
+          </Button>
+        </div>
+
+        <div className="flex justify-end">
+          <Button type="button" size="sm" variant="ghost"
+            aria-label={sonidoHabilitado ? "Silenciar confirmación de escaneo" : "Activar confirmación sonora"}
+            onClick={() => {
+              const activar = !sonidoRef.current;
+              sonidoRef.current = activar;
+              setSonidoHabilitado(activar);
+              if (activar) {
+                // Esta pulsación también desbloquea audio si Safari lo bloqueó.
+                prepararSonidoEscaner();
+                reproducirBeepEscaner();
+              }
+            }}>
+            {sonidoHabilitado ? <Volume2 className="mr-1.5 h-4 w-4" /> :
+              <VolumeX className="mr-1.5 h-4 w-4" />}
+            {sonidoHabilitado ? "Sonido activado" : "Sonido desactivado"}
           </Button>
         </div>
 
