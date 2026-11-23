@@ -2,7 +2,11 @@ import * as webpush from 'web-push';
 
 const SUPABASE_URL = 'https://ydrmzyddlpsaojzekgmv.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_4K4YgbkLl70I04g_by_-QQ_9To7Q9J-';
-const DISPATCH_SECRET = 'alfaro_push_secreto_2026';
+// Se configura únicamente como secreto de GitHub Actions; nunca en Git o en el navegador.
+const DISPATCH_SECRET = process.env.ALFARO_DISPATCH_SECRET?.trim();
+if (!DISPATCH_SECRET || DISPATCH_SECRET.length < 40) {
+  throw new Error('Falta el secreto ALFARO_DISPATCH_SECRET en GitHub Actions. No se envían notificaciones.');
+}
 
 async function callRpc(fnName, body) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
@@ -40,6 +44,7 @@ async function run() {
   }
 
   console.log(`Procesando ${cola.length} avisos...`);
+  let enviados = 0, errores = 0;
 
   for (const item of cola) {
     const sub = {
@@ -56,7 +61,8 @@ async function run() {
 
     try {
       await webpush.sendNotification(sub, payload, { TTL: 60 * 60 * 12 });
-      console.log(`✓ Enviado a dispositivo ${item.dispositivo_id}`);
+      console.log(`✓ Enviado a un dispositivo (${item.categoria})`);
+      enviados++;
       await callRpc('alfaro_notif_reportar_entrega', {
         p_secreto: DISPATCH_SECRET,
         p_evento_id: item.evento_id,
@@ -64,7 +70,8 @@ async function run() {
         p_estado: 'enviado'
       });
     } catch (err) {
-      console.warn(`Error enviando a ${item.dispositivo_id}:`, err.message);
+      console.warn(`Fallo de Web Push (${item.categoria}):`, err.statusCode || 'sin código', String(err.message || 'Error').slice(0, 160));
+      errores++;
       const isExpired = err.statusCode === 404 || err.statusCode === 410;
       await callRpc('alfaro_notif_reportar_entrega', {
         p_secreto: DISPATCH_SECRET,
@@ -75,6 +82,8 @@ async function run() {
       });
     }
   }
+  console.log(`Resumen: enviados=${enviados}, errores=${errores}, procesados=${cola.length}`);
+  if (errores > 0) process.exitCode = 1;
 }
 
 run().catch((e) => {
