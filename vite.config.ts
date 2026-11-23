@@ -17,9 +17,13 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode === "development" && componentTagger(),
     VitePWA({
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.ts",
       registerType: "autoUpdate",
       includeAssets: ["favicon.png", "icon-192.png", "icon-512.png"],
       manifest: {
+        id: "/alfarocafe-manager",
         name: "AlFaroCafé Manager",
         short_name: "AlFaroCafé",
         description: "Cuadres, almacén y cuentas por cobrar de AlFaroCafé.",
@@ -36,21 +40,9 @@ export default defineConfig(({ mode }) => ({
           { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
       },
-      workbox: {
+      injectManifest: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
-        navigateFallback: "/index.html",
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
-        runtimeCaching: [
-          {
-            urlPattern: ({ url }) => url.origin === "https://fonts.googleapis.com" || url.origin === "https://fonts.gstatic.com",
-            handler: "CacheFirst",
-            options: { cacheName: "fuentes", expiration: { maxEntries: 30 } },
-          },
-          {
-            urlPattern: ({ url }) => url.pathname.startsWith("/rest/v1") || url.pathname.startsWith("/auth/v1"),
-            handler: "NetworkOnly",
-          },
-        ],
       },
       devOptions: { enabled: false },
     }),
