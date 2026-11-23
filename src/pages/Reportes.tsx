@@ -379,7 +379,7 @@ export default function Reportes() {
   return (
     <div className="space-y-4 pb-12">
       {/* Título y Filtros Maestros */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="alfaro-page-header flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Reportes Analíticos</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
