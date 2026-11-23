@@ -1,0 +1,266 @@
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Bell, BellOff, CheckCheck, Clock, Info, RefreshCw, Smartphone } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { toast } from "sonner";
+import { usePinStore } from "@/store/pinStore";
+import {
+  activarPushConPermiso, bandejaNotificaciones, cambiarPreferenciasNotificaciones,
+  clavePublicaPush, configuracionNotificaciones, CATEGORIAS_NOTIFICACION,
+  cerrarSesionNotificaciones, desactivarPush, esPWAInstalada, marcarNotificacionLeida,
+  PREFERENCIAS_INICIALES, sesionActualNotificaciones, soportaPush,
+  type CategoriaNotificacion, type EventoNotificacion, type PreferenciasNotificaciones,
+} from "@/lib/notificaciones";
+
+const nombreCategoria: Record<CategoriaNotificacion, string> = {
+  precuadres: "Turnos", caja: "Caja", stock: "Inventario",
+  cxc: "Cuentas por Cobrar", auditoria: "Auditoría",
+};
+
+export default function Notificaciones() {
+  const navigate = useNavigate();
+  const usuarioId = usePinStore((s) => s.currentUserId);
+  const [notificaciones, setNotificaciones] = useState<EventoNotificacion[]>([]);
+  const [noLeidas, setNoLeidas] = useState(0);
+  const [prefs, setPrefs] = useState<PreferenciasNotificaciones>(PREFERENCIAS_INICIALES);
+  const [habilitado, setHabilitado] = useState(false);
+  const [servidorListo, setServidorListo] = useState(false);
+  const [rol, setRol] = useState("");
+  const [instalada] = useState(esPWAInstalada);
+  const [cargando, setCargando] = useState(true);
+  const [ocupado, setOcupado] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const cargar = useCallback(async () => {
+    if (!usuarioId) return;
+    if (!sesionActualNotificaciones(usuarioId)) {
+      setCargando(false);
+      setError("Para registrar este dispositivo, sal de la aplicación y vuelve a entrar con tu PIN habitual. No necesitas crear otro PIN.");
+      return;
+    }
+    try {
+      const [config, bandeja, key] = await Promise.all([
+        configuracionNotificaciones(),
+        bandejaNotificaciones(),
+        clavePublicaPush(),
+      ]);
+      setError(null);
+      setPrefs(config.preferencias);
+      setRol(config.rol);
+      setHabilitado(config.habilitado);
+      setNotificaciones(bandeja.items);
+      setNoLeidas(bandeja.no_leidos);
+      setServidorListo(Boolean(key));
+    } catch (e: any) {
+      setError(e?.message ?? "No se pudieron cargar las notificaciones");
+    } finally {
+      setCargando(false);
+    }
+  }, [usuarioId]);
+
+  useEffect(() => {
+    void cargar();
+    const onSesion = () => { void cargar(); };
+    const onFocus = () => { if (document.visibilityState === "visible") void cargar(); };
+    const intervalo = window.setInterval(() => {
+      if (document.visibilityState === "visible") void cargar();
+    }, 60_000);
+    window.addEventListener("alfaro:notificaciones-sesion", onSesion);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      clearInterval(intervalo);
+      window.removeEventListener("alfaro:notificaciones-sesion", onSesion);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [cargar]);
+
+  const guardarCategoria = async (categoria: CategoriaNotificacion, activada: boolean) => {
+    const siguientes = { ...prefs, [categoria]: activada };
+    setPrefs(siguientes);
+    try {
+      await cambiarPreferenciasNotificaciones(siguientes);
+      toast.success("Preferencias guardadas para este dispositivo");
+    } catch (e: any) {
+      setPrefs(prefs);
+      toast.error(e?.message ?? "No se pudo guardar");
+    }
+  };
+
+  const activar = async () => {
+    if (!servidorListo) {
+      toast.error("Falta configurar la clave del servidor de notificaciones.");
+      return;
+    }
+    if (!soportaPush()) {
+      toast.error("Este navegador no permite Web Push. En iPhone abre la app desde la pantalla de inicio.");
+      return;
+    }
+    if (!instalada && /iPhone|iPad|iPod/.test(navigator.userAgent)) {
+      toast.error("Primero usa Safari > Compartir > Añadir a pantalla de inicio; abre la aplicación desde su icono.");
+      return;
+    }
+
+    // ¡Importante! Pedir permiso directamente desde este toque del usuario.
+    // No ejecutar operaciones de red ni otros awaits antes de este diálogo.
+    const permiso = await Notification.requestPermission();
+    if (permiso !== "granted") {
+      toast.error("No se autorizó el permiso de notificaciones.");
+      return;
+    }
+    setOcupado(true);
+    try {
+      await activarPushConPermiso();
+      setHabilitado(true);
+      toast.success("¡Este dispositivo ya puede recibir notificaciones push!");
+      await cargar();
+    } catch (e: any) {
+      toast.error(e?.message ?? "No se pudo registrar el dispositivo");
+    } finally { setOcupado(false); }
+  };
+
+  const desactivar = async () => {
+    setOcupado(true);
+    try {
+      await desactivarPush();
+      setHabilitado(false);
+      toast.success("Notificaciones desactivadas en este dispositivo");
+    } catch (e: any) { toast.error(e?.message ?? "No se pudo desactivar"); }
+    finally { setOcupado(false); }
+  };
+
+  const abrir = async (evento: EventoNotificacion) => {
+    try { await marcarNotificacionLeida(evento.id); }
+    catch (e) { console.warn("No se pudo marcar el aviso",e); }
+    setNotificaciones((old) => old.map((e) =>
+      e.id === evento.id ? { ...e, leido: true } : e
+    ));
+    setNoLeidas((n) => Math.max(0, n - (evento.leido ? 0 : 1)));
+    if (evento.destino.startsWith("/") && !evento.destino.startsWith("//")) {
+      navigate(evento.destino);
+    }
+  };
+
+  const leerTodas = async () => {
+    try {
+      await marcarNotificacionLeida();
+      setNotificaciones((old) => old.map((e) => ({ ...e, leido: true })));
+      setNoLeidas(0);
+      toast.success("Avisos marcados como leídos");
+    } catch (e: any) { toast.error(e?.message ?? "No se pudieron marcar"); }
+  };
+
+  return (
+    <div className="space-y-4 pb-8">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="flex items-center gap-2 text-2xl font-bold">
+            <Bell className="h-6 w-6"/> Notificaciones
+          </h1>
+          <p className="text-xs text-muted-foreground">Preferencias por usuario PIN y dispositivo</p>
+        </div>
+        <Button variant="outline" size="icon" aria-label="Actualizar notificaciones"
+          disabled={cargando} onClick={() => void cargar()}>
+          <RefreshCw className={"h-4 w-4 " + (cargando ? "animate-spin" : "")}/>
+        </Button>
+      </div>
+
+      {error && (
+        <div role="alert" className="rounded-xl border border-amber-500/40 bg-card p-3 text-sm">
+          <Info className="mr-1 inline h-4 w-4"/> {error}
+        </div>
+      )}
+
+      <section className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
+        <h2 className="flex items-center gap-2 text-sm font-bold">
+          <Smartphone className="h-4 w-4"/> Notificaciones push en este equipo
+        </h2>
+        <p className="text-xs text-muted-foreground">
+          Los avisos pueden llegar con la app cerrada. En iPhone hay que abrir
+          AlFaroCafé desde su icono de la pantalla de inicio para autorizar los avisos.
+          Se usa el PIN habitual y no se piden otras credenciales.
+        </p>
+        <div className="flex flex-wrap gap-2 text-[11px]">
+          <span className="rounded-lg bg-muted px-2 py-1">
+            {instalada ? "App instalada" : "Navegador / Vista previa"}
+          </span>
+          <span className="rounded-lg bg-muted px-2 py-1">
+            {habilitado ? "Push activado" : "Push desactivado"}
+          </span>
+          {!servidorListo && <span className="rounded-lg bg-muted px-2 py-1">Envío push pendiente de configuración</span>}
+        </div>
+        {habilitado ? (
+          <Button variant="outline" disabled={ocupado} onClick={() => void desactivar()}
+            className="h-10 w-full">
+            <BellOff className="mr-2 h-4 w-4"/> Desactivar en este dispositivo
+          </Button>
+        ) : (
+          <Button disabled={ocupado || cargando || !servidorListo || !!error}
+            onClick={() => { void activar(); }} className="h-11 w-full">
+            <Bell className="mr-2 h-4 w-4"/> Activar notificaciones
+          </Button>
+        )}
+        {rol === "dependiente" && (
+          <p className="text-[11px] text-muted-foreground">
+            Como dependiente recibirás solamente avisos relativos a tus propios turnos.
+            Los eventos financieros y administrativos son exclusivos de administración.
+          </p>
+        )}
+      </section>
+
+      <section className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
+        <h2 className="text-sm font-bold">¿Qué avisos quieres recibir?</h2>
+        {CATEGORIAS_NOTIFICACION.map((categoria) => {
+          const soloAdmin = rol === "dependiente" && categoria.id !== "precuadres";
+          return (
+            <div key={categoria.id} className="flex items-center gap-3 border-b border-border/60 py-2 last:border-0">
+              <div className="flex-1">
+                <p className="text-sm font-medium">{categoria.titulo}</p>
+                <p className="text-xs text-muted-foreground">
+                  {soloAdmin ? "Solo administración" : categoria.descripcion}
+                </p>
+              </div>
+              <Switch checked={!soloAdmin && prefs[categoria.id]}
+                disabled={cargando || !!error || soloAdmin}
+                onCheckedChange={(check) => void guardarCategoria(categoria.id,check)}/>
+            </div>
+          );
+        })}
+      </section>
+
+      <section className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-bold">Bandeja de avisos {noLeidas > 0 ? "(" + noLeidas + " nuevos)" : ""}</h2>
+          <Button size="sm" variant="outline" disabled={notificaciones.length===0 || !!error}
+            onClick={() => void leerTodas()}>
+            <CheckCheck className="mr-1 h-3.5 w-3.5"/> Leídos
+          </Button>
+        </div>
+        {notificaciones.length===0 && (
+          <p className="rounded-xl border border-dashed p-5 text-center text-xs text-muted-foreground">
+            Todavía no hay avisos. Se mostrarán cuando ocurran movimientos nuevos en la nube.
+          </p>
+        )}
+        <div className="max-h-[35rem] space-y-2 overflow-y-auto">
+          {notificaciones.map((n) => (
+            <button key={n.id} type="button" onClick={() => void abrir(n)}
+              className={"w-full rounded-xl border p-3 text-left text-sm " +
+                (n.leido ? "border-border bg-muted/20" : "border-primary/40 bg-primary/5")}>
+              <div className="flex items-center justify-between gap-2">
+                <strong>{n.titulo}</strong>
+                {!n.leido && <span className="h-2 w-2 shrink-0 rounded-full bg-primary"/>}
+              </div>
+              <p className="mt-0.5 text-xs text-muted-foreground">{n.contenido}</p>
+              <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground">
+                <span>{nombreCategoria[n.categoria]}</span>
+                <span className="flex items-center gap-1">
+                  <Clock className="h-3 w-3"/>{new Date(n.creado_en).toLocaleString("es")}
+                </span>
+              </div>
+            </button>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
