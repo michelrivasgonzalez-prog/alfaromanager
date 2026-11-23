@@ -1,11 +1,14 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+export type CodigoBarraAdicional = { codigo: string; etiqueta?: string };
+
 export type Producto = {
   id: string;
   nombre: string;
   /** Barcode/GTIN in text form; optional so historical cuadres remain valid. */
   codigoBarras?: string;
+  codigosAdicionales?: CodigoBarraAdicional[];
   inicio: number;
   entradas: number;
   traslados: number;
@@ -37,6 +40,8 @@ export type CatalogoItem = {
   nombre: string;
   /** Código comercial. Único por punto, no sustituye al UUID. */
   codigoBarras?: string;
+  /** Otros sabores/variantes que comparten esta misma existencia. */
+  codigosAdicionales?: CodigoBarraAdicional[];
   precio: number;
   costo: number;
   orden?: number;
@@ -325,6 +330,7 @@ export const newCuadre = (
       id: crypto.randomUUID(),
       nombre: c.nombre,
       codigoBarras: c.codigoBarras,
+      codigosAdicionales: c.codigosAdicionales,
       inicio: 0,
       entradas: 0,
       traslados: 0,
@@ -809,6 +815,7 @@ export const useCuadreStore = create<State>()(
             id: prev?.id ?? crypto.randomUUID(),
             nombre,
             codigoBarras: prev?.codigoBarras ?? p.codigoBarras,
+            codigosAdicionales: prev?.codigosAdicionales ?? p.codigosAdicionales,
             precio: agotado ? 0 : p.precio,
             costo: agotado ? 0 : p.costo,
             categoria: p.categoria ?? prev?.categoria,
