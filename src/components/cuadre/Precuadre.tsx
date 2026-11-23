@@ -1,6 +1,8 @@
 import { puntoHabitual, sortProductos, catLabel, type GastoCategoria } from "@/store/cuadreStore";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import { type TurnoOperativo, relevarTurnoOperativo } from "@/lib/turnosOperativos";
+import { useQuery } from "@tanstack/react-query";
+import { listarEntregasEfectivo, recogidaDesdeEntrega, codigoEntrega, formatoDinero } from "@/lib/entregasEfectivo";
 import { buscarPorCodigo, buscarDuplicadoCatalogo, limpiarCodigoBarras, esCodigoBarrasValido, normalizarNombreProducto } from "@/lib/codigosBarras";
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import type { PrecioTramo } from "@/store/cuadreStore";
@@ -116,6 +118,21 @@ export function PrecuadreDependiente({
   const history = useCuadreStore((s) => s.history);
   const dependientes = useCuadreStore((s) => s.dependientes);
   const settings = useCuadreStore((s) => s.settings);
+  const usuarioActualId = usePinStore((s) => s.currentUserId);
+  const entregasRegistradas = useQuery({
+    queryKey: ["alfaro-efectivo-entregas", usuarioActualId, turnoOperativo.id],
+    queryFn: () => listarEntregasEfectivo(usuarioActualId!, turnoOperativo.id),
+    enabled: !!usuarioActualId,
+    refetchInterval: 30000,
+    refetchOnWindowFocus: "always",
+    retry: false,
+  });
+  const entregasConfirmadas = useMemo(() =>
+    (entregasRegistradas.data ?? []).filter((e) => e.estado === "confirmada"),
+    [entregasRegistradas.data]);
+  const entregasSinConfirmar = useMemo(() =>
+    (entregasRegistradas.data ?? []).filter((e) => e.estado === "pendiente" || e.estado === "diferencia"),
+    [entregasRegistradas.data]);
   const [turnoId] = useState(() => crypto.randomUUID());
 
   const [paso, setPaso] = useState<number>(1);
@@ -347,12 +364,16 @@ export function PrecuadreDependiente({
     );
   }, [gastos]);
 
-  const totalRecogidas = useMemo(() => {
-    return recogidas.reduce(
-      (acc, r) => acc + r.monto,
-      0
-    );
-  }, [recogidas]);
+  // Solo el dinero físicamente contado por administración se incorpora como recogida.
+  const recogidasConfirmadas = useMemo(() => entregasConfirmadas.map(recogidaDesdeEntrega),
+    [entregasConfirmadas]);
+  const todasLasRecogidas = useMemo(() => {
+    const ids = new Set(recogidas.map((r) => r.entregaEfectivoId || r.id));
+    return [...recogidas, ...recogidasConfirmadas.filter((r) => !ids.has(r.id))];
+  }, [recogidas, recogidasConfirmadas]);
+  const totalRecogidas = useMemo(() =>
+    todasLasRecogidas.reduce((acc, r) => acc + Number(r.monto || 0), 0),
+    [todasLasRecogidas]);
 
   const totalEfectivoCUP = useMemo(() => {
     return DENOMINACIONES.reduce(
@@ -664,6 +685,7 @@ export function PrecuadreDependiente({
 
     try {
       const payload: PrecuadreData = {
+        turnoOperativoId: turnoOperativo.id,
         diasTrabajados,
         iniciosDeTurnoAnterior: true,
 
@@ -714,7 +736,7 @@ export function PrecuadreDependiente({
         totalVentas,
         gastos,
         totalGastos,
-        recogidas,
+        recogidas: todasLasRecogidas,
         totalRecogidas,
         denominaciones: denoms,
 
@@ -2345,6 +2367,35 @@ export function PrecuadreDependiente({
                 Recogidas Parciales de Efectivo
               </span>
 
+              {entregasRegistradas.isError && (
+                <p className="rounded-xl bg-amber-500/10 p-2 text-xs text-amber-700">
+                  No se pudieron verificar las recogidas del portal. Se revisarán nuevamente en el Cuadre Oficial.
+                </p>
+              )}
+              {recogidasConfirmadas.length > 0 && (
+                <div className="space-y-2 rounded-xl border border-secondary/30 bg-secondary/5 p-3">
+                  <p className="text-xs font-bold">Recogidas ya confirmadas por administración</p>
+                  {recogidasConfirmadas.map((r) => (
+                    <div className="flex justify-between gap-2 text-xs" key={r.id}>
+                      <span>{codigoEntrega(r.id)} · {r.quien}</span>
+                      <strong>{formatoDinero(r.monto)}</strong>
+                    </div>
+                  ))}
+                  <p className="text-[11px] text-muted-foreground">
+                    Ya están sumadas automáticamente. No vuelvas a añadirlas manualmente.
+                  </p>
+                </div>
+              )}
+              {entregasSinConfirmar.length > 0 && (
+                <p className="rounded-xl bg-amber-500/10 p-2 text-xs text-amber-700">
+                  {entregasSinConfirmar.length} fajo(s) siguen pendientes de confirmación.
+                  No se sumarán hasta que administración los cuente.
+                </p>
+              )}
+
+              <p className="text-[11px] text-muted-foreground">
+                Registra manualmente solo las recogidas que NO estén en la lista confirmada.
+              </p>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-[10px] text-muted-foreground block mb-0.5">
@@ -2782,8 +2833,10 @@ export function PrecuadreAdminReview({
 
           fecha: r.fecha ?? diasArray[diasArray.length - 1],
           quien: r.quien ?? r.nota,
-          denominaciones: emptyDen(),
+          denominaciones: r.denominaciones ?? emptyDen(),
           monto: r.monto,
+          entregaEfectivoId: r.entregaEfectivoId,
+          confirmadoEn: r.confirmadoEn,
         })
       ),
 
@@ -2793,6 +2846,7 @@ export function PrecuadreAdminReview({
         entrante: d.entranteNombre,
         firma: d.entranteFirma,
         firmadoEn: turno.enviado_en,
+        turnoOperativoId: d.turnoOperativoId,
       },
     });
 
