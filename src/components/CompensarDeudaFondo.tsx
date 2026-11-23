@@ -7,7 +7,7 @@ import { buscarDeuda, listAbonosPorDeuda, listClientes, listDeudas, normalizarDe
 import { pullCuadre } from "@/lib/sync";
 import { calcCuadre, useCuadreStore, type Cuadre } from "@/store/cuadreStore";
 
-export default function CompensarDeudaFondo({ disponible, cuadre }: { disponible: number; cuadre?: Cuadre }) {
+export default function CompensarDeudaFondo({ disponible, cuadre, embedded = false }: { disponible: number; cuadre?: Cuadre; embedded?: boolean }) {
   const { history, dependientes } = useCuadreStore();
   const qc = useQueryClient();
   const [clienteElegido, setCliente] = useState("");
@@ -84,8 +84,8 @@ export default function CompensarDeudaFondo({ disponible, cuadre }: { disponible
   }
 
   return (
-    <form className="space-y-3 rounded-xl border bg-card p-4" onSubmit={confirmar}>
-      <h2 className="font-semibold">Compensar deuda con Fondo de Sobrantes</h2>
+    <form className={embedded ? "space-y-3" : "space-y-3 rounded-xl border bg-card p-4"} onSubmit={confirmar}>
+      {!embedded && <h2 className="font-semibold">Compensar deuda con Fondo de Sobrantes</h2>}
       {disponible <= 0 && <p className="text-sm text-muted-foreground">El fondo todavía no tiene saldo confirmado disponible.</p>}
       {(!cuadre || (!fijaId && elegibles.length > 1)) && (
         <label className="block space-y-1 text-sm">
