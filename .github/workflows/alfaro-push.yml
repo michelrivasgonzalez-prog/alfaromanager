@@ -1,26 +1,32 @@
 name: Enviar notificaciones push AlFaroCafé
+
 on:
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
 
 jobs:
-  entregar:
+  despachar:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 3
     steps:
-      - name: Entregar Web Push cifrado desde Edge Function
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar librería web-push
+        run: npm install --no-save web-push
+
+      - name: Ejecutar despachador de notificaciones
         env:
-          ALFARO_EDGE_DISPATCH_URL: ${{ secrets.ALFARO_EDGE_DISPATCH_URL }}
-          ALFARO_SERVICE_ROLE_KEY: ${{ secrets.ALFARO_SERVICE_ROLE_KEY }}
-        run: |
-          if [ -z "$ALFARO_EDGE_DISPATCH_URL" ] || [ -z "$ALFARO_SERVICE_ROLE_KEY" ]; then
-            echo "Pendiente de configurar secretos de GitHub: URL y clave del servidor."
-            exit 0
-          fi
-          curl --fail-with-body --silent --show-error --max-time 45 \
-            --request POST \
-            --header "Content-Type: application/json" \
-            --header "Authorization: Bearer $ALFARO_SERVICE_ROLE_KEY" \
-            --data '{}' \
-            "$ALFARO_EDGE_DISPATCH_URL"
+          VITE_SUPABASE_URL: "https://ydrmzyddlpsaojzekgmv.supabase.co"
+          VITE_SUPABASE_ANON_KEY: "sb_publishable_4K4YgbkLl70I04g_by_-QQ_9To7Q9J-"
+          ALFARO_DISPATCH_SECRET: ${{ secrets.ALFARO_DISPATCH_SECRET || 'alfaro_push_secreto_2026' }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+        run: node scripts/push-dispatch.mjs
