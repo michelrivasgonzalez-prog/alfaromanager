@@ -235,10 +235,10 @@ export default function Productos() {
 
   const descargarPlantilla = () => {
     const ws = XLSX.utils.aoa_to_sheet([
-      ["nombre", "costo", "precio", "codigo_barras", "categoria"],
-      ["Café Expreso", 20, 120, "", "Otros"],
+      ["nombre", "costo", "precio", "codigo_barras", "categoria", "codigos_adicionales"],
+      ["Café Expreso", 20, 120, "", "Otros", "[]"],
     ]);
-    ws["!cols"] = [{ wch: 40 }, { wch: 14 }, { wch: 14 }, { wch: 22 }, { wch: 20 }];
+    ws["!cols"] = [{ wch: 40 }, { wch: 14 }, { wch: 14 }, { wch: 22 }, { wch: 20 }, { wch: 55 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Productos");
     XLSX.writeFile(wb, "plantilla-productos-" + punto + ".xlsx");
@@ -254,17 +254,20 @@ export default function Productos() {
       return;
     }
     const ws = XLSX.utils.aoa_to_sheet([
-      ["nombre", "categoria", "codigo_barras", "costo", "precio", ...(conExistencia ? ["existencia"] : [])],
+      ["nombre", "categoria", "codigo_barras", "codigos_adicionales", "costo", "precio", ...(conExistencia ? ["existencia"] : [])],
       ...items.map((p) => [
-        p.nombre, p.categoria ?? "", p.codigoBarras ?? "", p.costo, p.precio,
+        p.nombre, p.categoria ?? "", p.codigoBarras ?? "",
+        JSON.stringify(p.codigosAdicionales ?? []), p.costo, p.precio,
         ...(conExistencia ? [existencias.get(p.id) ?? 0] : []),
       ]),
     ]);
-    ws["!cols"] = [{ wch: 40 }, { wch: 20 }, { wch: 22 }, { wch: 14 }, { wch: 14 }, { wch: 12 }];
+    ws["!cols"] = [{ wch: 40 }, { wch: 20 }, { wch: 22 }, { wch: 55 }, { wch: 14 }, { wch: 14 }, { wch: 12 }];
     // La celda de código es texto: nunca formatear como número científico.
     for (let fila = 1; fila <= items.length; fila++) {
       const celda = ws[XLSX.utils.encode_cell({ r: fila, c: 2 })];
       if (celda) { celda.t = "s"; celda.v = items[fila - 1].codigoBarras ?? ""; }
+      const secundarios = ws[XLSX.utils.encode_cell({ r: fila, c: 3 })];
+      if (secundarios) { secundarios.t = "s"; secundarios.v = JSON.stringify(items[fila - 1].codigosAdicionales ?? []); }
     }
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Productos");
@@ -289,13 +292,29 @@ export default function Productos() {
         ));
         if (!nombre) { invalidos++; continue; }
         if (codigo && !esCodigoBarrasValido(codigo)) { invalidos++; continue; }
+        let adicionales: { codigo: string; etiqueta?: string }[] = [];
+        const datosExtras = String(keys.codigos_adicionales ?? "").trim();
+        if (datosExtras) {
+          try {
+            const parsed: unknown = JSON.parse(datosExtras);
+            if (!Array.isArray(parsed)) throw new Error("Lista esperada");
+            adicionales = parsed.map((a: any) => ({
+              codigo: limpiarCodigoBarras(String(a.codigo ?? "")),
+              etiqueta: String(a.etiqueta ?? "").trim() || undefined,
+            }));
+          } catch { invalidos++; continue; }
+        }
+        if (!codigosAdicionalesValidos(codigo || undefined, adicionales)) { invalidos++; continue; }
         const actuales = useCuadreStore.getState().catalogo;
-        const duplicado = buscarDuplicadoCatalogo(actuales, punto, { nombre, codigoBarras: codigo });
+        const duplicado = buscarDuplicadoCatalogo(actuales, punto, {
+          nombre, codigoBarras: codigo, codigosAdicionales: adicionales,
+        });
         if (duplicado) { existentes++; continue; }
         const precio = Number(String(keys.precio ?? keys["precio venta"] ?? "0").replace(",", ".")) || 0;
         const costo = Number(String(keys.costo ?? keys["precio costo"] ?? "0").replace(",", ".")) || 0;
         addCatalogItem({
           nombre, costo, precio, punto, codigoBarras: codigo || undefined,
+          codigosAdicionales: adicionales,
           categoria: String(keys.categoria ?? "").trim() || undefined,
         });
         const nuevoItem = useCuadreStore.getState().catalogo.find(
