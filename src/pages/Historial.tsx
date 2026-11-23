@@ -244,7 +244,7 @@ export default function Historial() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Historial de cuadres</h1>
+      <header className="alfaro-page-header"><h1 className="text-xl font-extrabold sm:text-2xl">Historial de Cuadres</h1><p className="mt-1 text-xs text-muted-foreground sm:text-sm">Consulta, filtra y audita turnos cerrados</p></header>
       <div className="grid grid-cols-2 gap-1 rounded-2xl bg-muted/60 p-1">
         {(["Cafetería", "Mipyme"] as const).map((p) => (
           <button
