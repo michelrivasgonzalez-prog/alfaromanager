@@ -1,18 +1,8 @@
 import webpush from 'web-push';
 
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://ydrmzyddlpsaojzekgmv.supabase.co';
-const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_4K4YgbkLl70I04g_by_-QQ_9To7Q9J-';
-const DISPATCH_SECRET = process.env.ALFARO_DISPATCH_SECRET || 'alfaro_push_secreto_2026';
-const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
-const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:admin@alfarocafe.com';
-
-if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
-  console.error('Faltan claves VAPID_PUBLIC_KEY o VAPID_PRIVATE_KEY.');
-  process.exit(1);
-}
-
-webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+const SUPABASE_URL = 'https://ydrmzyddlpsaojzekgmv.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_4K4YgbkLl70I04g_by_-QQ_9To7Q9J-';
+const DISPATCH_SECRET = 'alfaro_push_secreto_2026';
 
 async function callRpc(fnName, body) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
@@ -33,6 +23,14 @@ async function callRpc(fnName, body) {
 }
 
 async function run() {
+  console.log('Obteniendo configuración y claves del servidor...');
+  const claves = await callRpc('alfaro_notif_claves_servidor', { p_secreto: DISPATCH_SECRET });
+  if (!claves?.privateKey || !claves?.publicKey) {
+    throw new Error('No se encontraron las claves VAPID en la base de datos.');
+  }
+
+  webpush.setVapidDetails(claves.subject, claves.publicKey, claves.privateKey);
+
   console.log('Consultando cola de avisos pendientes...');
   const cola = await callRpc('alfaro_notif_cola_despacho', { p_secreto: DISPATCH_SECRET });
   
@@ -46,12 +44,8 @@ async function run() {
   for (const item of cola) {
     const sub = {
       endpoint: item.endpoint,
-      keys: {
-        p256dh: item.p256dh,
-        auth: item.auth_key
-      }
+      keys: { p256dh: item.p256dh, auth: item.auth_key }
     };
-
     const payload = JSON.stringify({
       id: item.evento_id,
       title: item.titulo,
