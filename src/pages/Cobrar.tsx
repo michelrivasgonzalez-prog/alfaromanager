@@ -13,6 +13,11 @@ import {
   Phone,
   ShieldCheck,
   User as UserIcon,
+  Search,
+  ArrowUpRight,
+  ArrowDownLeft,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -132,6 +137,7 @@ export default function Cobrar() {
   const [estadoFilter, setEstadoFilter] = useState<string>("");
   const [busqueda, setBusqueda] = useState("");
   const [soloDeuda, setSoloDeuda] = useState(false);
+  const [clienteExpandido, setClienteExpandido] = useState<string | null>(null);
   const clientesFiltrados = useMemo(() => {
     const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
     const q = norm(busqueda.trim());
@@ -182,12 +188,37 @@ export default function Cobrar() {
         </div>
       </header>
 
-      <div className="grid grid-cols-2 gap-2">
-        <KpiCard label="Pendiente total" value={fmt(pendienteTotal)} tone="danger" />
-        <KpiCard label="Clientes con deuda" value={clientesConDeuda} />
-        <KpiCard label="Deudas activas" value={deudasPendientes} />
-        <KpiCard label="Clientes totales" value={clientes.data?.length ?? 0} />
-      </div>
+      <section aria-label="Resumen de cuentas por cobrar" className="space-y-2.5">
+        <div className="relative overflow-hidden rounded-3xl bg-primary p-5 text-primary-foreground shadow-soft">
+          <div className="pointer-events-none absolute -right-6 -top-8 h-36 w-36 rounded-full border-[22px] border-white/10" />
+          <div className="relative flex items-center gap-2 text-sm font-medium text-white/85">
+            <Wallet className="h-5 w-5" /> Pendiente por cobrar
+          </div>
+          <p className="relative mt-2 break-words text-3xl font-extrabold tracking-tight tabular-nums sm:text-4xl">
+            {fmt(pendienteTotal)}
+          </p>
+          <p className="relative mt-2 text-xs text-white/85">
+            {clientesConDeuda} cliente{clientesConDeuda === 1 ? "" : "s"} con saldo pendiente
+          </p>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="alfaro-surface min-w-0 p-3">
+            <Users className="h-4 w-4 text-secondary" />
+            <p className="mt-2 text-[11px] text-muted-foreground">Clientes</p>
+            <p className="text-lg font-extrabold tabular-nums">{clientes.data?.length ?? 0}</p>
+          </div>
+          <div className="alfaro-surface min-w-0 p-3">
+            <Receipt className="h-4 w-4 text-secondary" />
+            <p className="mt-2 text-[11px] text-muted-foreground">Deudas activas</p>
+            <p className="text-lg font-extrabold tabular-nums">{deudasPendientes}</p>
+          </div>
+          <div className="alfaro-surface min-w-0 p-3">
+            <ShieldCheck className="h-4 w-4 text-secondary" />
+            <p className="mt-2 text-[11px] text-muted-foreground">Con saldo</p>
+            <p className="text-lg font-extrabold tabular-nums">{clientesConDeuda}</p>
+          </div>
+        </div>
+      </section>
 
             <Tabs defaultValue="clientes" className="w-full">
         <TabsList className="grid w-full grid-cols-2 rounded-xl">
@@ -204,26 +235,30 @@ export default function Cobrar() {
             <div className="grid grid-cols-2 gap-2">
               <Button
                 variant="outline"
-                className="h-10 w-full rounded-xl"
+                className="h-11 w-full rounded-xl"
                 onClick={() => setCliDialog({ nombre: "", telefono: "", observaciones: "" })}
               >
                 <Plus className="mr-2 h-4 w-4" /> Nuevo cliente
               </Button>
               <Button
                 variant="outline"
-                className="h-10 w-full rounded-xl"
+                className="h-11 w-full rounded-xl"
                 onClick={() => setDeudaLibre(true)}
               >
                 <Plus className="mr-2 h-4 w-4" /> Nueva deuda
               </Button>
             </div>
           )}
-          <Input
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar por nombre o teléfono…"
-            className="h-10 rounded-xl"
-          />
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar cliente o teléfono…"
+              aria-label="Buscar cliente o teléfono"
+              className="h-11 rounded-xl bg-card pl-10"
+            />
+          </div>
           <div className="grid grid-cols-2 gap-2">
             <Button size="sm" variant={soloDeuda ? "outline" : "default"} className="rounded-xl" onClick={() => setSoloDeuda(false)}>
               Todos
@@ -257,37 +292,85 @@ export default function Cobrar() {
           )}
           {clientesFiltrados.map((c) => {
             const cliDeudas = (deudas.data ?? []).filter((d) => d.cliente_id === c.id);
-            const saldo = cliDeudas.filter((d) => d.estado !== "pagada").reduce((s, d) => s + Number(d.saldo), 0);
+            const activas = cliDeudas.filter((d) => d.estado !== "pagada");
+            const saldo = activas.reduce((total, d) => total + Number(d.saldo), 0);
+            const expandido = clienteExpandido === c.id;
             return (
-              <button
-                key={c.id}
-                onClick={() => nav(`/cobrar/clientes/${c.id}`)}
-                className="w-full rounded-2xl border border-border bg-card p-3 text-left shadow-soft transition-colors hover:bg-muted/40"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-foreground">
-                    <UserIcon className="h-4 w-4" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="truncate text-sm font-semibold">{c.nombre}</div>
-                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                      {c.telefono ? (
-                        <span className="inline-flex items-center gap-1">
-                          <Phone className="h-3 w-3" /> {c.telefono}
-                        </span>
-                      ) : null}
-                      <span>{cliDeudas.length} deuda(s)</span>
+              <article key={c.id} className="alfaro-surface overflow-hidden">
+                <button type="button" aria-expanded={expandido}
+                  aria-controls={"cliente-cobrar-" + c.id}
+                  onClick={() => setClienteExpandido(expandido ? null : c.id)}
+                  className="flex min-h-20 w-full items-center gap-3 p-3.5 text-left transition-colors hover:bg-muted/40">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-secondary/10 text-secondary">
+                    <UserIcon className="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0 flex-1 space-y-1">
+                    <span className="block truncate text-sm font-bold">{c.nombre}</span>
+                    <span className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                      {c.telefono && <span className="inline-flex items-center gap-1">
+                        <Phone className="h-3 w-3" /> {c.telefono}
+                      </span>}
+                      <span>{activas.length} deuda{activas.length === 1 ? "" : "s"} activa{activas.length === 1 ? "" : "s"}</span>
+                    </span>
+                    <span className={"inline-block rounded-full px-2 py-0.5 text-[11px] font-medium " +
+                      (saldo > 0 ? "bg-amber-500/10 text-amber-700 dark:text-amber-400" :
+                        "bg-secondary/10 text-secondary")}>
+                      {saldo > 0 ? "Saldo pendiente" : "Sin deuda pendiente"}
+                    </span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1">
+                    <span className="text-right">
+                      <span className="block text-[11px] text-muted-foreground">Saldo</span>
+                      <span className={"block text-sm font-extrabold tabular-nums " +
+                        (saldo > 0 ? "text-destructive" : "text-secondary")}>
+                        {fmt(saldo)}
+                      </span>
+                    </span>
+                    {expandido ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> :
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                  </span>
+                </button>
+                {expandido && (
+                  <div id={"cliente-cobrar-" + c.id}
+                    className="space-y-3 border-t border-border/60 bg-muted/10 p-3.5">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-xl bg-card p-3">
+                        <p className="text-xs text-muted-foreground">Deudas registradas</p>
+                        <p className="mt-1 text-lg font-bold tabular-nums">{cliDeudas.length}</p>
+                      </div>
+                      <div className="rounded-xl bg-card p-3">
+                        <p className="text-xs text-muted-foreground">Saldo por cobrar</p>
+                        <p className="mt-1 break-all text-lg font-bold tabular-nums text-destructive">{fmt(saldo)}</p>
+                      </div>
+                    </div>
+                    {activas.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-xs font-semibold text-muted-foreground">Deudas pendientes</p>
+                        {activas.slice(0, 3).map((d) => (
+                          <div key={d.id} className="flex items-center justify-between gap-2 py-1 text-xs">
+                            <span className="min-w-0 truncate">{d.cuadre_label || d.fecha?.slice(0, 10) || "Deuda"}</span>
+                            <span className="shrink-0 font-semibold tabular-nums">{fmt(d.saldo)}</span>
+                          </div>
+                        ))}
+                        {activas.length > 3 && <p className="text-xs text-muted-foreground">
+                          Y {activas.length - 3} deuda(s) más en el detalle.
+                        </p>}
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button type="button" variant="outline" className="h-11 rounded-xl"
+                        onClick={() => nav("/cobrar/clientes/" + c.id)}>
+                        Ver detalle <ChevronRight className="ml-1 h-4 w-4" />
+                      </Button>
+                      <Button type="button" className="h-11 rounded-xl"
+                        disabled={saldo <= 0}
+                        onClick={() => nav("/cobrar/clientes/" + c.id + "/abonar")}>
+                        <Wallet className="mr-1.5 h-4 w-4" /> Registrar abono
+                      </Button>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-[10px] uppercase text-muted-foreground">Saldo</div>
-                    <div className={`font-mono text-sm font-bold tabular-nums ${saldo > 0 ? "text-destructive" : "text-secondary"}`}>
-                      {fmt(saldo)}
-                    </div>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                </div>
-              </button>
+                )}
+              </article>
             );
           })}
         </TabsContent>
