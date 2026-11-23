@@ -15,6 +15,7 @@ import Reportes from "./pages/Reportes";
 import Productos from "./pages/Productos";
 import Usuarios from "./pages/Usuarios";
 import Ajustes from "./pages/Ajustes";
+import Notificaciones from "./pages/Notificaciones";
 import Almacen from "./pages/Almacen";
 import Cobrar from "./pages/Cobrar";
 import ClienteDetalle from "./pages/ClienteDetalle";
@@ -95,6 +96,7 @@ const App = () => (
               }
             />
             <Route path="/buscar" element={<Buscar />} />
+            <Route path="/notificaciones" element={<Notificaciones />} />
             <Route
               path="/reportes"
               element={
