@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { usePinStore } from "@/store/pinStore";
 import { useCuadreStore, PUNTOS, type PuntoVenta } from "@/store/cuadreStore";
 import { useControlTurnos } from "@/hooks/useControlTurnos";
-import { asignarTurnoOperativo, iniciosDesdeProductos, type AsignacionOperativa } from "@/lib/turnosOperativos";
+import { asignarTurnoOperativo, iniciosDesdeProductos, type AsignacionOperativa, type InicioProductoTurno } from "@/lib/turnosOperativos";
 import { consultarUltimasEntregas, type EntregaReciente } from "@/lib/turnosOperativos";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,7 @@ const fecha = (valor?: string | null) => valor ? new Date(valor).toLocaleString(
 export default function ControlTurnosOperativos() {
   const { user } = useAuth();
   const historial = useCuadreStore((s) => s.history);
+  const catalogo = useCuadreStore((s) => s.catalogo);
   const usuarios = usePinStore((s) => s.users);
   const { turnos, verificado, verificar, cargando, error, recargar } = useControlTurnos(user?.id);
 
@@ -30,6 +31,10 @@ export default function ControlTurnosOperativos() {
   const [fuente, setFuente] = useState<Fuente>("manual");
   const [nota, setNota] = useState("");
   const [guardando, setGuardando] = useState(false);
+  const [manualInicios, setManualInicios] = useState<InicioProductoTurno[]>([]);
+  const [manualBuscar, setManualBuscar] = useState("");
+  const [manualProductoId, setManualProductoId] = useState("");
+  const [manualCantidad, setManualCantidad] = useState("");
 
   const entregas = useQuery({
     queryKey: ["alfaro-entregas-fuente-turnos"],
@@ -56,9 +61,30 @@ export default function ControlTurnosOperativos() {
   const abrirAsignacion = (punto: PuntoVenta) => {
     const p = ultimoPrecuadre(punto);
     setEditando(punto);
-    setFuente(p ? "precuadre" : ultimoOficial(punto) ? "cuadre" : "manual");
+    // Sin entrega comprobada, no asumimos que un cuadre anterior representa el inventario actual.
+    setFuente(p ? "precuadre" : "manual");
     setDependienteId("");
     setNota("");
+    setManualInicios([]);
+    setManualBuscar("");
+    setManualProductoId("");
+    setManualCantidad("");
+  };
+
+  const agregarInicioManual = () => {
+    if (!editando || !manualProductoId) return toast.error("Elige un producto.");
+    const producto = catalogo.find((c) => c.id === manualProductoId && (!c.punto || c.punto === editando));
+    const cantidad = Number(manualCantidad);
+    if (!producto || !Number.isFinite(cantidad) || cantidad <= 0) {
+      return toast.error("Indica una existencia inicial positiva.");
+    }
+    setManualInicios((prev) => [
+      ...prev.filter((p) => p.id !== producto.id),
+      { id: producto.id, nombre: producto.nombre, inicio: cantidad,
+        precio: producto.precio || 0, categoria: producto.categoria, codigoBarras: producto.codigoBarras },
+    ]);
+    setManualProductoId("");
+    setManualCantidad("");
   };
 
   const confirmar = async () => {
@@ -74,7 +100,7 @@ export default function ControlTurnosOperativos() {
     let inicios: AsignacionOperativa["inicios"] = [];
     try {
       inicios = fuente === "precuadre" ? iniciosDesdeProductos(pre!.data!.productos!, true)
-        : fuente === "cuadre" ? iniciosDesdeProductos(oficial!.productos, true) : [];
+        : fuente === "cuadre" ? iniciosDesdeProductos(oficial!.productos, true) : manualInicios;
     } catch (error) {
       return toast.error(error instanceof Error ? error.message : "Inventario inicial no válido.");
     }
@@ -205,6 +231,52 @@ export default function ControlTurnosOperativos() {
                     "Se iniciará en cero; los inicios deberán verificarse y justificarse durante el precuadre."}
                 </span>
               </label>
+              {fuente === "manual" && (
+                <div className="space-y-2 rounded-xl border border-amber-500/30 bg-background p-3">
+                  <p className="text-xs font-semibold">Inventario inicial verificado manualmente</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Registra las existencias comprobadas durante el relevo. Si no conoces los inicios,
+                    deja constancia en Observaciones; no copies cifras de un turno antiguo.
+                  </p>
+                  <Input value={manualBuscar} onChange={(e) => {
+                    setManualBuscar(e.target.value);
+                    setManualProductoId("");
+                  }} placeholder="Buscar producto…" className="h-9 rounded-xl text-xs" />
+                  <select className="h-10 w-full rounded-xl border border-input bg-background px-2 text-xs"
+                    value={manualProductoId} onChange={(e) => setManualProductoId(e.target.value)}>
+                    <option value="">Selecciona el producto…</option>
+                    {catalogo.filter((c) =>
+                      (!c.punto || c.punto === editando) &&
+                      c.nombre.toLocaleLowerCase("es").includes(manualBuscar.toLocaleLowerCase("es")) &&
+                      !manualInicios.some((p) => p.id === c.id)
+                    ).slice(0, 60).map((c) => (
+                      <option value={c.id} key={c.id}>{c.nombre}</option>
+                    ))}
+                  </select>
+                  <div className="flex gap-2">
+                    <Input type="number" min={0} step="any" value={manualCantidad}
+                      onChange={(e) => setManualCantidad(e.target.value)}
+                      placeholder="Existencia inicial" className="h-9 rounded-xl text-xs" />
+                    <Button type="button" size="sm" variant="secondary"
+                      onClick={agregarInicioManual}>Agregar</Button>
+                  </div>
+                  {manualInicios.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-[11px] text-muted-foreground">
+                        {manualInicios.length} productos registrados
+                      </p>
+                      {manualInicios.map((p) => (
+                        <div key={p.id} className="flex items-center justify-between gap-2 rounded-lg bg-muted/40 px-2 py-1.5 text-xs">
+                          <span className="min-w-0 flex-1 truncate">{p.nombre}</span>
+                          <strong>{p.inicio} und</strong>
+                          <button type="button" className="text-destructive" aria-label={`Quitar ${p.nombre}`}
+                            onClick={() => setManualInicios((prev) => prev.filter((x) => x.id !== p.id))}>Quitar</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               <label className="block space-y-1">
                 <span className="text-xs font-medium">Observaciones {turnos.some((t) => t.punto_venta === editando) ? "(obligatorias)" : "(opcional)"}</span>
                 <Input value={nota} onChange={(e) => setNota(e.target.value)}
