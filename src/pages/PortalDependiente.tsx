@@ -12,6 +12,7 @@ import Avatar from "@/components/Avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PrecuadreDependiente } from "@/components/cuadre/Precuadre";
+import EntregasDependiente from "@/components/efectivo/EntregasDependiente";
 
 const monto = (valor: number) => `${valor.toLocaleString("es", { maximumFractionDigits: 2 })} CUP`;
 
@@ -23,7 +24,7 @@ export default function PortalDependiente() {
   const [validandoPinTurnos, setValidandoPinTurnos] = useState(false);
 
   // 1. Inicia directamente en "historial" (Mis Liquidaciones)
-  const [tab, setTab] = useState<"historial" | "turno" | "enviados">("historial");
+  const [tab, setTab] = useState<"historial" | "turno" | "efectivo" | "enviados">("historial");
 
   // 2. Control de página completa para el pre-cuadre (sin modal flotante)
   const [entregandoTurno, setEntregandoTurno] = useState(false);
@@ -140,12 +141,13 @@ export default function PortalDependiente() {
         </div>
       </header>
 
-      <nav className="grid grid-cols-3 gap-1 rounded-2xl border border-border/70 bg-card p-1 shadow-soft"
+      <nav className="grid grid-cols-4 gap-1 rounded-2xl border border-border/70 bg-card p-1 shadow-soft"
         aria-label="Secciones del portal">
         {([
           ["historial", "Liquidaciones", Calendar],
           ["turno", "Mi turno", Clock],
-          ["enviados", "Entregas", Send],
+          ["efectivo", "Efectivo", Wallet],
+          ["enviados", "Precuadres", Send],
         ] as const).map(([value, label, Icon]) => (
           <button type="button" key={value} aria-current={tab === value ? "page" : undefined}
             onClick={() => setTab(value)}
@@ -205,6 +207,25 @@ export default function PortalDependiente() {
             );
           })}
         </section>
+      )}
+
+      {tab === "efectivo" && (
+        verificado && !errorTurnos && turnoOperativo && user?.id ? (
+          <EntregasDependiente usuarioId={user.id} turno={turnoOperativo}/>
+        ) : (
+          <div className="alfaro-surface space-y-3 p-5 text-center">
+            <Wallet className="mx-auto h-8 w-8 text-muted-foreground"/>
+            <p className="text-sm font-bold">
+              {!verificado || !!errorTurnos ? "Verifica primero tu PIN" :
+                "No tienes un turno activo para entregar efectivo."}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Cada entrega pertenece al turno operativo asignado a tu cuenta.
+            </p>
+            <Button type="button" variant="outline" className="rounded-xl"
+              onClick={() => setTab("turno")}>Ir a Mi turno</Button>
+          </div>
+        )
       )}
 
       {/* Historial y liquidaciones */}
