@@ -97,6 +97,9 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { marcarPrecuadreConciliado } from "@/lib/turnos";
+import { useAuth } from "@/hooks/useAuth";
+import { useControlTurnos } from "@/hooks/useControlTurnos";
+import { listarEntregasEfectivo, recogidaDesdeEntrega, codigoEntrega } from "@/lib/entregasEfectivo";
 import { ensureCloudSession } from "@/lib/cloudBootstrap";
 import { pushAllCatalogo, pushCuadre } from "@/lib/sync";
 import { fmtDinero, fmtCant } from "@/lib/format";
@@ -2130,9 +2133,53 @@ function Step6() {
 
 /* ================== Step 7: Cuadre de efectivo ================== */
 function Step7() {
-  const { currents, activePunto, setDenominacion, addDivisa, removeDivisa, addRecogida, removeRecogida } =
-    useCuadreStore();
+  const {
+    currents, activePunto, setDenominacion, addDivisa, removeDivisa,
+    addRecogida, removeRecogida, updateCurrent, mergeRecogidasConfirmadas,
+  } = useCuadreStore();
   const current = currents[activePunto];
+  const { user } = useAuth();
+  const { verificado } = useControlTurnos(user?.id);
+  const entregas = useQuery({
+    queryKey: ["alfaro-efectivo-admin", user?.id],
+    queryFn: () => listarEntregasEfectivo(user!.id),
+    enabled: Boolean(current && user?.id && verificado),
+    refetchInterval: 30000,
+    refetchOnWindowFocus: "always",
+    retry: false,
+  });
+  const turnoVinculado = current?.precuadre?.turnoOperativoId;
+  const turnosConEfectivo = useMemo(() => {
+    const mapa = new Map<string, { id: string; dependiente: string; fecha: string; cantidad: number }>();
+    for (const e of entregas.data ?? []) {
+      if (e.estado !== "confirmada" || e.punto_venta !== activePunto) continue;
+      if (current?.dependiente &&
+        normalizarDependiente(e.dependiente) !== normalizarDependiente(current.dependiente)) continue;
+      const previo = mapa.get(e.turno_operativo_id);
+      if (previo) previo.cantidad++;
+      else mapa.set(e.turno_operativo_id, {
+        id: e.turno_operativo_id, dependiente: e.dependiente,
+        fecha: e.entregado_en, cantidad: 1,
+      });
+    }
+    return [...mapa.values()].sort((a, b) => b.fecha.localeCompare(a.fecha));
+  }, [entregas.data, activePunto, current?.dependiente]);
+
+  useEffect(() => {
+    if (!current || !turnoVinculado || !entregas.data) return;
+    const importables = entregas.data.filter((e) =>
+      e.estado === "confirmada" &&
+      e.turno_operativo_id === turnoVinculado &&
+      e.punto_venta === current.puntoVenta &&
+      (!current.dependiente ||
+       normalizarDependiente(e.dependiente) === normalizarDependiente(current.dependiente))
+    ).map(recogidaDesdeEntrega);
+    const existentes = new Set((current.recogidas ?? []).flatMap((r) =>
+      [r.id, r.entregaEfectivoId].filter(Boolean) as string[]));
+    const nuevos = importables.filter((r) => !existentes.has(r.id));
+    if (nuevos.length > 0) mergeRecogidasConfirmadas(nuevos);
+  }, [current?.id, current?.recogidas, turnoVinculado, entregas.data, mergeRecogidasConfirmadas]);
+
   const [divisaOpen, setDivisaOpen] = useState(false);
   const [recOpen, setRecOpen] = useState(false);
   const [recFecha, setRecFecha] = useState(() => format(new Date(), "yyyy-MM-dd"));
@@ -2220,14 +2267,56 @@ function Step7() {
       </div>
 
       <div className="rounded-2xl border border-border bg-card p-3 shadow-soft space-y-2">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <Label className="text-xs uppercase tracking-widest text-muted-foreground">
             Recogidas de efectivo
           </Label>
-          <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setRecOpen(true)}>
-            <Plus className="mr-1 h-3.5 w-3.5" /> Agregar recogida
+          <Button variant="outline" size="sm" className="rounded-lg shrink-0"
+            onClick={() => setRecOpen(true)}>
+            <Plus className="mr-1 h-3.5 w-3.5" /> Agregar manual
           </Button>
         </div>
+        <p className="text-[11px] text-muted-foreground">
+          Las entregas confirmadas por administración se incorporan automáticamente
+          al arqueo. También puedes añadir recogidas manualmente cuando la dependienta no las haya registrado.
+          No vuelvas a añadir una entrega que ya aparezca abajo.
+        </p>
+        {!turnoVinculado && turnosConEfectivo.length > 0 && (
+          <label className="block space-y-1">
+            <span className="text-xs font-semibold">Vincular recogidas de un turno operativo</span>
+            <select className="h-10 w-full rounded-xl border border-input bg-background px-3 text-xs"
+              value="" onChange={(event) => {
+                const turnoId = event.target.value;
+                if (!turnoId) return;
+                const elegido = turnosConEfectivo.find((t) => t.id === turnoId);
+                if (!elegido) return;
+                if (!window.confirm(`¿Vincular ${elegido.cantidad} recogida(s) confirmada(s) del turno de ${elegido.dependiente}? Verifica que este cuadre corresponde a ese turno.`)) return;
+                updateCurrent({
+                  precuadre: { ...(current.precuadre ?? {}), turnoOperativoId: turnoId },
+                });
+              }}>
+              <option value="">Selecciona el turno correspondiente…</option>
+              {turnosConEfectivo.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.dependiente} · {new Date(t.fecha).toLocaleDateString("es-CU")} · {t.cantidad} recogida(s)
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {turnoVinculado && (
+          <p className="rounded-lg bg-secondary/10 p-2 text-[11px] text-secondary">
+            Turno operativo vinculado · Las recogidas confirmadas se actualizan aquí sin duplicarse.
+            <Button type="button" variant="ghost" size="sm" className="ml-1 h-7 text-xs"
+              onClick={() => { void entregas.refetch(); }}>Actualizar</Button>
+          </p>
+        )}
+        {entregas.isError && (
+          <p className="rounded-lg bg-amber-500/10 p-2 text-[11px] text-amber-700">
+            No fue posible consultar las entregas digitales; las recogidas manuales siguen disponibles.
+            No cierres el cuadre sin comprobar los fajos pendientes de recibir.
+          </p>
+        )}
         {recogidas.length === 0 ? (
           <p className="text-[11px] text-muted-foreground">
             Sin recogidas. El conteo de abajo es el efectivo que queda en caja al cuadrar (con él se paga el salario).
@@ -2240,6 +2329,11 @@ function Step7() {
                   <div className="font-semibold">
                     {format(new Date(rc.fecha + "T12:00:00"), "dd MMM yyyy", { locale: es })}
                     {rc.quien ? ` · ${rc.quien}` : ""}
+                    {rc.entregaEfectivoId && (
+                      <span className="ml-1 rounded bg-secondary/10 px-1.5 py-0.5 text-[10px] text-secondary">
+                        {codigoEntrega(rc.entregaEfectivoId)} · Confirmada
+                      </span>
+                    )}
                   </div>
                   <div className="text-[10px] text-muted-foreground">
                     {Object.entries(rc.denominaciones)
@@ -2254,6 +2348,8 @@ function Step7() {
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 rounded-lg text-destructive"
+                  disabled={!!rc.entregaEfectivoId}
+                  title={rc.entregaEfectivoId ? "Recogida verificada; no se puede borrar del cuadre" : "Eliminar recogida manual"}
                   onClick={() => removeRecogida(rc.id)}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -2358,7 +2454,7 @@ function Step7() {
           onOpenAutoFocus={(event) => event.preventDefault()}
         >
           <DialogHeader>
-            <DialogTitle className="px-5 pb-4 pt-6 pr-12 text-left">Agregar recogida de efectivo</DialogTitle>
+            <DialogTitle className="px-5 pb-4 pt-6 pr-12 text-left">Agregar recogida manual de efectivo</DialogTitle>
           </DialogHeader>
           <div className="min-h-0 space-y-5 overflow-y-auto px-5 pb-5">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
