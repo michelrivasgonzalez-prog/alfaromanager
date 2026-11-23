@@ -73,6 +73,13 @@ export async function iniciarSesionTurnos(usuarioId: string, pin: string): Promi
   window.dispatchEvent(new Event("alfaro-turnos-sesion"));
 }
 
+/** Ejecuta RPC de módulos operativos usando sesión validada con PIN. */
+export async function rpcTurnoProtegido(
+  usuarioId: string, funcion: string, parametros: Record<string, unknown> = {},
+): Promise<any> {
+  return llamadaTurnos(funcion, { ...parametros, p_token: tokenActual(usuarioId) });
+}
+
 export async function consultarTurnosOperativos(usuarioId: string): Promise<TurnoOperativo[]> {
   const data = await llamadaTurnos("alfaro_turnos_listar", { p_token: tokenActual(usuarioId) });
   return (data?.turnos ?? []) as TurnoOperativo[];
