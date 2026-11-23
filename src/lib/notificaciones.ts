@@ -73,9 +73,12 @@ export async function iniciarNotificacionesConPin(usuarioId: string, pin: string
   if (anterior && anterior.usuario_id !== usuarioId) {
     localStorage.removeItem(SESSION_KEY);
   }
-  const respuesta = await rpc<{token:string;usuario_id:string;vence:string}>(
+  const respuesta = await rpc<{token?:string;usuario_id?:string;vence?:string;error?:string}>(
     "alfaro_notif_iniciar", { p_usuario_id: usuarioId, p_pin: pin }
   );
+  if (respuesta.error || !respuesta.token || !respuesta.usuario_id || !respuesta.vence) {
+    throw new Error(respuesta.error || "No se pudo asociar el PIN con este dispositivo.");
+  }
   localStorage.setItem(SESSION_KEY, JSON.stringify({
     token: respuesta.token,
     usuario_id: respuesta.usuario_id,
