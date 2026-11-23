@@ -228,9 +228,15 @@ async function syncCatalogo(isAdmin: boolean) {
   const state = useCuadreStore.getState();
   let { data: remote, error } = await (supabase as any)
     .from("catalogo")
-    .select("id, nombre, precio, costo, punto, orden, categoria, codigo_barras")
+    .select("id, nombre, precio, costo, punto, orden, categoria, codigo_barras, codigos_barras")
     .is("deleted_at", null);
-  // Compatible con instalaciones donde aún no se ha ejecutado la migración.
+  // La migración de códigos múltiples es compatible con el catálogo anterior.
+  if (error && /codigos_barras/i.test(error.message ?? "")) {
+    ({ data: remote, error } = await (supabase as any)
+      .from("catalogo")
+      .select("id, nombre, precio, costo, punto, orden, categoria, codigo_barras")
+      .is("deleted_at", null));
+  }
   if (error && /codigo_barras/i.test(error.message ?? "")) {
     ({ data: remote, error } = await (supabase as any)
       .from("catalogo")
@@ -250,6 +256,7 @@ async function syncCatalogo(isAdmin: boolean) {
       id: r.id,
       nombre: r.nombre,
       codigoBarras: r.codigo_barras ?? state.catalogo.find((c) => c.id === r.id)?.codigoBarras,
+      codigosAdicionales: r.codigos_barras ?? state.catalogo.find((c) => c.id === r.id)?.codigosAdicionales ?? [],
       precio: Number(r.precio),
       costo: Number(r.costo),
       orden: Number(r.orden ?? 0),
@@ -405,6 +412,7 @@ function filaCatalogo(c: CatalogoItem) {
     categoria: c.categoria ?? null,
     punto: c.punto ?? null,
     codigo_barras: c.codigoBarras || null,
+    codigos_barras: c.codigosAdicionales ?? [],
     deleted_at: null,
   };
 }
@@ -412,35 +420,54 @@ function filaCatalogo(c: CatalogoItem) {
 export async function pushCatalogItem(c: CatalogoItem) {
   await ensureCloudSession();
   const { error } = await (supabase as any).from("catalogo").upsert(filaCatalogo(c));
-  if (error) {
-    if (/codigo_barras/i.test(error.message ?? "")) {
-      if (c.codigoBarras) {
-        throw new Error("Falta aplicar la migración SQL de códigos de barras en Lovable.");
-      }
-      const { codigo_barras, ...legacy } = filaCatalogo(c);
-      const { error: legacyError } = await (supabase as any).from("catalogo").upsert(legacy);
-      if (legacyError) throw legacyError;
+  if (!error) return;
+
+  if (/codigos_barras/i.test(error.message ?? "")) {
+    if ((c.codigosAdicionales?.length ?? 0) > 0) {
+      throw new Error("Falta ejecutar el SQL de códigos múltiples en Lovable.");
+    }
+    const { codigos_barras, ...anterior } = filaCatalogo(c);
+    const { error: errorAnterior } = await (supabase as any).from("catalogo").upsert(anterior);
+    if (!errorAnterior) return;
+    if (/codigo_barras/i.test(errorAnterior.message ?? "") && !c.codigoBarras) {
+      const { codigo_barras, ...sinCodigos } = anterior;
+      const { error: ultimoError } = await (supabase as any).from("catalogo").upsert(sinCodigos);
+      if (ultimoError) throw ultimoError;
       return;
     }
-    throw error;
+    throw errorAnterior;
   }
+  if (/codigo_barras/i.test(error.message ?? "")) {
+    throw new Error("Falta ejecutar el SQL del catálogo de códigos de barras.");
+  }
+  throw error;
 }
 
 async function upsertCatalogItems(items: CatalogoItem[]) {
   if (!items.length) return;
   const rows = items.map(filaCatalogo);
   const { error } = await (supabase as any).from("catalogo").upsert(rows);
-  if (error) {
-    if (/codigo_barras/i.test(error.message ?? "")) {
-      // No bloquear cierres/sincronización previos a la migración.
-      const legacyRows = rows.map(({ codigo_barras, ...r }) => r);
-      const { error: legacyError } = await (supabase as any).from("catalogo").upsert(legacyRows);
-      if (legacyError) throw legacyError;
-      console.warn("Catálogo sincronizado sin códigos: aplicar migración SQL pendiente.");
-      return;
+  if (!error) return;
+
+  if (/codigos_barras/i.test(error.message ?? "")) {
+    if (items.some((c) => (c.codigosAdicionales?.length ?? 0) > 0)) {
+      throw new Error("La nube no permite guardar los códigos adicionales hasta aplicar el SQL.");
     }
-    throw error;
+    const sinAdicionales = rows.map(({ codigos_barras, ...r }) => r);
+    const { error: e } = await (supabase as any).from("catalogo").upsert(sinAdicionales);
+    if (!e) return;
+    if (!/codigo_barras/i.test(e.message ?? "")) throw e;
   }
+  if (/codigo_barras/i.test(error.message ?? "")) {
+    if (items.some((c) => !!c.codigoBarras || (c.codigosAdicionales?.length ?? 0) > 0)) {
+      throw new Error("La nube todavía no tiene la migración de códigos de barras.");
+    }
+    const legacy = rows.map(({ codigo_barras, codigos_barras, ...r }) => r);
+    const { error: e } = await (supabase as any).from("catalogo").upsert(legacy);
+    if (e) throw e;
+    return;
+  }
+  throw error;
 }
 
 export async function deleteCatalogItem(id: string) {
