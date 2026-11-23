@@ -1,7 +1,10 @@
 import { create } from "zustand";
 import { useCuadreStore } from "@/store/cuadreStore";
 
-export const COMPILACION_INSTALADA = __ALFARO_BUILD_ID__;
+// Vite sustituye el identificador al compilar; Vitest y otros entornos de prueba
+// no siempre inyectan las constantes de build.
+export const COMPILACION_INSTALADA =
+  typeof __ALFARO_BUILD_ID__ !== "undefined" ? __ALFARO_BUILD_ID__ : "desarrollo";
 
 export type EstadoActualizacion =
   | "sin_comprobar"
