@@ -32,6 +32,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { formatDiasTrabajados } from "@/lib/dias";
 import PortalDependiente from "./PortalDependiente";
+import ControlTurnosOperativos from "@/components/ControlTurnosOperativos";
 import DashboardMetricas from "@/components/DashboardMetricas";
 import { PrecuadreAdminReview } from "@/components/cuadre/Precuadre";
 import {
@@ -195,6 +196,8 @@ export default function Index() {
           })}
         </section>
       )}
+
+      {canStart && <ControlTurnosOperativos />}
 
       {canStart && (
         <section className="space-y-2.5" aria-label="Pendientes">
