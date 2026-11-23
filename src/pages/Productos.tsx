@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { Fragment, useMemo, useRef, useState } from "react";
 import { useCuadreStore, PUNTOS, PuntoVenta, type CatalogoItem } from "@/store/cuadreStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -74,15 +74,30 @@ export default function Productos() {
     return mapa;
   }, [catalogo, ultimo, punto]);
 
-  // Solo orden visual: activos del último cuadre primero, luego agotados;
-  // cada grupo en orden alfabético español, sin alterar los registros.
-  const productosPunto = useMemo(() => catalogo
-    .filter((p) => (p.punto ?? "Cafetería") === punto)
-    .sort((a, b) =>
-      Number((existencias.get(b.id) ?? 0) > 0) -
-      Number((existencias.get(a.id) ?? 0) > 0) ||
-      a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" })
-    ), [catalogo, existencias, punto]);
+  // Orden solo visual:
+  // 1. Con existencia del último cuadre, agrupados por categorías.
+  // 2. Sin existencia, también agrupados por categorías.
+  // Las categorías siguen el orden configurado en Ajustes; nombres A-Z
+  // dentro de cada categoría. No modifica ni catálogo remoto ni cuadres.
+  const categoriaProducto = (p: CatalogoItem) => p.categoria?.trim() || "Sin categoría";
+  const tieneExistencia = (p: CatalogoItem) => (existencias.get(p.id) ?? 0) > 0;
+  const productosPunto = useMemo(() => {
+    const ordenCategorias = new Map(
+      categorias.map((categoria, indice) => [categoria.trim().toLocaleLowerCase("es"), indice])
+    );
+    const ordenCategoria = (categoria: string) =>
+      ordenCategorias.get(categoria.toLocaleLowerCase("es")) ?? Number.MAX_SAFE_INTEGER;
+
+    return catalogo
+      .filter((p) => (p.punto ?? "Cafetería") === punto)
+      .sort((a, b) =>
+        Number((existencias.get(b.id) ?? 0) > 0) -
+        Number((existencias.get(a.id) ?? 0) > 0) ||
+        ordenCategoria(categoriaProducto(a)) - ordenCategoria(categoriaProducto(b)) ||
+        categoriaProducto(a).localeCompare(categoriaProducto(b), "es", { sensitivity: "base" }) ||
+        a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" })
+      );
+  }, [catalogo, existencias, punto, categorias]);
 
   const updateAndSync = async (id: string, patch: Partial<CatalogoItem>) => {
     const anterior = useCuadreStore.getState().catalogo.find((c) => c.id === id);
@@ -369,7 +384,7 @@ export default function Productos() {
 
       <div className="space-y-2">
         <div className="rounded-xl border border-border bg-card p-3 space-y-2">
-          <p className="text-xs text-muted-foreground">Primero: productos con existencia en el último cuadre, ordenados alfabéticamente. Después: productos agotados, también A–Z.</p>
+          <p className="text-xs text-muted-foreground">Primero: productos con existencia, agrupados por categoría. Después: productos sin existencia, también por categoría. Dentro de cada categoría, productos A–Z.</p>
           <Button type="button" variant="outline" onClick={() => setScannerDestino("buscar")} className="w-full rounded-xl h-10">
             <ScanBarcode className="mr-2 h-4 w-4" /> Buscar por código de barras con cámara
           </Button>
@@ -383,9 +398,24 @@ export default function Productos() {
           </div>
         )}
         {productosPunto.map((p, i) => (
+          <Fragment key={p.id}>
+            {(i === 0 || tieneExistencia(productosPunto[i - 1]) !== tieneExistencia(p)) && (
+              <div className="mt-4 rounded-xl bg-muted px-3 py-2 font-semibold text-sm">
+                {tieneExistencia(p) ? "Productos con existencia" : "Productos sin existencia"}
+                <span className="ml-1 text-xs font-normal text-muted-foreground">
+                  (último cuadre de {punto})
+                </span>
+              </div>
+            )}
+            {(i === 0 ||
+              tieneExistencia(productosPunto[i - 1]) !== tieneExistencia(p) ||
+              categoriaProducto(productosPunto[i - 1]) !== categoriaProducto(p)) && (
+              <h3 className="px-1 pt-2 text-xs font-bold uppercase tracking-wide text-primary">
+                {categoriaProducto(p)}
+              </h3>
+            )}
           <div
             id={"producto-" + p.id}
-            key={p.id}
             className="rounded-2xl border border-border bg-card p-3 shadow-soft scroll-mt-24"
           >
             <div className="flex items-center gap-2">
@@ -472,6 +502,7 @@ export default function Productos() {
               Historial de movimientos
             </Button>
           </div>
+          </Fragment>
         ))}
       </div>
       <KardexDialog nombre={kardex} punto={punto} onClose={() => setKardex(null)} />
