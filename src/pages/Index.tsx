@@ -33,6 +33,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { formatDiasTrabajados } from "@/lib/dias";
 import PortalDependiente from "./PortalDependiente";
 import ControlTurnosOperativos from "@/components/ControlTurnosOperativos";
+import RecepcionesAdministracion from "@/components/efectivo/RecepcionesAdministracion";
 import DashboardMetricas from "@/components/DashboardMetricas";
 import { PrecuadreAdminReview } from "@/components/cuadre/Precuadre";
 import {
@@ -196,6 +197,8 @@ export default function Index() {
           })}
         </section>
       )}
+
+      {canStart && <RecepcionesAdministracion />}
 
       {canStart && <ControlTurnosOperativos />}
 
