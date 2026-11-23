@@ -48,6 +48,7 @@ export const tieneSesionTurnos = (usuarioId: string): boolean =>
 export function limpiarSesionTurnos() {
   sessionStorage.removeItem(TOKEN_KEY);
   sessionStorage.removeItem(USUARIO_KEY);
+  window.dispatchEvent(new Event("alfaro-turnos-sesion"));
 }
 
 function tokenActual(usuarioId: string): string {
@@ -69,6 +70,7 @@ export async function iniciarSesionTurnos(usuarioId: string, pin: string): Promi
   limpiarSesionTurnos();
   sessionStorage.setItem(USUARIO_KEY, usuarioId);
   sessionStorage.setItem(TOKEN_KEY, result.token);
+  window.dispatchEvent(new Event("alfaro-turnos-sesion"));
 }
 
 export async function consultarTurnosOperativos(usuarioId: string): Promise<TurnoOperativo[]> {
