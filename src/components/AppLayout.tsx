@@ -90,9 +90,13 @@ export default function AppLayout() {
         { to: "/reportes", icon: BarChart3, label: "Reportes" },
       ];
 
-  const menuItems = tabs.filter((t) =>
-    !["/", "/cobrar", "/reportes"].includes(t.to)
-  );
+  const menuGroups = [
+    { title: "Operación e inventario", routes: ["/calendario", "/caja-sobrantes", "/almacen", "/productos"] },
+    { title: "Administración", routes: ["/usuarios", "/notificaciones", "/ajustes"] },
+  ].map((grupo) => ({
+    ...grupo,
+    items: tabs.filter((t) => grupo.routes.includes(t.to)),
+  })).filter((grupo) => grupo.items.length > 0);
   const estaActivo = (ruta: string) =>
     ruta === "/"
       ? location.pathname === "/"
@@ -290,25 +294,35 @@ export default function AppLayout() {
             </SheetTitle>
             <SheetDescription>Herramientas y administración según tus permisos.</SheetDescription>
           </SheetHeader>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {menuItems.map(({ to, icon: Icon, label }) => (
-              <button key={to} type="button" onClick={() => { setMasAbierto(false); navigate(to); }}
-                className="flex min-h-14 items-center gap-3 rounded-2xl border border-border/70 bg-card px-3 text-left transition-colors hover:bg-muted/40">
+          <div className="space-y-4">
+            {menuGroups.map((group) => (
+              <section key={group.title} className="space-y-2" aria-label={group.title}>
+                <h3 className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group.title}</h3>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {group.items.map(({ to, icon: Icon, label }) => (
+                    <button key={to} type="button" onClick={() => { setMasAbierto(false); navigate(to); }}
+                      className="flex min-h-14 items-center gap-3 rounded-2xl border border-border/70 bg-card px-3 text-left transition-colors hover:bg-muted/40">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary/10 text-secondary">
+                        <Icon className="h-5 w-5" />
+                      </span>
+                      <span className="min-w-0 flex-1 text-sm font-semibold">{label}</span>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ))}
+            <section className="space-y-2" aria-label="Herramientas">
+              <h3 className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Herramientas</h3>
+              <button type="button" onClick={() => { setMasAbierto(false); navigate("/buscar"); }}
+                className="flex min-h-14 w-full items-center gap-3 rounded-2xl border border-border/70 bg-card px-3 text-left transition-colors hover:bg-muted/40">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary/10 text-secondary">
-                  <Icon className="h-5 w-5" />
+                  <Search className="h-5 w-5" />
                 </span>
-                <span className="min-w-0 flex-1 text-sm font-semibold">{label}</span>
+                <span className="min-w-0 flex-1 text-sm font-semibold">Búsqueda global</span>
                 <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
               </button>
-            ))}
-            <button type="button" onClick={() => { setMasAbierto(false); navigate("/buscar"); }}
-              className="flex min-h-14 items-center gap-3 rounded-2xl border border-border/70 bg-card px-3 text-left transition-colors hover:bg-muted/40">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary/10 text-secondary">
-                <Search className="h-5 w-5" />
-              </span>
-              <span className="min-w-0 flex-1 text-sm font-semibold">Búsqueda global</span>
-              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-            </button>
+            </section>
           </div>
           <Button variant="outline" className="mt-4 h-11 w-full rounded-xl"
             onClick={async () => {
