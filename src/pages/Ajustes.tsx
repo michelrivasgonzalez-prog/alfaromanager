@@ -21,6 +21,10 @@ import {
   Plus,
   Bell,
   Download,
+  ChevronDown,
+  ShieldCheck,
+  SlidersHorizontal,
+  Settings2,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -145,6 +149,22 @@ export default function Ajustes() {
     <div className="space-y-4">
       <header className="alfaro-page-header"><h1 className="text-xl font-extrabold sm:text-2xl">Ajustes</h1><p className="mt-1 text-xs text-muted-foreground sm:text-sm">Configuración del negocio y la aplicación</p></header>
 
+      <p className="px-1 text-xs text-muted-foreground">
+        Selecciona una sección para mostrar sus controles. Tus preferencias y permisos se mantienen.
+      </p>
+      <details className="group alfaro-surface overflow-hidden" open>
+        <summary className="flex min-h-20 cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-secondary/10 text-secondary">
+            <Cloud className="h-5 w-5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold">Conexión y aplicación</span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">Versiones, notificaciones y sincronización</span>
+            {versionDisponible && <span className="mt-1 inline-block text-xs font-semibold text-secondary">Actualización disponible</span>}
+          </span>
+          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="space-y-3 border-t border-border/60 bg-muted/10 p-3">
       {/* Estado de conexión */}
       <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-2">
         <div className="flex items-center gap-2 text-sm">
@@ -284,6 +304,21 @@ export default function Ajustes() {
         </div>
       )}
 
+        </div>
+      </details>
+
+      <details className="group alfaro-surface overflow-hidden">
+        <summary className="flex min-h-20 cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-secondary/10 text-secondary">
+            <Settings2 className="h-5 w-5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold">Herramientas de administración</span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">Importaciones, respaldos, categorías y auditoría</span>
+          </span>
+          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="space-y-3 border-t border-border/60 bg-muted/10 p-3">
       {/* Importación desde AppSheet */}
       {isAdmin && (
         <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3">
@@ -410,6 +445,22 @@ export default function Ajustes() {
 
       {(isAdmin || role === "duena") && <AuditoriaPanel />}
 
+        </div>
+      </details>
+
+      {isAdmin && (
+        <details className="group alfaro-surface overflow-hidden">
+          <summary className="flex min-h-20 cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-secondary/10 text-secondary">
+              <Percent className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-bold">Cuadres y salarios</span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">Modos de cálculo, tarifas y excepciones</span>
+            </span>
+            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="space-y-3 border-t border-border/60 bg-muted/10 p-3">
       {/* Salario de dependientes */}
       {isAdmin && (
         <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3">
@@ -603,6 +654,22 @@ export default function Ajustes() {
         </div>
       )}
 
+          </div>
+        </details>
+      )}
+
+      <details className="group alfaro-surface overflow-hidden">
+        <summary className="flex min-h-20 cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
+            <ShieldCheck className="h-5 w-5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold">Seguridad y mantenimiento</span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">Información local y acciones delicadas</span>
+          </span>
+          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="space-y-3 border-t border-border/60 bg-muted/10 p-3">
       <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3">
         <Row label="Cuadres en historial" value={String(history.length)} />
         <Row label="Versión" value="1.1.0" />
@@ -629,6 +696,8 @@ export default function Ajustes() {
           <Trash2 className="mr-1 h-4 w-4" /> Borrar todos los datos locales
         </Button>
       )}
+        </div>
+      </details>
     </div>
   );
 }
