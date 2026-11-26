@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import AsignarTrasCierre from "@/components/AsignarTrasCierre";
 import { alertasStock } from "@/lib/kardex";
@@ -102,6 +102,15 @@ function InicioAdministracion() {
       cargarBandeja();
     }
   }, [canStart]);
+
+  const avisoPrecuadre = new URLSearchParams(location.search).get("precuadre");
+  const avisoAtendido = useRef<string|null>(null);
+  useEffect(()=>{
+    if(!canStart || !avisoPrecuadre || avisoAtendido.current===avisoPrecuadre) return;
+    const encontrado=precuadres.find(p=>p.id===avisoPrecuadre);
+    if(encontrado){avisoAtendido.current=avisoPrecuadre;setTurnoSeleccionado(encontrado);setModalRevision(true);}
+  },[canStart,avisoPrecuadre,precuadres]);
+  useEffect(()=>{if(canStart && avisoPrecuadre) void cargarBandeja();},[canStart,avisoPrecuadre]);
 
   // Historial ordenado desc
   const sortedHistory = useMemo(() => {
@@ -209,7 +218,7 @@ function InicioAdministracion() {
         </section>
       )}
 
-      {canStart && <RecepcionesAdministracion />}
+      {canStart && <RecepcionesAdministracion entregaAviso={new URLSearchParams(location.search).get("entrega")}/>}
 
       {role === "admin" && <ControlTurnosOperativos />}
 

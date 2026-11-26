@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  codigoEntrega, fajosDuplicadosEnCuadres, recogidaDesdeEntrega, totalDenominaciones, validarDenominaciones,
+  codigoEntrega, fajosDuplicadosEnCuadres, cuadreQueUsoEntrega, recogidaDesdeEntrega, totalDenominaciones, validarDenominaciones,
   type EntregaEfectivo,
 } from "./entregasEfectivo";
 
@@ -67,3 +67,5 @@ describe("entregas de efectivo vinculadas al arqueo", () => {
     expect(() => recogidaDesdeEntrega({ ...entrega, estado: "anulada" })).toThrow(/confirmadas/);
   });
 });
+
+it("bloquea recogidas utilizadas en nube o historial local, excepto el mismo cuadre",()=>{const r=recogidaDesdeEntrega(entrega);expect(cuadreQueUsoEntrega({...entrega,cuadre_contabilizado_id:"otro"},[],"nuevo")).toBe("otro");expect(cuadreQueUsoEntrega({...entrega,cuadre_contabilizado_id:"mismo"},[],"mismo")).toBeUndefined();expect(cuadreQueUsoEntrega(entrega,[{id:"offline",recogidas:[r]}],"nuevo")).toBe("offline");});

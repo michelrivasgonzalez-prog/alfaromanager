@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useState, useEffect } from "react";
 import { separarEntregas } from "@/lib/cuadreVista";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Banknote, CheckCircle2, Clock3, RefreshCw, AlertTriangle, ShieldCheck, XCircle } from "lucide-react";
@@ -16,7 +16,7 @@ import {
 } from "@/lib/entregasEfectivo";
 import { ConteoBilletes } from "./ConteoBilletes";
 
-export default function RecepcionesAdministracion() {
+export default function RecepcionesAdministracion({entregaAviso}:{entregaAviso?:string|null} = {}) {
   const { user, role } = useAuth();
   const { verificado, verificar, turnos } = useControlTurnos(user?.id);
   const qc = useQueryClient();
@@ -35,6 +35,7 @@ export default function RecepcionesAdministracion() {
     refetchOnWindowFocus: "always",
     retry: false,
   });
+  useEffect(()=>{if(!entregaAviso)return;const el=document.getElementById("entrega-"+entregaAviso)??document.getElementById("recibir-efectivo"); if(el){const detalle=el.closest("details");if(detalle)detalle.open=true;el.scrollIntoView?.({block:"center",behavior:"smooth"});}},[entregaAviso,entregas.data]);
   const turnosActivos = new Set(turnos.filter(t => t.estado === "activo").map(t => t.id));
   const {pendientesActuales,pendientesAnteriores,actuales,anteriores}=separarEntregas(entregas.data??[],turnosActivos);
   const pendientes=[...pendientesActuales,...pendientesAnteriores];
@@ -44,9 +45,9 @@ export default function RecepcionesAdministracion() {
   },new Map<string,EntregaEfectivo[]>()).entries());
   const gruposAnteriores=agrupar(anteriores);
   const gruposActuales=agrupar(actuales);
-  const procesadaFila = (e: EntregaEfectivo) => <div key={e.id} className="flex items-center justify-between gap-2 text-xs">
+  const procesadaFila = (e: EntregaEfectivo) => <div key={e.id} id={"entrega-"+e.id} className={"flex items-center justify-between gap-2 text-xs "+(entregaAviso===e.id?"rounded-lg ring-2 ring-secondary p-2":"")}>
     <div className="min-w-0"><p className="font-medium">{codigoEntrega(e.id)} · {e.dependiente}</p>
-    <p className="text-[11px] text-muted-foreground">{e.recibido_por || "Administración"} · {formatoFechaEntrega(e.entregado_en)}</p></div>
+    <p className="text-[11px] text-muted-foreground">{e.recibido_por || "Administración"} · {formatoFechaEntrega(e.entregado_en)}</p>{e.cuadre_contabilizado_id && <p className="text-[10px] text-muted-foreground">Ya contabilizada</p>}</div>
     <span className="flex items-center gap-1 text-right font-semibold">{e.estado === "confirmada" ? <CheckCircle2 className="h-3.5 w-3.5 text-secondary"/> : <XCircle className="h-3.5 w-3.5 text-muted-foreground"/>}{e.estado === "confirmada" ? formatoDinero(Number(e.total_recibido || 0)) : "Anulada"}</span>
   </div>;
 
@@ -112,7 +113,7 @@ export default function RecepcionesAdministracion() {
   };
 
   return (
-    <section className="alfaro-surface space-y-3 p-4" aria-label="Recepción y conteo de efectivo">
+    <section id="recibir-efectivo" className="alfaro-surface space-y-3 p-4" aria-label="Recepción y conteo de efectivo">
       <div className="flex items-center justify-between gap-2">
         <div>
           <h2 className="flex items-center gap-2 text-base font-extrabold">
@@ -175,7 +176,7 @@ export default function RecepcionesAdministracion() {
             <Fragment key={e.id}>
             {idx===0 && pendientesActuales.length>0 && <h3 className="text-xs font-semibold">Pendientes del turno actual</h3>}
             {idx===pendientesActuales.length && pendientesAnteriores.length>0 && <h3 className="text-xs font-semibold text-amber-700">Pendientes de turnos anteriores</h3>}
-            <article key={e.id} className="rounded-xl border border-border bg-card p-3 space-y-2">
+            <article key={e.id} id={"entrega-"+e.id} className={"rounded-xl border border-border bg-card p-3 space-y-2 "+(entregaAviso===e.id?"ring-2 ring-secondary":"")}>
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <p className="font-bold text-sm">{e.dependiente} · {codigoEntrega(e.id)}</p>

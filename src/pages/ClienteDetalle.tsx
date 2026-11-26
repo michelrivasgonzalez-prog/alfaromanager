@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useMemo, useState, useEffect } from "react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -78,12 +78,16 @@ export default function ClienteDetalle() {
   const cliente = useMemo(() => clientes.data?.find((c) => c.id === id), [clientes.data, id]);
   const [editing, setEditing] = useState(false);
   const [nuevaDeuda, setNuevaDeuda] = useState(false);
+  const [params] = useSearchParams();
+  const avisoDeuda=params.get("deuda"), avisoAbono=params.get("abono");
   const [deudasOpen, setDeudasOpen] = useState(true);
   const [ocultarPagadas, setOcultarPagadas] = useState(true);
   const [corrigiendo, setCorrigiendo] = useState<string | null>(null);
   const [whatsappDialog, setWhatsappDialog] = useState(false);
   const [telefonoTemp, setTelefonoTemp] = useState("");
 
+  useEffect(()=>{if(avisoDeuda){setDeudasOpen(true);setOcultarPagadas(false);}},[avisoDeuda]);
+  useEffect(()=>{const objetivo=avisoDeuda?"deuda-"+avisoDeuda:avisoAbono?"abono-"+avisoAbono:null;if(!objetivo)return;const t=window.setTimeout(()=>document.getElementById(objetivo)?.scrollIntoView?.({block:"center",behavior:"smooth"}),100);return()=>clearTimeout(t);},[avisoDeuda,avisoAbono,deudas.data,abonos.data,ocultarPagadas,deudasOpen]);
   const deudasVisibles = (deudas.data ?? []).filter((d) => !ocultarPagadas || d.estado !== "pagada");
 
   const pend = (deudas.data ?? []).filter((d) => d.estado !== "pagada");
@@ -283,12 +287,11 @@ export default function ClienteDetalle() {
             </div>
           )}
           {deudasVisibles.map((d) => (
-            <DeudaCard
-              key={d.id}
+            <div key={d.id} id={"deuda-"+d.id} className={avisoDeuda===d.id?"rounded-xl ring-2 ring-secondary":undefined}><DeudaCard
               deuda={d}
               clienteNombre={cliente.nombre}
               aplicaciones={abonosPorDeuda.data?.[d.id] ?? []}
-            />
+            /></div>
           ))}
         </CollapsibleContent>
       </Collapsible>
@@ -309,7 +312,7 @@ export default function ClienteDetalle() {
             deudaRef?.cuadre_label ??
             (deudaRef ? format(new Date(deudaRef.fecha), "dd MMM yyyy", { locale: es }) : "Crédito a favor");
           return (
-            <div key={a.id} className="alfaro-surface p-3.5">
+            <div key={a.id} id={"abono-"+a.id} className={"alfaro-surface p-3.5 "+(avisoAbono===a.id?"ring-2 ring-secondary":"")}>
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <div className="text-xs text-muted-foreground">

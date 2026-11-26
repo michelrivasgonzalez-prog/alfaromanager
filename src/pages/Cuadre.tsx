@@ -99,7 +99,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { marcarPrecuadreConciliado } from "@/lib/turnos";
 import { useAuth } from "@/hooks/useAuth";
 import { useControlTurnos } from "@/hooks/useControlTurnos";
-import { listarEntregasEfectivo, recogidaDesdeEntrega, codigoEntrega, fajosDuplicadosEnCuadres } from "@/lib/entregasEfectivo";
+import { listarEntregasEfectivo, recogidaDesdeEntrega, codigoEntrega, fajosDuplicadosEnCuadres, cuadreQueUsoEntrega, formatoFechaEntrega } from "@/lib/entregasEfectivo";
 import { ensureCloudSession } from "@/lib/cloudBootstrap";
 import { pushAllCatalogo, pushCuadre } from "@/lib/sync";
 import { fmtDinero, fmtCant } from "@/lib/format";
@@ -1981,7 +1981,7 @@ function Step6() {
 function Step7() {
   const {
     currents, activePunto, setDenominacion, addDivisa, removeDivisa,
-    addRecogida, removeRecogida, updateCurrent, mergeRecogidasConfirmadas,
+    addRecogida, removeRecogida, updateCurrent, mergeRecogidasConfirmadas, history,
   } = useCuadreStore();
   const current = currents[activePunto];
   const { user } = useAuth();
@@ -1995,10 +1995,13 @@ function Step7() {
     retry: false,
   });
   const turnoVinculado = current?.precuadre?.turnoOperativoId;
+  const utilizadas = useMemo(() => (entregas.data??[]).filter(e=>e.punto_venta===activePunto && !!cuadreQueUsoEntrega(e,history,current?.id)),[entregas.data,history,activePunto,current?.id]);
+  const idsUtilizadas = useMemo(()=>new Set(utilizadas.map(e=>e.id)),[utilizadas]);
+  const idsConflictivas = new Set((current?.recogidas??[]).filter(r=>r.entregaEfectivoId && (idsUtilizadas.has(r.entregaEfectivoId) || history.some(h=>h.id!==current?.id && (h.recogidas??[]).some(x=>x.entregaEfectivoId===r.entregaEfectivoId)))).map(r=>r.entregaEfectivoId));
   const turnosConEfectivo = useMemo(() => {
     const mapa = new Map<string, { id: string; dependiente: string; fecha: string; cantidad: number }>();
     for (const e of entregas.data ?? []) {
-      if (e.estado !== "confirmada" || e.punto_venta !== activePunto) continue;
+      if (e.estado !== "confirmada" || e.punto_venta !== activePunto || idsUtilizadas.has(e.id)) continue;
       if (current?.dependiente &&
         normalizarDependiente(e.dependiente) !== normalizarDependiente(current.dependiente)) continue;
       const previo = mapa.get(e.turno_operativo_id);
@@ -2009,12 +2012,12 @@ function Step7() {
       });
     }
     return [...mapa.values()].sort((a, b) => b.fecha.localeCompare(a.fecha));
-  }, [entregas.data, activePunto, current?.dependiente]);
+  }, [entregas.data, activePunto, current?.dependiente, idsUtilizadas]);
 
   useEffect(() => {
     if (!current || !turnoVinculado || !entregas.data) return;
     const importables = entregas.data.filter((e) =>
-      e.estado === "confirmada" &&
+      e.estado === "confirmada" && !idsUtilizadas.has(e.id) &&
       e.turno_operativo_id === turnoVinculado &&
       e.punto_venta === current.puntoVenta &&
       (!current.dependiente ||
@@ -2024,7 +2027,7 @@ function Step7() {
       [r.id, r.entregaEfectivoId].filter(Boolean) as string[]));
     const nuevos = importables.filter((r) => !existentes.has(r.id));
     if (nuevos.length > 0) mergeRecogidasConfirmadas(nuevos);
-  }, [current?.id, current?.recogidas, turnoVinculado, entregas.data, mergeRecogidasConfirmadas]);
+  }, [current?.id, current?.recogidas, turnoVinculado, entregas.data, mergeRecogidasConfirmadas, idsUtilizadas]);
 
   const [divisaOpen, setDivisaOpen] = useState(false);
   const [recOpen, setRecOpen] = useState(false);
@@ -2085,7 +2088,7 @@ function Step7() {
   };
 
   return (
-    <StepShell>
+    <StepShell onNextDisabled={idsConflictivas.size>0}>
       <div className="grid grid-cols-2 gap-3">
         <SummaryTile label="A depositar" value={fmt(r.efectivoADepositar)} accent="primary" />
         <SummaryTile
@@ -2163,6 +2166,20 @@ function Step7() {
             No cierres el cuadre sin comprobar los fajos pendientes de recibir.
           </p>
         )}
+        {utilizadas.length>0 && <details className="rounded-lg border border-border p-2 text-xs">
+          <summary className="cursor-pointer font-semibold">Recogidas ya contabilizadas ({utilizadas.length})</summary>
+          {utilizadas.map(e=><div key={e.id} className="border-t border-border py-2 mt-2 text-muted-foreground">
+            <p className="font-semibold">{e.dependiente} · {codigoEntrega(e.id)} · {fmt(Number(e.total_recibido??0))}</p>
+            <p>{formatoFechaEntrega(e.entregado_en)} · Ya contabilizada, no disponible</p>
+            <p>Cuadre: {e.cuadre_contabilizado_fecha ? formatoFechaEntrega(e.cuadre_contabilizado_fecha) : "Historial"}</p>
+          </div>)}
+        </details>}
+        {idsConflictivas.size>0 && <div role="alert" className="rounded-lg border border-destructive/40 p-2 text-xs text-destructive">
+          Hay recogidas ya utilizadas en otro cuadre. No podrás continuar hasta retirarlas de este borrador.
+          <Button type="button" variant="outline" size="sm" className="mt-2 w-full" onClick={()=>{
+            if(window.confirm("¿Retirar únicamente las recogidas duplicadas de este borrador? El cuadre anterior no se modificará.")) updateCurrent({recogidas:recogidas.filter(r=>!idsConflictivas.has(r.entregaEfectivoId))});
+          }}>Retirar duplicadas del borrador</Button>
+        </div>}
         {recogidas.length === 0 ? (
           <p className="text-[11px] text-muted-foreground">
             Sin recogidas. El conteo de abajo es el efectivo que queda en caja al cuadrar (con él se paga el salario).
@@ -3041,6 +3058,17 @@ function Step10({ onClose }: { onClose: (cuadreId?: string) => void }) {
         enCurso.current = false;
         setCerrando(false);
       }
+    } else if ((current.recogidas??[]).some(r=>r.entregaEfectivoId)) {
+      // Los fajos digitales necesitan confirmación atómica en la nube antes del cierre local.
+      enCurso.current = true; setCerrando(true);
+      try {
+        if (!await ensureCloudSession()) throw Error("Conéctate para verificar que los fajos no estén contabilizados en otro turno.");
+        const snap = {...current, finalizado:true, regimenSobrantes:current.regimenSobrantes??esTurnoFondoSobrantes(current)};
+        await pushCuadre(snap);
+        finalizar(snap);
+        void qc.invalidateQueries({queryKey:["alfaro-efectivo-admin"]});
+      } catch(error) { toast.error((error as Error).message || "No se pudo verificar el efectivo."); return; }
+      finally {enCurso.current=false;setCerrando(false);}
     } else {
       finalizar();
       const store = useCuadreStore.getState();

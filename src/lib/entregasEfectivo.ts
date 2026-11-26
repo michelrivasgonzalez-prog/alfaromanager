@@ -22,6 +22,8 @@ export type EntregaEfectivo = {
   motivo_resolucion: string | null;
   resuelto_en: string | null;
   anulado_en: string | null;
+  cuadre_contabilizado_id?: string | null;
+  cuadre_contabilizado_fecha?: string | null;
 };
 
 export const codigoEntrega = (id: string): string =>
@@ -145,4 +147,10 @@ export function fajosDuplicadosEnCuadres(
     vistos.add(r.entregaEfectivoId);
   }
   return [...duplicados];
+}
+
+/** La nube es la autoridad; el historial local cubre también cierres pendientes. */
+export function cuadreQueUsoEntrega(e: EntregaEfectivo, historico: Array<Pick<Cuadre,"id"|"recogidas">>, actualId?: string): string | undefined {
+  if (e.cuadre_contabilizado_id && e.cuadre_contabilizado_id !== actualId) return e.cuadre_contabilizado_id;
+  return historico.find(c=>c.id!==actualId && (c.recogidas??[]).some(r=>r.entregaEfectivoId===e.id))?.id;
 }
