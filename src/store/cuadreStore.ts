@@ -208,6 +208,9 @@ export type Settings = {
   reportesMensuales?: Record<string, any>;
   /** Punto de venta habitual de cada dependiente (por nombre). */
   dependientePunto?: Record<string, PuntoVenta>;
+  /** Personal expresamente autorizado a ambos puntos de venta. */
+  dependientesAmbosPuntos?: string[];
+  dependienteNombres?: Record<string, { nombres: string; apellidos: string }>;
   /** Dependientes desactivados sin eliminar su historial. */
   dependientesInactivos?: string[];
   /** Existencia mínima por producto (clave "punto|nombre en minúsculas"). */
@@ -225,6 +228,7 @@ export const puntoHabitual = (
   settings: Settings,
   history: { dependiente: string; puntoVenta: PuntoVenta }[]
 ): PuntoVenta | undefined => {
+  if (settings.dependientesAmbosPuntos?.includes(nombre)) return undefined;
   const asignado = settings.dependientePunto?.[nombre];
   if (asignado) return asignado;
   const n: Record<string, number> = {};

@@ -6,7 +6,7 @@ import { listarEntregasEfectivo, recogidaDesdeEntrega, codigoEntrega, formatoDin
 import { buscarPorCodigo, buscarDuplicadoCatalogo, limpiarCodigoBarras, esCodigoBarrasValido, normalizarNombreProducto } from "@/lib/codigosBarras";
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import type { PrecioTramo } from "@/store/cuadreStore";
-import { useCuadreStore, PuntoVenta, Cuadre, Denominaciones, PUNTOS } from "@/store/cuadreStore";
+import { useCuadreStore, PuntoVenta, Cuadre, Denominaciones } from "@/store/cuadreStore";
 import { usePinStore, hashPin } from "@/store/pinStore";
 import { 
   enviarPrecuadre, 
@@ -109,7 +109,6 @@ interface PrecuadreDependienteProps {
 
 export function PrecuadreDependiente({
   turnoOperativo,
-  puntoInicial = "Cafetería",
   dependienteInicial = "",
   onFinalizado,
   onCancelar,
@@ -138,7 +137,7 @@ export function PrecuadreDependiente({
   const [paso, setPaso] = useState<number>(1);
 
   // Paso 1: Turno
-  const [punto, setPunto] = useState<PuntoVenta>(puntoInicial);
+  const punto: PuntoVenta = turnoOperativo.punto_venta;
   const [dependiente, setDependiente] =
     useState<string>(dependienteInicial);
   const [diasTrabajados, setDiasTrabajados] = useState<number>(1);
@@ -868,29 +867,7 @@ export function PrecuadreDependiente({
                   Punto de Venta (asignado por administración)
                 </label>
 
-                                <div className="flex gap-2">
-                  {PUNTOS.map((p) => (
-                    <Button
-                      key={p}
-                      type="button"
-                       disabled
-                      variant={
-                        punto === p
-                          ? "default"
-                          : "outline"
-                      }
-                      className="rounded-xl h-10 font-bold text-xs"
-                      onClick={() => {
-                        setPunto(p);
-                        setInicios({});
-                        setDesbloqueados({});
-                        setMotivosPorProducto({});
-                      }}
-                    >
-                      {p}
-                    </Button>
-                  ))}
-                </div>
+                <div className="rounded-xl border border-border bg-muted/30 p-3 font-semibold text-sm">{punto === "Mipyme" ? "MiPyME" : punto}</div>
               </div>
 
               <div>

@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
+import AsignarTrasCierre from "@/components/AsignarTrasCierre";
 import { alertasStock } from "@/lib/kardex";
 import {
   Coffee,
@@ -52,6 +53,12 @@ export default function Index() {
 
 function InicioAdministracion() {
   const nav = useNavigate();
+  const location = useLocation();
+  const [asignacionCuadre, setAsignacionCuadre] = useState<string | null>(null);
+  useEffect(() => {
+    const id = (location.state as { asignarTrasCierre?: string } | null)?.asignarTrasCierre;
+    if (id) { setAsignacionCuadre(id); nav(location.pathname, { replace: true, state: null }); }
+  }, [location.state, location.pathname, nav]);
   const {
     currents,
     activePunto,
@@ -141,6 +148,7 @@ function InicioAdministracion() {
 
   return (
     <div className="space-y-6 pb-4">
+      {role === "admin" && asignacionCuadre && <AsignarTrasCierre cuadreId={asignacionCuadre} onClose={() => setAsignacionCuadre(null)}/> }
       {/* Cabecera compacta, sin imagen de 256px que oculte las acciones. */}
       <header className="alfaro-page-header">
         <div className="relative z-10 flex items-center gap-3">

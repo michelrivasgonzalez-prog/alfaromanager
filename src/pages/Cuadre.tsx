@@ -147,7 +147,7 @@ export default function Cuadre() {
     case 7: return <Step7 />;
     case 8: return <Step8 />;
     case 9: return <Step9 />;
-    case 10: return <Step10 onClose={() => nav("/")} />;
+    case 10: return <Step10 onClose={(cuadreId) => nav("/", { state: cuadreId ? { asignarTrasCierre: cuadreId } : null })} />;
   }
   return null;
 }
@@ -2973,9 +2973,10 @@ function Step9() {
 }
 
 /* ================== Step 10: Resumen ================== */
-function Step10({ onClose }: { onClose: () => void }) {
+function Step10({ onClose }: { onClose: (cuadreId?: string) => void }) {
   const { currents, activePunto, finalizar, role } = useCuadreStore();
   const qc = useQueryClient();
+  const { role: rolReal } = useAuth();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [cerrando, setCerrando] = useState(false);
   const enCurso = useRef(false);
@@ -3016,6 +3017,7 @@ function Step10({ onClose }: { onClose: () => void }) {
         ". Ya aparece en otro cuadre o está repetida. Revisa el arqueo antes de cerrar.");
       return;
     }
+    const esEdicionHistorica = useCuadreStore.getState().history.some((item) => item.id === current.id);
     const guardabaHistoricoConFondo = cobertura !== undefined &&
       useCuadreStore.getState().history.some((item) => item.id === current.id);
     if (plan || cobertura !== undefined) {
@@ -3068,7 +3070,7 @@ function Step10({ onClose }: { onClose: () => void }) {
         .catch(console.warn);
     }
     toast.success("Cuadre guardado en historial");
-    onClose();
+    onClose(rolReal === "admin" && !esEdicionHistorica ? current.id : undefined);
   };
 
   return (

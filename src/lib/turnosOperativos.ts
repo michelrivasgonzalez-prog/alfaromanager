@@ -156,3 +156,9 @@ export async function consultarUltimasEntregas(): Promise<EntregaReciente[]> {
   if (error) throw new Error(error.message);
   return (data ?? []) as EntregaReciente[];
 }
+
+/** El servidor verifica el cuadre y asigna desde su inventario final, sin reemplazar un relevo posterior. */
+export async function asignarDesdeCuadre(usuarioId: string, cuadreId: string, dependienteId: string): Promise<TurnoOperativo> {
+  const data = await rpcTurnoProtegido(usuarioId,"alfaro_turnos_asignar_desde_cuadre",{p_cuadre_id:cuadreId,p_dependiente_id:dependienteId});
+  return data.turno as TurnoOperativo;
+}
