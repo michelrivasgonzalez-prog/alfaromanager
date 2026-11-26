@@ -10,6 +10,13 @@ export const RENOMBRES: Record<string, string> = {
   "cigarro englishman m-menta": "Cigarro Englishman M-Menta Gordo",
   "cigarro englishman gordo": "Cigarro Englishman M-Menta Gordo",
   "ron poncho": "Ron Rancho",
+  "ron planchao": "Ron Bolao Silver Dry 200 ml",
+  "ron bolao": "Ron Bolao Silver Dry 200 ml",
+  "ron planchao 200 ml": "Ron Bolao Silver Dry 200 ml",
+  "ron planchao 200ml": "Ron Bolao Silver Dry 200 ml",
+  "ron bolao 200 ml": "Ron Bolao Silver Dry 200 ml",
+  "ron bolao 200ml": "Ron Bolao Silver Dry 200 ml",
+  "ron bolao silver dry 200ml": "Ron Bolao Silver Dry 200 ml",
   "porquecito invite": "Ponqué Invite",
 };
 
