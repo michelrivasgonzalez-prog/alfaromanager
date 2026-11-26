@@ -50,7 +50,7 @@ const ROLE_INFO: Record<PinRole, { label: string; Icon: any; cls: string }> = {
   dependiente: { label: "Dependiente", Icon: UserIcon, cls: "bg-muted text-foreground" },
 };
 
-type FormDependiente = { nombreOriginal: string; nombre: string; nombres?: string; apellidos?: string; punto?: PuntoVenta | "ambos"; foto?: string; inactivo: boolean; permisoCobrar?: boolean; pin?: string; };
+type FormDependiente = { nombreOriginal: string; nombre: string; nombres?: string; apellidos?: string; punto?: PuntoVenta | "ambos"; foto?: string; inactivo: boolean; permisoCobrar?: boolean; pin?: string; reintento?: boolean; };
 
 export default function Usuarios() {
   const { role: currentRole } = useAuth();
@@ -353,7 +353,8 @@ export default function Usuarios() {
             const newName = data.nombre.trim();
             const key = (n: string) => n.trim().toLowerCase();
             if (!newName || (!data.nombres?.trim() || !data.apellidos?.trim())) throw Error("Completa nombre y apellidos.");
-            if (dependientes.some(d=>key(d)===key(newName)&&key(d)!==key(oldName))) throw Error("Ya existe ese dependiente.");
+            if (oldName && dependientes.some(d=>key(d)===key(newName)&&key(d)!==key(oldName))) throw Error("Ya existe ese dependiente.");
+            if (!oldName && dependientes.some(d=>key(d)===key(newName)) && !data.reintento) throw Error("Ya existe ese dependiente. Edítalo desde la lista.");
             const cuenta = usePinStore.getState().users.find(v=>key(v.nombre)===key(oldName || newName));
             if (cuenta && cuenta.role !== "dependiente") throw Error("El nombre pertenece a otro usuario.");
             if (usePinStore.getState().users.some(v=>key(v.nombre)===key(newName)&&v.id!==cuenta?.id)) throw Error("El nombre ya tiene otra cuenta PIN.");
@@ -426,6 +427,7 @@ function EditarDependienteModal({dep,users,onClose,onSave,onDelete}:{
   const [pin,setPin]=useState("");
   const [confirmPin,setConfirmPin]=useState("");
   const [guardando,setGuardando]=useState(false);
+  const [reintento,setReintento]=useState(false);
   const cuentaPin=users.find(u=>u.nombre.trim().toLowerCase()===dep.nombreOriginal.trim().toLowerCase());
   const nombreCompleto=[nombres.trim(),apellidos.trim()].filter(Boolean).join(" ");
   const guardar=async()=>{
@@ -434,8 +436,8 @@ function EditarDependienteModal({dep,users,onClose,onSave,onDelete}:{
       if(!/^\d{6}$/.test(pin)||pin!==confirmPin) return toast.error("Confirma un PIN de seis dígitos que coincida.");
     }
     setGuardando(true);
-    try{await onSave({...form,nombre:nombreCompleto,nombres:nombres.trim(),apellidos:apellidos.trim(),pin:pin||undefined});}
-    catch(e){toast.error(e instanceof Error?e.message:"No se pudo completar el guardado. Revisa la conexión.");}
+    try{await onSave({...form,nombre:nombreCompleto,nombres:nombres.trim(),apellidos:apellidos.trim(),pin:pin||undefined,reintento});}
+    catch(e){if(!dep.nombreOriginal && useCuadreStore.getState().dependientes.includes(nombreCompleto) && !/Ya existe ese dependiente/.test(e instanceof Error?e.message:"")) setReintento(true); toast.error(e instanceof Error?e.message:"No se pudo completar el guardado. Revisa la conexión.");}
     finally{setGuardando(false);}
   };
 

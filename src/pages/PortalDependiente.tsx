@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { seleccionarTurnoPropio } from "@/lib/cuadreVista";
 import { useCuadreStore, calcCuadre, sortProductos, puntoHabitual } from "@/store/cuadreStore";
 import { useQuery } from "@tanstack/react-query";
 import { normalizarDependiente } from "@/lib/cobrar";
@@ -38,9 +39,8 @@ export default function PortalDependiente() {
 
   const turnoOperativo = useMemo(() => {
     if (!verificado || errorTurnos || !user?.id) return undefined;
-    const propios = turnos.filter(t => t.usuario_id === user.id && t.estado === "activo");
     const habitual = nombre ? puntoHabitual(nombre, settings, history) : undefined;
-    return propios.find(t => t.punto_venta === habitual) ?? [...propios].sort((a,b) => b.inicio.localeCompare(a.inicio))[0];
+    return seleccionarTurnoPropio(turnos,user.id,habitual);
   }, [turnos, user?.id, verificado, errorTurnos, nombre, settings, history]);
 
   const misCuadres = useMemo(() => {

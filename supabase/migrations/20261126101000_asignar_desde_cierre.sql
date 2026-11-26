@@ -49,7 +49,8 @@ END $$;
 CREATE OR REPLACE FUNCTION public.alfaro_turnos_asignar_desde_cuadre(p_token text,p_cuadre_id uuid,p_dependiente_id uuid)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_catalog AS $$
 DECLARE v_actor public.pin_users%ROWTYPE; v_cuadre public.cuadres%ROWTYPE;
- v_activo public.alfaro_turnos_operativos%ROWTYPE; v_inicios jsonb; v_res jsonb; v_fin date;
+ v_activo public.alfaro_turnos_operativos%ROWTYPE; v_inicios jsonb; v_res jsonb;
+ v_settings jsonb; v_nombre text; v_habitual text;
 BEGIN
  SELECT * INTO v_actor FROM public.alfaro_turnos_usuario(p_token);
  IF v_actor.id IS NULL OR v_actor.role IS DISTINCT FROM 'admin' THEN
@@ -57,6 +58,15 @@ BEGIN
  END IF;
  SELECT * INTO v_cuadre FROM public.cuadres WHERE id=p_cuadre_id AND finalizado AND deleted_at IS NULL;
  IF NOT FOUND THEN RETURN jsonb_build_object('error','El cuadre aún no está confirmado en la nube.'); END IF;
+ SELECT nombre INTO v_nombre FROM public.pin_users WHERE id=p_dependiente_id AND role='dependiente' AND deleted_at IS NULL;
+ IF NOT FOUND THEN RETURN jsonb_build_object('error','Dependiente no disponible.'); END IF;
+ SELECT settings INTO v_settings FROM public.app_settings WHERE id='global';
+ IF coalesce(v_settings->'dependientesInactivos','[]'::jsonb) ? v_nombre THEN RETURN jsonb_build_object('error','Dependiente inactivo.'); END IF;
+ IF NOT (coalesce(v_settings->'dependientesAmbosPuntos','[]'::jsonb) ? v_nombre) THEN
+   v_habitual:=v_settings->'dependientePunto'->>v_nombre;
+   IF v_habitual IS NULL THEN SELECT punto_venta INTO v_habitual FROM public.cuadres WHERE dependiente=v_nombre AND finalizado AND deleted_at IS NULL GROUP BY punto_venta ORDER BY count(*) DESC, max(fecha) DESC LIMIT 1; END IF;
+   IF v_habitual IS DISTINCT FROM v_cuadre.punto_venta THEN RETURN jsonb_build_object('error','El dependiente no tiene autorizado este punto de venta.'); END IF;
+ END IF;
  PERFORM pg_advisory_xact_lock(hashtext('alfaro_turno_operativo_'||v_cuadre.punto_venta));
  IF EXISTS(SELECT 1 FROM public.alfaro_turnos_operativos WHERE fuente='cuadre' AND fuente_id=p_cuadre_id) THEN
    RETURN jsonb_build_object('error','Este cuadre ya se utilizó para asignar un turno.');

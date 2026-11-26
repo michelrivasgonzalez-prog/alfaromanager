@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
+import { separarEntregas } from "@/lib/cuadreVista";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Banknote, CheckCircle2, Clock3, RefreshCw, AlertTriangle, ShieldCheck, XCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -34,16 +35,15 @@ export default function RecepcionesAdministracion() {
     refetchOnWindowFocus: "always",
     retry: false,
   });
-  const pendientes = (entregas.data ?? []).filter((e) =>
-    e.estado === "pendiente" || e.estado === "diferencia");
   const turnosActivos = new Set(turnos.filter(t => t.estado === "activo").map(t => t.id));
-  const procesadas = (entregas.data ?? []).filter(e => e.estado === "confirmada" || e.estado === "anulada");
-  const actuales = procesadas.filter(e => turnosActivos.has(e.turno_operativo_id));
-  const anteriores = procesadas.filter(e => !turnosActivos.has(e.turno_operativo_id));
-  const gruposAnteriores = Array.from(anteriores.reduce((m,e) => {
-    const key = e.turno_operativo_id || e.punto_venta + "|" + e.dependiente;
-    m.set(key,[...(m.get(key) ?? []),e]); return m;
+  const {pendientesActuales,pendientesAnteriores,actuales,anteriores}=separarEntregas(entregas.data??[],turnosActivos);
+  const pendientes=[...pendientesActuales,...pendientesAnteriores];
+  const agrupar=(lista:EntregaEfectivo[]) => Array.from(lista.reduce((m,e)=>{
+    const key=e.turno_operativo_id || e.punto_venta+"|"+e.dependiente;
+    m.set(key,[...(m.get(key)??[]),e]); return m;
   },new Map<string,EntregaEfectivo[]>()).entries());
+  const gruposAnteriores=agrupar(anteriores);
+  const gruposActuales=agrupar(actuales);
   const procesadaFila = (e: EntregaEfectivo) => <div key={e.id} className="flex items-center justify-between gap-2 text-xs">
     <div className="min-w-0"><p className="font-medium">{codigoEntrega(e.id)} · {e.dependiente}</p>
     <p className="text-[11px] text-muted-foreground">{e.recibido_por || "Administración"} · {formatoFechaEntrega(e.entregado_en)}</p></div>
@@ -171,7 +171,10 @@ export default function RecepcionesAdministracion() {
               No hay entregas pendientes. Las recibidas están disponibles en el Cuadre Oficial.
             </p>
           )}
-          {pendientes.map((e) => (
+          {pendientes.map((e,idx) => (
+            <Fragment key={e.id}>
+            {idx===0 && pendientesActuales.length>0 && <h3 className="text-xs font-semibold">Pendientes del turno actual</h3>}
+            {idx===pendientesActuales.length && pendientesAnteriores.length>0 && <h3 className="text-xs font-semibold text-amber-700">Pendientes de turnos anteriores</h3>}
             <article key={e.id} className="rounded-xl border border-border bg-card p-3 space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <div>
@@ -247,8 +250,9 @@ export default function RecepcionesAdministracion() {
                 </div>
               )}
             </article>
+            </Fragment>
           ))}
-          {actuales.length > 0 && <div className="space-y-2 border-t border-border pt-3"><h3 className="text-xs font-bold">Entregas procesadas · turnos actuales</h3>{actuales.map(procesadaFila)}</div>}
+          {actuales.length > 0 && <div className="space-y-2 border-t border-border pt-3"><h3 className="text-xs font-bold">Entregas procesadas · turnos actuales</h3>{gruposActuales.map(([id,grupo])=><div key={id} className="space-y-2 rounded-xl border border-border p-2"><p className="text-xs font-semibold">{grupo[0].punto_venta} · {grupo[0].dependiente}</p>{grupo.map(procesadaFila)}</div>)}</div>}
           {anteriores.length > 0 && <details className="space-y-2 border-t border-border pt-3">
             <summary className="cursor-pointer text-xs font-bold text-muted-foreground">Entregas procesadas anteriores ({anteriores.length})</summary>
             {gruposAnteriores.map(([id,grupo]) => <div key={id} className="space-y-2 rounded-xl border border-border p-2"><p className="text-xs font-semibold">{grupo[0].punto_venta} · {grupo[0].dependiente}</p><p className="text-[10px] text-muted-foreground">Turno · {formatoFechaEntrega(grupo[grupo.length-1].entregado_en)}</p>{grupo.map(procesadaFila)}</div>)}

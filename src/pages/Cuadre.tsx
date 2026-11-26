@@ -103,21 +103,12 @@ import { listarEntregasEfectivo, recogidaDesdeEntrega, codigoEntrega, fajosDupli
 import { ensureCloudSession } from "@/lib/cloudBootstrap";
 import { pushAllCatalogo, pushCuadre } from "@/lib/sync";
 import { fmtDinero, fmtCant } from "@/lib/format";
+import { compararCategorias, ordenarProductosCuadre, fechasRegistradasOtros } from "@/lib/cuadreVista";
 
 
 const fmt = (n: number) => fmtDinero(n);
 const n2 = (n: number) => fmtCant(n);
 
-const ORDEN_CUADRE = ["alimentos cocina", "carnes embutidos", "cervezas", "rones", "bebidas", "cigarros", "confituras", "limpieza y aseo", "otros", "panaderia", "perfumeria"];
-const claveCategoria = (nombre?: string) => (nombre ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-const rangoCategoria = (nombre?: string) => {
-  const clave = claveCategoria(nombre).replace("limpieza aseo", "limpieza y aseo");
-  const i = ORDEN_CUADRE.indexOf(clave);
-  return i < 0 ? ORDEN_CUADRE.length : i;
-};
-const compararCategorias = (a?: string, b?: string) => rangoCategoria(a) - rangoCategoria(b) || (a ?? "").localeCompare(b ?? "", "es");
-const ordenarProductosCuadre = <T extends { nombre: string; categoria?: string }>(productos: T[]): T[] =>
-  [...productos].sort((a, b) => compararCategorias(a.categoria, b.categoria) || a.nombre.localeCompare(b.nombre, "es"));
 
 
 export default function Cuadre() {
@@ -166,10 +157,7 @@ function Step1() {
   } = useCuadreStore();
   const [verTodos, setVerTodos] = useState(false);
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
-  const registrados = history
-    .filter((h) => h.puntoVenta === activePunto && h.id !== currents[activePunto]?.id)
-    .flatMap((h) => (h.diasTrabajados?.length ? h.diasTrabajados : [h.fecha]))
-    .map((d) => new Date(d));
+  const registrados = fechasRegistradasOtros(history,activePunto,currents[activePunto]?.id);
     const inactivos = settings.dependientesInactivos ?? [];
   const dependienteActual = currents[activePunto]?.dependiente;
 
@@ -1016,7 +1004,7 @@ function Step5() {
       )}
       <div className="grid grid-cols-2 gap-3">
         <SummaryTile label="Venta total" value={fmt(totalImporte)} accent="emerald" />
-        {isAdmin && <SummaryTile label="Costo total" value={fmt(totalImporte - totalGanancia)} accent="primary" />}
+        {isAdmin && <SummaryTile label="Costo total" value={fmt(current.productos.reduce((s,p)=>s+calcProducto(p).costoTotal,0))} accent="primary" />}
         {isAdmin ? (
           <SummaryTile label="Ganancia" value={fmt(totalGanancia)} accent="primary" />
         ) : (
