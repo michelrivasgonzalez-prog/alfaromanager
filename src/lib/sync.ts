@@ -5,6 +5,7 @@ import { ensureCloudSession } from "@/lib/cloudBootstrap";
 import type { PinUser } from "@/store/pinStore";
 import { unificarCatalogo, unificarCuadre } from "@/lib/unificar";
 import { pullBorradores } from "@/lib/borradores";
+import { cuadreProtegidoParaUnificacion, detalleErrorSync } from "@/lib/syncSegura";
 
 /**
  * Sincronización cloud-first con borrado real.
@@ -19,14 +20,18 @@ export async function fullSync(role: "admin" | "duena" | "dependiente" | null) {
   if (!role) return;
   // La dueña tiene los mismos privilegios que el admin.
   const isAdmin = role === "admin" || role === "duena";
-  await ensureCloudSession();
-  await syncPinUsers(isAdmin);
-  await syncSettings(isAdmin);
-  await syncCatalogo(isAdmin);
-  await syncDependientes(isAdmin);
-  await syncCuadres(isAdmin);
-  if (isAdmin) await aplicarUnificacion();
-  await pullBorradores();
+  if (!await ensureCloudSession()) throw new Error("No se pudo iniciar la sesión de nube. Revisa la conexión.");
+  const etapa = async (nombre: string, ejecutar: () => Promise<unknown>) => {
+    try { await ejecutar(); }
+    catch (error) { throw new Error(nombre + ": " + detalleErrorSync(error)); }
+  };
+  await etapa("Usuarios", () => syncPinUsers(isAdmin));
+  await etapa("Configuración", () => syncSettings(isAdmin));
+  await etapa("Catálogo", () => syncCatalogo(isAdmin));
+  await etapa("Dependientes", () => syncDependientes(isAdmin));
+  await etapa("Cuadres", () => syncCuadres(isAdmin));
+  if (isAdmin) await etapa("Unificación", aplicarUnificacion);
+  await etapa("Borradores", pullBorradores);
 }
 
 /** Unifica productos repetidos/renombrados en catálogo e historial y sube los cambios. */
@@ -41,13 +46,19 @@ async function aplicarUnificacion() {
   const cat = useCuadreStore.getState().catalogo;
   const cambiados: Cuadre[] = [];
   const history = useCuadreStore.getState().history.map((c) => {
+    // Los cuadres vinculados a operaciones financieras requieren su flujo
+    // autorizado; la sincronización no debe intentar renombrarlos o reordenarlos.
+    if (cuadreProtegidoParaUnificacion(c)) return c;
     const n = unificarCuadre(c, cat, cats);
     if (n) cambiados.push(n);
     return n ?? c;
   });
   if (cambiados.length) {
-    useCuadreStore.setState({ history });
+    // No presentar cambios locales como guardados si la nube los rechaza.
     await upsertCuadres(cambiados);
+    useCuadreStore.setState((actual) => ({
+      history: actual.history.map(c => history.find(h=>h.id===c.id && cambiados.some(n=>n.id===h.id)) ?? c),
+    }));
   }
 }
 

@@ -75,13 +75,13 @@ export default function StepShell({
         initial={{ opacity: 0, x: 12 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.25 }}
-        className="space-y-4"
+        className="relative z-0 isolate space-y-4"
       >
         {children}
       </motion.div>
 
       {!hideNext && (
-        <div className="sticky bottom-24 pt-2">
+        <div className="sticky bottom-24 z-40 rounded-2xl bg-background pt-2">
           <Button
             onClick={goNext}
             disabled={onNextDisabled}

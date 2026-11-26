@@ -7,6 +7,7 @@ import { useAuth, AppRole } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { fullSync } from "@/lib/sync";
+import { detalleErrorSync } from "@/lib/syncSegura";
 import { iniciarBorradoresNube } from "@/lib/borradores";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -168,7 +169,7 @@ export default function AppLayout() {
     } catch (e: any) {
       console.warn("sync error", e);
       setSyncState("error");
-      if (manual) toast.error("No se pudo sincronizar");
+      if (manual) toast.error("No se pudo sincronizar", { description: detalleErrorSync(e) });
     } finally {
       running.current = false;
     }

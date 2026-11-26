@@ -807,7 +807,7 @@ function Step4() {
           className="h-11 rounded-xl pl-9"
         />
       </div>
-      <div className="overflow-x-auto rounded-xl border border-border bg-card" aria-label="Movimientos, precios y costos por producto" tabIndex={0}>
+      <div className="relative isolate overflow-x-auto rounded-xl border border-border bg-card" aria-label="Movimientos, precios y costos por producto" tabIndex={0}>
         <table className="w-full min-w-[590px] border-separate border-spacing-0 text-xs">
           <thead className="bg-muted text-muted-foreground"><tr>
             <th className="sticky left-0 z-10 bg-muted px-2 py-2 text-left">Producto</th>
@@ -1004,7 +1004,6 @@ function Step5() {
       )}
       <div className="grid grid-cols-2 gap-3">
         <SummaryTile label="Venta total" value={fmt(totalImporte)} accent="emerald" />
-        {isAdmin && <SummaryTile label="Costo total" value={fmt(current.productos.reduce((s,p)=>s+calcProducto(p).costoTotal,0))} accent="primary" />}
         {isAdmin ? (
           <SummaryTile label="Ganancia" value={fmt(totalGanancia)} accent="primary" />
         ) : (
@@ -1020,7 +1019,7 @@ function Step5() {
 
       {/* Vista móvil: la tabla completa continúa en escritorio sin cambios contables. */}
       <p className="text-xs text-muted-foreground">Desliza horizontalmente. La columna Producto permanece fija.</p>
-      <div tabIndex={0} aria-label="Resultados del cuadre, tabla desplazable" className="max-h-[65dvh] overflow-auto rounded-xl border border-border bg-card shadow-soft">
+      <div tabIndex={0} aria-label="Resultados del cuadre, tabla desplazable" className="relative isolate max-h-[65dvh] overflow-auto rounded-xl border border-border bg-card shadow-soft">
         <table className="w-full min-w-[920px] border-separate border-spacing-0 text-xs">
           <thead className="sticky top-0 z-20 bg-muted text-[10px] uppercase tracking-wider text-muted-foreground">
             <tr>
