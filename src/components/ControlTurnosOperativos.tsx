@@ -18,7 +18,7 @@ const fecha = (valor?: string | null) => valor ? new Date(valor).toLocaleString(
 }) : "Sin fecha";
 
 export default function ControlTurnosOperativos() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const historial = useCuadreStore((s) => s.history);
   const catalogo = useCuadreStore((s) => s.catalogo);
   const usuarios = usePinStore((s) => s.users);
@@ -39,7 +39,7 @@ export default function ControlTurnosOperativos() {
   const entregas = useQuery({
     queryKey: ["alfaro-entregas-fuente-turnos"],
     queryFn: consultarUltimasEntregas,
-    enabled: verificado,
+    enabled: verificado && role === "admin",
     refetchOnWindowFocus: "always",
     staleTime: 30000,
   });
@@ -88,7 +88,7 @@ export default function ControlTurnosOperativos() {
   };
 
   const confirmar = async () => {
-    if (!editando || !user?.id || !dependienteId) return toast.error("Selecciona quién recibirá el turno.");
+    if (role !== "admin" || !editando || !user?.id || !dependienteId) return toast.error("Selecciona quién recibirá el turno.");
     const anterior = turnos.find((t) => t.punto_venta === editando);
     if (anterior && nota.trim().length < 6) {
       return toast.error("Explica el motivo del reemplazo administrativo (mínimo 6 caracteres).");
@@ -136,6 +136,7 @@ export default function ControlTurnosOperativos() {
     }
   };
 
+  if (role !== "admin") return null;
   return (
     <section className="alfaro-surface space-y-3 p-4" aria-label="Control de Turnos y Relevos">
       <div className="flex items-center justify-between gap-2">

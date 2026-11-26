@@ -108,6 +108,17 @@ import { fmtDinero, fmtCant } from "@/lib/format";
 const fmt = (n: number) => fmtDinero(n);
 const n2 = (n: number) => fmtCant(n);
 
+const ORDEN_CUADRE = ["alimentos cocina", "carnes embutidos", "cervezas", "rones", "bebidas", "cigarros", "confituras", "limpieza y aseo", "otros", "panaderia", "perfumeria"];
+const claveCategoria = (nombre?: string) => (nombre ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+const rangoCategoria = (nombre?: string) => {
+  const clave = claveCategoria(nombre).replace("limpieza aseo", "limpieza y aseo");
+  const i = ORDEN_CUADRE.indexOf(clave);
+  return i < 0 ? ORDEN_CUADRE.length : i;
+};
+const compararCategorias = (a?: string, b?: string) => rangoCategoria(a) - rangoCategoria(b) || (a ?? "").localeCompare(b ?? "", "es");
+const ordenarProductosCuadre = <T extends { nombre: string; categoria?: string }>(productos: T[]): T[] =>
+  [...productos].sort((a, b) => compararCategorias(a.categoria, b.categoria) || a.nombre.localeCompare(b.nombre, "es"));
+
 
 export default function Cuadre() {
   const { step } = useParams();
@@ -156,7 +167,7 @@ function Step1() {
   const [verTodos, setVerTodos] = useState(false);
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const registrados = history
-    .filter((h) => h.puntoVenta === activePunto)
+    .filter((h) => h.puntoVenta === activePunto && h.id !== currents[activePunto]?.id)
     .flatMap((h) => (h.diasTrabajados?.length ? h.diasTrabajados : [h.fecha]))
     .map((d) => new Date(d));
     const inactivos = settings.dependientesInactivos ?? [];
@@ -184,11 +195,12 @@ function Step1() {
   const current = currents[activePunto];
   if (!current) return null;
   const days = current.diasTrabajados.map((d) => new Date(d));
+  const fechasDuplicadas = days.some((d) => registrados.some((r) => r.toDateString() === d.toDateString()));
   const otherPunto: PuntoVenta = activePunto === "Cafetería" ? "Mipyme" : "Cafetería";
   const otherActive = !!currents[otherPunto];
 
   return (
-    <StepShell onNextDisabled={!current.dependiente.trim() || days.length === 0}>
+    <StepShell onNextDisabled={!current.dependiente.trim() || days.length === 0 || fechasDuplicadas}>
       {/* Selector de punto de venta */}
       <div className="rounded-2xl border border-border bg-card p-3 shadow-soft">
         <Label className="text-xs uppercase tracking-widest text-muted-foreground">
@@ -396,9 +408,9 @@ function StepInventario({
   const q = busqueda.trim().toLowerCase();
   // En el inventario final no tiene sentido mostrar productos sin existencia
   // (inicio + entradas − traslados = 0).
-  const base = isInicio
+  const base = ordenarProductosCuadre(isInicio
     ? current.productos
-    : current.productos.filter((p) => calcProducto(p).total !== 0);
+    : current.productos.filter((p) => calcProducto(p).total !== 0));
   const visibles = q
     ? base.filter(
         (p) =>
@@ -700,7 +712,7 @@ function Step4() {
     map.set(categoria, productos);
     return map;
   }, new Map<string, typeof visibles>()).entries())
-    .sort((a, b) => a[0].localeCompare(b[0], "es"));
+    .sort((a, b) => compararCategorias(a[0], b[0]));
 
   const aplicar = () => {
     if (!productoId || !cantidad) return;
@@ -807,88 +819,32 @@ function Step4() {
           className="h-11 rounded-xl pl-9"
         />
       </div>
-      <section className="space-y-3" aria-label="Movimientos, precios y costos por producto">
-        <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-          <h2 className="text-sm font-bold">Productos del turno · {visibles.length}</h2>
-          <span className="text-xs text-muted-foreground">{gruposVisibles.length} categorías</span>
-        </div>
-        {visibles.length === 0 && (
-          <div className="alfaro-surface p-6 text-center text-sm text-muted-foreground">
-            No hay productos para la búsqueda actual.
-          </div>
-        )}
-        {gruposVisibles.map(([categoria, productos]) => (
-          <div key={categoria} className="alfaro-surface overflow-hidden">
-            <div className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted/30 px-3.5 py-3">
-              <h3 className="min-w-0 text-sm font-bold">{categoria}</h3>
-              <span className="shrink-0 rounded-full bg-secondary/10 px-2 py-1 text-[11px] font-semibold text-secondary">
-                {productos.length} producto{productos.length === 1 ? "" : "s"}
-              </span>
-            </div>
-            <div className="divide-y divide-border/60">
-              {productos.map((p) => (
-                <div key={p.id} className="space-y-3 p-3.5">
-                  <div className="flex min-w-0 items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      {editingName === p.id ? (
-                        <Input autoFocus defaultValue={p.nombre}
-                          onBlur={(e) => {
-                            const nombre = e.target.value.trim();
-                            if (nombre) updateProducto(p.id, { nombre });
-                            setEditingName(null);
-                          }}
-                          className="h-10 w-full rounded-xl text-sm"/>
-                      ) : (
-                        <button type="button" title="Editar nombre" onClick={() => setEditingName(p.id)}
-                          className="break-words text-left text-sm font-semibold hover:underline">
-                          {p.nombre}
-                        </button>
-                      )}
-                    </div>
-                    <Button type="button" variant="outline" size="icon"
-                      className="h-9 w-9 shrink-0 rounded-xl text-destructive"
-                      aria-label={"Eliminar " + p.nombre + " de este cuadre"}
-                      title="Eliminar producto de este cuadre"
-                      onClick={() => {
-                        if (!confirm("¿Eliminar " + p.nombre + " de este cuadre?")) return;
-                        removeProducto(p.id);
-                        toast.success("Producto eliminado");
-                      }}>
-                      <Trash2 className="h-4 w-4"/>
-                    </Button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    <label className="min-w-0 space-y-1">
-                      <span className="text-xs font-medium text-muted-foreground">Entradas</span>
-                      <NumberInput value={p.entradas}
-                        onChange={(v) => updateProducto(p.id, { entradas: v })}
-                        className="h-11 w-full rounded-xl text-right text-base font-semibold tabular-nums"/>
-                    </label>
-                    <label className="min-w-0 space-y-1">
-                      <span className="text-xs font-medium text-muted-foreground">Traslados</span>
-                      <NumberInput value={p.traslados}
-                        onChange={(v) => updateProducto(p.id, { traslados: v })}
-                        className="h-11 w-full rounded-xl text-right text-base font-semibold tabular-nums"/>
-                    </label>
-                    <label className="min-w-0 space-y-1">
-                      <span className="text-xs font-medium text-muted-foreground">Precio venta</span>
-                      <NumberInput value={p.precio}
-                        onChange={(v) => updateProducto(p.id, { precio: v })}
-                        className="h-11 w-full rounded-xl text-right text-base font-semibold tabular-nums"/>
-                    </label>
-                    <label className="min-w-0 space-y-1">
-                      <span className="text-xs font-medium text-muted-foreground">Costo</span>
-                      <NumberInput value={p.costo}
-                        onChange={(v) => updateProducto(p.id, { costo: v })}
-                        className="h-11 w-full rounded-xl text-right text-base font-semibold tabular-nums"/>
-                    </label>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </section>
+      <div className="overflow-x-auto rounded-xl border border-border bg-card" aria-label="Movimientos, precios y costos por producto" tabIndex={0}>
+        <table className="w-full min-w-[590px] border-separate border-spacing-0 text-xs">
+          <thead className="bg-muted text-muted-foreground"><tr>
+            <th className="sticky left-0 z-10 bg-muted px-2 py-2 text-left">Producto</th>
+            {["Entradas", "Traslados", "Precio venta", "Costo"].map(h => <th key={h} className="px-1 py-2 text-right">{h}</th>)}
+            <th className="px-1"><span className="sr-only">Eliminar</span></th>
+          </tr></thead>
+          <tbody>
+            {!visibles.length && <tr><td colSpan={6} className="p-4 text-center text-muted-foreground">Sin resultados</td></tr>}
+            {gruposVisibles.map(([categoria, productos]) => <Fragment key={categoria}>
+              <tr className="bg-muted/60"><th className="sticky left-0 bg-muted px-2 py-1.5 text-left">{categoria}</th><td colSpan={5}/></tr>
+              {ordenarProductosCuadre(productos).map(p => <tr key={p.id} className="[&>td]:border-t [&>td]:border-border">
+                <td className="sticky left-0 z-[1] min-w-[135px] max-w-[150px] bg-card px-2 py-1 font-medium shadow-[2px_0_4px_rgba(0,0,0,.07)]">
+                  {editingName === p.id ? <Input autoFocus defaultValue={p.nombre} onBlur={e => { const nombre = e.target.value.trim(); if (nombre) updateProducto(p.id,{nombre}); setEditingName(null); }} className="h-8 text-xs"/> :
+                    <button type="button" onClick={() => setEditingName(p.id)} className="text-left leading-tight hover:underline">{p.nombre}</button>}
+                </td>
+                {(["entradas","traslados","precio","costo"] as const).map((campo) => <td key={campo} className="px-1 py-1">
+                  <NumberInput aria-label={campo + " " + p.nombre} value={p[campo]} onChange={v => updateProducto(p.id,{[campo]:v})} className="ml-auto h-9 w-[90px] rounded-md text-right text-sm tabular-nums"/>
+                </td>)}
+                <td className="px-1"><Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive" aria-label={"Eliminar " + p.nombre} onClick={() => { if (confirm("¿Eliminar " + p.nombre + " de este cuadre?")) { removeProducto(p.id); toast.success("Producto eliminado"); } }}><Trash2 className="h-4 w-4"/></Button></td>
+              </tr>)}
+            </Fragment>)}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-center text-[11px] text-muted-foreground">Desliza horizontalmente para ver todos los campos.</p>
 
       <Dialog open={nuevoOpen} onOpenChange={setNuevoOpen}>
         <DialogContent>
@@ -1074,120 +1030,18 @@ function Step5() {
       </div>
 
       {/* Vista móvil: la tabla completa continúa en escritorio sin cambios contables. */}
-      <section className="space-y-2.5 md:hidden" aria-label="Resultados por producto">
-        <h2 className="px-1 text-sm font-bold">Resultados por producto · {visibles.length}</h2>
-        {visibles.map((p) => {
-          const c = calcProducto(p);
-          const tramos = (p.tramos ?? []).filter((t) => Number(t.cantidad) > 0);
-          const catalogoPrevio = refCat(p.nombre);
-          return (
-            <div key={p.id} className={"alfaro-surface space-y-3 p-3.5 " +
-              (p.final > c.total || c.resto < 0 ? "border-destructive/50" : "")}>
-              <div className="flex items-start justify-between gap-2">
-                <h3 className="min-w-0 break-words text-sm font-bold leading-snug">{p.nombre}</h3>
-                {isAdmin && c.venta > 0 && (
-                  <Button type="button" size="sm" variant="outline" className="h-9 shrink-0 rounded-xl px-2.5 text-xs"
-                    onClick={() => setMixtoId(p.id)}>
-                    {c.mixto ? "Editar mixtos" : "+ Precio mixto"}
-                  </Button>
-                )}
-              </div>
-              <div className="grid grid-cols-3 gap-2 rounded-xl bg-muted/35 p-3">
-                {([
-                  ["Inicio", p.inicio],
-                  ["Entradas", p.entradas],
-                  ["Traslados", p.traslados],
-                  ["Disponible", c.total],
-                  ["Final", p.final],
-                  ["Vendidos", c.venta],
-                ] as const).map(([label, valor]) => (
-                  <div key={label} className="min-w-0">
-                    <p className="text-[11px] text-muted-foreground">{label}</p>
-                    <p className="mt-1 text-sm font-semibold tabular-nums">{n2(valor)}</p>
-                  </div>
-                ))}
-              </div>
-              {isAdmin && (
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="min-w-0 space-y-1">
-                    <span className="text-xs text-muted-foreground">Precio de venta</span>
-                    <NumberInput value={p.precio}
-                      onChange={(v) => updateProducto(p.id, { precio: v })}
-                      onBlur={() => syncProductoToCatalog(p.id)}
-                      className="h-11 w-full rounded-xl text-right text-base font-semibold tabular-nums"/>
-                    {catalogoPrevio && Number(catalogoPrevio.precio) > 0 &&
-                      Number(catalogoPrevio.precio) !== Number(p.precio) && (
-                      <button type="button" title="Usar precio del catálogo"
-                        onClick={() => updateProducto(p.id, { precio: Number(catalogoPrevio.precio) })}
-                        className="text-xs font-medium text-secondary underline-offset-2 hover:underline">
-                        Antes: {fmt(Number(catalogoPrevio.precio))}
-                      </button>
-                    )}
-                  </label>
-                  <label className="min-w-0 space-y-1">
-                    <span className="text-xs text-muted-foreground">Costo</span>
-                    <NumberInput value={p.costo}
-                      onChange={(v) => updateProducto(p.id, { costo: v })}
-                      onBlur={() => syncProductoToCatalog(p.id)}
-                      className="h-11 w-full rounded-xl text-right text-base font-semibold tabular-nums"/>
-                    {catalogoPrevio && Number(catalogoPrevio.costo) > 0 &&
-                      Number(catalogoPrevio.costo) !== Number(p.costo) && (
-                      <button type="button" title="Usar costo del catálogo"
-                        onClick={() => updateProducto(p.id, { costo: Number(catalogoPrevio.costo) })}
-                        className="text-xs font-medium text-secondary underline-offset-2 hover:underline">
-                        Antes: {fmt(Number(catalogoPrevio.costo))}
-                      </button>
-                    )}
-                  </label>
-                </div>
-              )}
-              {c.mixto && (
-                <div className="space-y-1.5 rounded-xl border border-secondary/20 bg-secondary/5 p-2.5 text-xs">
-                  <p className="font-semibold text-secondary">Precios mixtos del turno</p>
-                  {tramos.map((t) => (
-                    <div key={t.id} className="flex items-center justify-between gap-2">
-                      <span>{n2(Number(t.cantidad))} × {fmt(Number(t.precio))}</span>
-                      <strong className="tabular-nums">{fmt(Number(t.cantidad) * Number(t.precio))}</strong>
-                    </div>
-                  ))}
-                  {c.resto > 0 && <p className="text-muted-foreground">
-                    {n2(c.resto)} unidad(es) a precio base: {fmt(p.precio)}
-                  </p>}
-                </div>
-              )}
-              {(p.final > c.total || c.resto < 0) && (
-                <p className="flex items-start gap-1.5 rounded-xl bg-destructive/10 p-2.5 text-xs font-medium text-destructive">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0"/>
-                  {p.final > c.total ? "Existencia final mayor que lo disponible." :
-                    "Los tramos de precios mixtos superan las unidades vendidas."}
-                </p>
-              )}
-              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-3">
-                <div>
-                  <p className="text-[11px] text-muted-foreground">Importe de venta</p>
-                  <p className="text-lg font-extrabold tabular-nums text-secondary">{fmt(c.importe)}</p>
-                </div>
-                {isAdmin && <div className="text-right">
-                  <p className="text-[11px] text-muted-foreground">Ganancia</p>
-                  <p className="text-lg font-extrabold tabular-nums">{fmt(c.ganancia)}</p>
-                </div>}
-              </div>
-            </div>
-          );
-        })}
-      </section>
-
-      <div className="hidden overflow-x-auto rounded-2xl border border-border bg-card shadow-soft md:block lg:-mx-40 xl:-mx-64">
-        <table className="w-full min-w-[640px] text-xs lg:min-w-0">
-          <thead className="bg-muted/60 text-[10px] uppercase tracking-wider text-muted-foreground">
+      <p className="text-xs text-muted-foreground">Desliza horizontalmente. La columna Producto permanece fija.</p>
+      <div tabIndex={0} aria-label="Resultados del cuadre, tabla desplazable" className="max-h-[65dvh] overflow-auto rounded-xl border border-border bg-card shadow-soft">
+        <table className="w-full min-w-[920px] border-separate border-spacing-0 text-xs">
+          <thead className="sticky top-0 z-20 bg-muted text-[10px] uppercase tracking-wider text-muted-foreground">
             <tr>
-              <th className="px-2 py-1 text-left">Producto</th>
+              <th className="sticky left-0 z-30 bg-muted px-2 py-2 text-left">Producto</th>
               <th className="px-2 py-1 text-right">Inicio</th>
-              <th className="px-2 py-1 text-right">Entr.</th>
-              <th className="px-2 py-1 text-right">Trasl.</th>
+              <th className="px-2 py-1 text-right">Entradas</th>
+              <th className="px-2 py-1 text-right">Traslados</th>
               <th className="px-2 py-1 text-right">Total</th>
               <th className="px-2 py-1 text-right">Final</th>
-              <th className="px-2 py-1 text-right">Vendidos</th>
+              <th className="px-2 py-1 text-right">Venta</th>
               {isAdmin && <th className="px-2 py-1 text-right">Precio</th>}
               <th className="px-2 py-1 text-right">Importe</th>
               {isAdmin && <th className="px-2 py-1 text-right">Costo</th>}
@@ -1195,15 +1049,19 @@ function Step5() {
             </tr>
           </thead>
           <tbody>
-            {visibles.map((p) => {
+            {ordenarProductosCuadre(visibles).map((p, idx, ordenados) => {
 
               const c = calcProducto(p);
               const tramos = (p.tramos ?? []).filter((t) => Number(t.cantidad) > 0);
               const abierto = !!expandidos[p.id];
               return (
                 <Fragment key={p.id}>
-                <tr className="border-t border-border">
-                  <td className="px-2 py-1 font-medium min-w-[11rem] leading-tight">
+                {(idx === 0 || ordenados[idx - 1].categoria !== p.categoria) && <tr className="bg-muted/60">
+                  <th className="sticky left-0 bg-muted px-2 py-1.5 text-left">{p.categoria || "Sin categoría"}</th>
+                  <td colSpan={isAdmin ? 10 : 7}/>
+                </tr>}
+                <tr className={cn("[&>td]:border-t [&>td]:border-border", p.final > c.total && "text-destructive")}>
+                  <td className="sticky left-0 z-[1] bg-card px-2 py-1 font-medium min-w-[135px] max-w-[155px] leading-tight shadow-[2px_0_4px_rgba(0,0,0,.07)]">
                     {c.mixto && (
                       <button
                         onClick={() => toggleExpandido(p.id)}
@@ -1308,7 +1166,7 @@ function Step5() {
                       key={`${p.id}-mixto-${t.id}`}
                       className="border-t border-border/60 bg-muted/30 text-[11px]"
                     >
-                      <td className="px-2 py-1 pl-8 text-muted-foreground">
+                      <td className="sticky left-0 z-[1] bg-card px-2 py-1 pl-4 text-muted-foreground">
                         Precio mixto · {n2(Number(t.cantidad))} × {fmt(Number(t.precio))}
                       </td>
                       <td colSpan={6 + (isAdmin ? 1 : 0)} />
@@ -1320,7 +1178,7 @@ function Step5() {
                   ))}
                 {abierto && c.mixto && c.resto > 0 && (
                   <tr className="border-t border-border/60 bg-muted/30 text-[11px]">
-                    <td className="px-2 py-1 pl-8 text-muted-foreground">
+                    <td className="sticky left-0 z-[1] bg-card px-2 py-1 pl-4 text-muted-foreground">
                       Precio base · {n2(c.resto)} × {fmt(p.precio)}
                     </td>
                     <td colSpan={6 + (isAdmin ? 1 : 0)} />

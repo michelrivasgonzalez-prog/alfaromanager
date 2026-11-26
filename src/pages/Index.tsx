@@ -203,7 +203,7 @@ function InicioAdministracion() {
 
       {canStart && <RecepcionesAdministracion />}
 
-      {canStart && <ControlTurnosOperativos />}
+      {role === "admin" && <ControlTurnosOperativos />}
 
       {canStart && (
         <section className="space-y-2.5" aria-label="Pendientes">

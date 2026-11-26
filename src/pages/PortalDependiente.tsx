@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from "react";
-import { useCuadreStore, calcCuadre, sortProductos, puntoHabitual, PuntoVenta, PUNTOS } from "@/store/cuadreStore";
+import { useState, useMemo } from "react";
+import { useCuadreStore, calcCuadre, sortProductos, puntoHabitual } from "@/store/cuadreStore";
 import { useQuery } from "@tanstack/react-query";
 import { normalizarDependiente } from "@/lib/cobrar";
 import { listarPrecuadresEnviados } from "@/lib/turnos";
@@ -18,7 +18,7 @@ const monto = (valor: number) => `${valor.toLocaleString("es", { maximumFraction
 
 export default function PortalDependiente() {
   const { nombre, user } = useAuth();
-  const { history, activePunto, settings } = useCuadreStore();
+  const { history, settings } = useCuadreStore();
   const { turnos, verificado, verificar, cargando: cargandoTurnos, error: errorTurnos, recargar } = useControlTurnos(user?.id);
   const [pinTurnos, setPinTurnos] = useState("");
   const [validandoPinTurnos, setValidandoPinTurnos] = useState(false);
@@ -36,33 +36,13 @@ export default function PortalDependiente() {
     refetchOnMount: "always",
   });
 
-    // 1. Determinar el punto asignado/habitual de la dependienta conectada (ej. Cafetería para Kamila)
-  const puntoHabitualDep = useMemo<PuntoVenta>(() => {
-    if (nombre) {
-      const habitual = puntoHabitual(nombre, settings, history);
-      if (habitual) return habitual;
-    }
-    return (activePunto as PuntoVenta) || "Cafetería";
-  }, [nombre, settings, history, activePunto]);
-
-  // 2. Estado local del punto para este portal (inicia en su punto habitual)
-  const [puntoSeleccionado, setPuntoSeleccionado] = useState<PuntoVenta>(puntoHabitualDep);
-
-  useEffect(() => {
-    setPuntoSeleccionado(puntoHabitualDep);
-  }, [puntoHabitualDep]);
-
-  // Una dependienta nunca obtiene inicios de otro usuario ni del último
-  // cuadre oficial: se usan exclusivamente sus turnos operativos asignados.
-  const turnoOperativo = useMemo(() => turnos.find((t) =>
-    t.punto_venta === puntoSeleccionado && t.usuario_id === user?.id
-  ), [turnos, puntoSeleccionado, user?.id]);
-
-  useEffect(() => {
-    if (turnos.length && !turnos.some((t) => t.punto_venta === puntoSeleccionado)) {
-      setPuntoSeleccionado(turnos[0].punto_venta);
-    }
-  }, [turnos, puntoSeleccionado]);
+  const turnoOperativo = useMemo(() => {
+    if (!verificado || errorTurnos || !user?.id) return undefined;
+    const propios = turnos.filter(t => t.usuario_id === user.id && t.estado === "activo");
+    const habitual = nombre ? puntoHabitual(nombre, settings, history) : undefined;
+    return propios.find(t => t.punto_venta === habitual) ?? [...propios].sort((a,b) => b.inicio.localeCompare(a.inicio))[0];
+  }, [turnos, user?.id, verificado, errorTurnos, nombre, settings, history]);
+  const puntoSeleccionado = turnoOperativo?.punto_venta;
 
   const misCuadres = useMemo(() => {
     if (!nombre) return [];
@@ -98,7 +78,7 @@ export default function PortalDependiente() {
   if (entregandoTurno && turnoOperativo && verificado && !errorTurnos) {
     return (
       <PrecuadreDependiente
-        puntoInicial={puntoSeleccionado}
+        puntoInicial={turnoOperativo.punto_venta}
         dependienteInicial={nombre || ""}
         turnoOperativo={turnoOperativo}
         onCancelar={() => {
@@ -131,21 +111,7 @@ export default function PortalDependiente() {
             <p className="mt-0.5 text-xs text-muted-foreground">Mis turnos, liquidaciones y entregas</p>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Punto de venta del portal">
-          {PUNTOS.map((p) => {
-            const activo = puntoSeleccionado === p;
-            return (
-              <button type="button" key={p} aria-pressed={activo}
-                onClick={() => setPuntoSeleccionado(p)}
-                title={activo ? "Punto seleccionado" : "Cambiar punto de venta (suplencia)"}
-                className={"inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border px-2 text-xs font-bold transition-colors " +
-                  (activo ? "border-secondary bg-secondary text-secondary-foreground" :
-                    "border-border bg-card text-muted-foreground")}>
-                <Store className="h-4 w-4"/> {p === "Mipyme" ? "MiPyME" : p}
-              </button>
-            );
-          })}
-        </div>
+        {turnoOperativo && <div className="flex items-center gap-2 rounded-xl border border-border p-2 text-xs font-semibold"><Store className="h-4 w-4"/> Punto asignado: {turnoOperativo.punto_venta === "Mipyme" ? "MiPyME" : turnoOperativo.punto_venta}</div>}
       </header>
 
       <nav className="grid grid-cols-4 gap-1 rounded-2xl border border-border/70 bg-card p-1 shadow-soft"
@@ -349,7 +315,7 @@ export default function PortalDependiente() {
           ) : !turnoOperativo ? (
             <div className="alfaro-surface space-y-2 p-6 text-center">
               <Clock className="mx-auto h-8 w-8 text-muted-foreground" />
-              <p className="font-bold">No tienes un turno activo en {puntoSeleccionado === "Mipyme" ? "MiPyME" : puntoSeleccionado}</p>
+              <p className="font-bold">No tienes un turno activo asignado</p>
               <p className="text-xs text-muted-foreground">
                 Tus liquidaciones personales siguen disponibles. El administrador debe asignarte
                 un turno antes de mostrar sus existencias o permitir su entrega.

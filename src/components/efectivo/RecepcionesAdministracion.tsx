@@ -17,7 +17,7 @@ import { ConteoBilletes } from "./ConteoBilletes";
 
 export default function RecepcionesAdministracion() {
   const { user, role } = useAuth();
-  const { verificado, verificar } = useControlTurnos(user?.id);
+  const { verificado, verificar, turnos } = useControlTurnos(user?.id);
   const qc = useQueryClient();
   const [pin, setPin] = useState("");
   const [validando, setValidando] = useState(false);
@@ -36,8 +36,19 @@ export default function RecepcionesAdministracion() {
   });
   const pendientes = (entregas.data ?? []).filter((e) =>
     e.estado === "pendiente" || e.estado === "diferencia");
-  const anteriores = (entregas.data ?? []).filter((e) =>
-    e.estado === "confirmada" || e.estado === "anulada").slice(0, 6);
+  const turnosActivos = new Set(turnos.filter(t => t.estado === "activo").map(t => t.id));
+  const procesadas = (entregas.data ?? []).filter(e => e.estado === "confirmada" || e.estado === "anulada");
+  const actuales = procesadas.filter(e => turnosActivos.has(e.turno_operativo_id));
+  const anteriores = procesadas.filter(e => !turnosActivos.has(e.turno_operativo_id));
+  const gruposAnteriores = Array.from(anteriores.reduce((m,e) => {
+    const key = e.turno_operativo_id || e.punto_venta + "|" + e.dependiente;
+    m.set(key,[...(m.get(key) ?? []),e]); return m;
+  },new Map<string,EntregaEfectivo[]>()).entries());
+  const procesadaFila = (e: EntregaEfectivo) => <div key={e.id} className="flex items-center justify-between gap-2 text-xs">
+    <div className="min-w-0"><p className="font-medium">{codigoEntrega(e.id)} · {e.dependiente}</p>
+    <p className="text-[11px] text-muted-foreground">{e.recibido_por || "Administración"} · {formatoFechaEntrega(e.entregado_en)}</p></div>
+    <span className="flex items-center gap-1 text-right font-semibold">{e.estado === "confirmada" ? <CheckCircle2 className="h-3.5 w-3.5 text-secondary"/> : <XCircle className="h-3.5 w-3.5 text-muted-foreground"/>}{e.estado === "confirmada" ? formatoDinero(Number(e.total_recibido || 0)) : "Anulada"}</span>
+  </div>;
 
   const refrescar = async () => {
     await qc.invalidateQueries({ queryKey: ["alfaro-efectivo-admin"] });
@@ -165,6 +176,7 @@ export default function RecepcionesAdministracion() {
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <p className="font-bold text-sm">{e.dependiente} · {codigoEntrega(e.id)}</p>
+                  {!turnosActivos.has(e.turno_operativo_id) && <Badge variant="outline" className="text-[10px]">Turno anterior o sin asignación activa</Badge>}
                   <p className="text-[11px] text-muted-foreground">
                     {e.punto_venta === "Mipyme" ? "MiPyME" : e.punto_venta}
                     {" · "}{formatoFechaEntrega(e.entregado_en)}
@@ -236,26 +248,11 @@ export default function RecepcionesAdministracion() {
               )}
             </article>
           ))}
-          {anteriores.length > 0 && (
-            <div className="space-y-2 border-t border-border pt-3">
-              <h3 className="text-xs font-bold text-muted-foreground">Últimas entregas procesadas</h3>
-              {anteriores.map((e) => (
-                <div className="flex items-center justify-between gap-2 text-xs" key={e.id}>
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{codigoEntrega(e.id)} · {e.dependiente}</p>
-                    <p className="text-[11px] text-muted-foreground">
-                      {e.recibido_por || "Administración"} · {formatoFechaEntrega(e.entregado_en)}
-                    </p>
-                  </div>
-                  <span className="flex items-center gap-1 text-right font-semibold">
-                    {e.estado === "confirmada" ? <CheckCircle2 className="h-3.5 w-3.5 text-secondary"/> :
-                      <XCircle className="h-3.5 w-3.5 text-muted-foreground"/>}
-                    {e.estado === "confirmada" ? formatoDinero(Number(e.total_recibido || 0)) : "Anulada"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
+          {actuales.length > 0 && <div className="space-y-2 border-t border-border pt-3"><h3 className="text-xs font-bold">Entregas procesadas · turnos actuales</h3>{actuales.map(procesadaFila)}</div>}
+          {anteriores.length > 0 && <details className="space-y-2 border-t border-border pt-3">
+            <summary className="cursor-pointer text-xs font-bold text-muted-foreground">Entregas procesadas anteriores ({anteriores.length})</summary>
+            {gruposAnteriores.map(([id,grupo]) => <div key={id} className="space-y-2 rounded-xl border border-border p-2"><p className="text-xs font-semibold">{grupo[0].punto_venta} · {grupo[0].dependiente}</p><p className="text-[10px] text-muted-foreground">Turno · {formatoFechaEntrega(grupo[grupo.length-1].entregado_en)}</p>{grupo.map(procesadaFila)}</div>)}
+          </details>}
         </>
       )}
     </section>
