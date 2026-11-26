@@ -3,7 +3,9 @@ import { sortProductos } from "@/store/cuadreStore";
 
 /** Nombres antiguos → nombre definitivo. */
 export const RENOMBRES: Record<string, string> = {
-  "cerveza mayabe 700": "Cerveza Mayabe",
+  "cerveza mayabe 700": "Cerveza Mayabe 355 ml",
+  "cerveza mayabe": "Cerveza Mayabe 355 ml",
+  "cerveza mayabe 355ml": "Cerveza Mayabe 355 ml",
   "cerveza bucanero 700": "Cerveza Bucanero",
   "cigarro englishman m-menta": "Cigarro Englishman M-Menta Gordo",
   "cigarro englishman gordo": "Cigarro Englishman M-Menta Gordo",
