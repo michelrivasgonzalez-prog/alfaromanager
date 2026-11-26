@@ -42,7 +42,6 @@ export default function PortalDependiente() {
     const habitual = nombre ? puntoHabitual(nombre, settings, history) : undefined;
     return propios.find(t => t.punto_venta === habitual) ?? [...propios].sort((a,b) => b.inicio.localeCompare(a.inicio))[0];
   }, [turnos, user?.id, verificado, errorTurnos, nombre, settings, history]);
-  const puntoSeleccionado = turnoOperativo?.punto_venta;
 
   const misCuadres = useMemo(() => {
     if (!nombre) return [];

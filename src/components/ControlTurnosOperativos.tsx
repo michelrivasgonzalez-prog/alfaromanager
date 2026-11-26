@@ -4,7 +4,7 @@ import { CheckCircle2, Clock3, KeyRound, RefreshCw, ShieldAlert, UserRoundPlus }
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { usePinStore } from "@/store/pinStore";
-import { useCuadreStore, PUNTOS, type PuntoVenta } from "@/store/cuadreStore";
+import { useCuadreStore, PUNTOS, puntoHabitual, type PuntoVenta } from "@/store/cuadreStore";
 import { useControlTurnos } from "@/hooks/useControlTurnos";
 import { asignarTurnoOperativo, iniciosDesdeProductos, type AsignacionOperativa, type InicioProductoTurno } from "@/lib/turnosOperativos";
 import { consultarUltimasEntregas, type EntregaReciente } from "@/lib/turnosOperativos";
@@ -21,6 +21,7 @@ export default function ControlTurnosOperativos() {
   const { user, role } = useAuth();
   const historial = useCuadreStore((s) => s.history);
   const catalogo = useCuadreStore((s) => s.catalogo);
+  const settings = useCuadreStore(s=>s.settings);
   const usuarios = usePinStore((s) => s.users);
   const { turnos, verificado, verificar, cargando, error, recargar } = useControlTurnos(user?.id);
 
@@ -44,8 +45,8 @@ export default function ControlTurnosOperativos() {
     staleTime: 30000,
   });
   const disponibles = useMemo(() => usuarios
-    .filter((u) => u.role === "dependiente")
-    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es")), [usuarios]);
+    .filter((u) => u.role === "dependiente" && !settings.dependientesInactivos?.includes(u.nombre) && (!editando || settings.dependientesAmbosPuntos?.includes(u.nombre) || puntoHabitual(u.nombre,settings,historial)===editando))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es")), [usuarios,settings,historial,editando]);
 
   const ultimoPrecuadre = (punto: PuntoVenta): EntregaReciente | undefined =>
     (entregas.data ?? []).find((t) => t.punto_venta === punto && (t.data?.productos?.length ?? 0) > 0);

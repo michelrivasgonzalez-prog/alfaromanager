@@ -150,8 +150,8 @@ export function PrecuadreDependiente({
     (nombre) => !settings.dependientesInactivos?.includes(nombre)
   ), [dependientes, settings.dependientesInactivos]);
   const dependientesPunto = useMemo(() => dependientesActivos.filter(
-    (nombre) => puntoHabitual(nombre, settings, history) === punto
-  ), [dependientesActivos, settings, history, punto]);
+    (nombre) => settings.dependientesAmbosPuntos?.includes(nombre) || puntoHabitual(nombre, settings, history) === punto || nombre === dependienteInicial
+  ), [dependientesActivos, settings, history, punto, dependienteInicial]);
 
   // Lista base de productos
   const [productosNuevosLocal, setProductosNuevosLocal] = useState<

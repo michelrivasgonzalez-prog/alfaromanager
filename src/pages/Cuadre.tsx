@@ -1016,6 +1016,7 @@ function Step5() {
       )}
       <div className="grid grid-cols-2 gap-3">
         <SummaryTile label="Venta total" value={fmt(totalImporte)} accent="emerald" />
+        {isAdmin && <SummaryTile label="Costo total" value={fmt(totalImporte - totalGanancia)} accent="primary" />}
         {isAdmin ? (
           <SummaryTile label="Ganancia" value={fmt(totalGanancia)} accent="primary" />
         ) : (

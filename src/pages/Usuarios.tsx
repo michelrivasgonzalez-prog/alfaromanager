@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { usePinStore, PinRole, PinUser } from "@/store/pinStore";
+import { usePinStore, PinRole, PinUser, hashPin } from "@/store/pinStore";
 import { useAuth } from "@/hooks/useAuth";
 import { useCuadreStore, puntoHabitual, PuntoVenta } from "@/store/cuadreStore";
 import { Button } from "@/components/ui/button";
@@ -50,27 +50,22 @@ const ROLE_INFO: Record<PinRole, { label: string; Icon: any; cls: string }> = {
   dependiente: { label: "Dependiente", Icon: UserIcon, cls: "bg-muted text-foreground" },
 };
 
+type FormDependiente = { nombreOriginal: string; nombre: string; nombres?: string; apellidos?: string; punto?: PuntoVenta | "ambos"; foto?: string; inactivo: boolean; permisoCobrar?: boolean; pin?: string; };
+
 export default function Usuarios() {
   const { role: currentRole } = useAuth();
   const isAdmin = currentRole === "admin";
-  const { users, removeUser, updateUser, updatePin } = usePinStore();
+  const { users, removeUser, updateUser, updatePin, createUser } = usePinStore();
   const [open, setOpen] = useState(false);
   const [pinUser, setPinUser] = useState<PinUser | null>(null);
   const [nuevoPinNombre, setNuevoPinNombre] = useState<string | null>(null);
 
   const { dependientes, addDependiente, updateDependiente, removeDependiente, settings, history, updateSettings } =
     useCuadreStore();
-  const [nuevoDep, setNuevoDep] = useState("");
   const [filtroDependientes, setFiltroDependientes] = useState<"todos" | "activos" | "inactivos">("todos");
   const [buscarDependiente, setBuscarDependiente] = useState("");
 
-  const [depEditing, setDepEditing] = useState<{
-    nombreOriginal: string;
-    nombre: string;
-    punto?: PuntoVenta;
-    foto?: string;
-    inactivo: boolean;
-  } | null>(null);
+  const [depEditing, setDepEditing] = useState<FormDependiente | null>(null);
 
   if (!isAdmin) {
     return (
@@ -240,32 +235,9 @@ export default function Usuarios() {
             ))}
           </div>
         </div>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            const n = nuevoDep.trim();
-            if (!n) return;
-            if (dependientes.includes(n)) {
-              toast.error("Ya existe ese dependiente");
-              return;
-            }
-            addDependiente(n);
-            pushDependiente(n).catch((e) => toast.error(e.message));
-            setNuevoDep("");
-            toast.success("Dependiente agregado");
-          }}
-          className="flex gap-2 mb-3"
-        >
-          <Input
-            placeholder="Nombre del dependiente"
-            value={nuevoDep}
-            onChange={(e) => setNuevoDep(e.target.value)}
-            className="rounded-xl"
-          />
-          <Button type="submit" className="rounded-xl gradient-emerald">
-            <UserPlus className="h-4 w-4 mr-1" /> Añadir
-          </Button>
-        </form>
+        <Button className="mb-3 w-full rounded-xl gradient-emerald" onClick={() => setDepEditing({ nombreOriginal:"", nombre:"", nombres:"", apellidos:"", punto:"Cafetería", inactivo:false, permisoCobrar:false })}>
+          <UserPlus className="h-4 w-4 mr-1"/> Añadir dependiente
+        </Button>
 
         <div className="space-y-2">
           {dependientesOrdenados.length === 0 && (
@@ -275,7 +247,7 @@ export default function Usuarios() {
           )}
 
           {dependientesOrdenados.map((d) => {
-            const puntoHab = settings.dependientePunto?.[d] || puntoHabitual(d, settings, history);
+            const puntoHab = settings.dependientesAmbosPuntos?.includes(d) ? "Ambos puntos" : settings.dependientePunto?.[d] || puntoHabitual(d, settings, history);
             const isInactivo = (settings as any).dependientesInactivos?.includes(d);
             const cuentaPin = users.find((u) => u.nombre.trim().toLowerCase() === d.trim().toLowerCase());
 
@@ -322,7 +294,10 @@ export default function Usuarios() {
                     setDepEditing({
                       nombreOriginal: d,
                       nombre: d,
-                      punto: settings.dependientePunto?.[d],
+                      punto: settings.dependientesAmbosPuntos?.includes(d) ? "ambos" : settings.dependientePunto?.[d],
+                      nombres: settings.dependienteNombres?.[d]?.nombres,
+                      apellidos: settings.dependienteNombres?.[d]?.apellidos,
+                      permisoCobrar: (settings.dependientesPermisoCobrar ?? []).includes(d),
                       foto: settings.dependienteFotos?.[d],
                       inactivo: Boolean((settings as any).dependientesInactivos?.includes(d)),
                     });
@@ -373,62 +348,53 @@ export default function Usuarios() {
           dep={depEditing}
           users={users}
           onClose={() => setDepEditing(null)}
-          onSave={(data) => {
+          onSave={async (data) => {
             const oldName = data.nombreOriginal;
             const newName = data.nombre.trim();
-
-            if (!newName) {
-              toast.error("El nombre no puede estar vacío");
-              return;
+            const key = (n: string) => n.trim().toLowerCase();
+            if (!newName || (!data.nombres?.trim() || !data.apellidos?.trim())) throw Error("Completa nombre y apellidos.");
+            if (dependientes.some(d=>key(d)===key(newName)&&key(d)!==key(oldName))) throw Error("Ya existe ese dependiente.");
+            const cuenta = usePinStore.getState().users.find(v=>key(v.nombre)===key(oldName || newName));
+            if (cuenta && cuenta.role !== "dependiente") throw Error("El nombre pertenece a otro usuario.");
+            if (usePinStore.getState().users.some(v=>key(v.nombre)===key(newName)&&v.id!==cuenta?.id)) throw Error("El nombre ya tiene otra cuenta PIN.");
+            if ((!cuenta || data.pin) && !/^\d{6}$/.test(data.pin ?? "")) throw Error("Asigna un PIN de seis dígitos.");
+            if(data.pin) {
+              for(const otro of usePinStore.getState().users) if(otro.id!==cuenta?.id && await hashPin(data.pin,otro.id)===otro.pinHash) throw Error("Ese PIN ya está asignado a otro usuario.");
             }
-
-            if (oldName !== newName) {
-              updateDependiente(oldName, newName);
-              const cuentaUser = users.find((u) => u.nombre.trim().toLowerCase() === oldName.trim().toLowerCase());
-              if (cuentaUser) {
-                updateUser(cuentaUser.id, { nombre: newName });
-                pushPinUser({ ...cuentaUser, nombre: newName }).catch((e) => toast.error(e.message));
-              }
-              Promise.all([deleteDependiente(oldName), pushDependiente(newName)]).catch((e) =>
-                toast.error(e.message)
-              );
+            if(!oldName) {
+              await pushDependiente(newName);
+              addDependiente(newName);
+            } else if(oldName!==newName) {
+              await pushDependiente(newName);
+              updateDependiente(oldName,newName);
             }
-
-            const nextPuntos = { ...(settings.dependientePunto ?? {}) };
-            const nextFotos = { ...(settings.dependienteFotos ?? {}) };
-            let nextInactivos = [...((settings as any).dependientesInactivos ?? [])];
-
-            if (oldName !== newName) {
-              delete nextPuntos[oldName];
-              delete nextFotos[oldName];
-              nextInactivos = nextInactivos.filter((x) => x !== oldName);
-            }
-
-            if (data.punto) {
-              nextPuntos[newName] = data.punto;
+            if(cuenta) {
+              const pinHash = data.pin ? await hashPin(data.pin,cuenta.id) : cuenta.pinHash;
+              await pushPinUser({...cuenta,nombre:newName,pinHash});
+              if(data.pin) await updatePin(cuenta.id,data.pin);
+              updateUser(cuenta.id,{nombre:newName});
             } else {
-              delete nextPuntos[newName];
+              const nuevoUsuario = await createUser({nombre:newName,role:"dependiente",pin:data.pin!});
+              await pushPinUser(nuevoUsuario);
             }
-
-            if (data.foto) {
-              nextFotos[newName] = data.foto;
-            } else {
-              delete nextFotos[newName];
-            }
-
-            if (data.inactivo) {
-              if (!nextInactivos.includes(newName)) nextInactivos.push(newName);
-            } else {
-              nextInactivos = nextInactivos.filter((x) => x !== newName);
-            }
-
+            if(oldName && oldName!==newName) await deleteDependiente(oldName);
+            const actuales=useCuadreStore.getState().settings;
+            const nextPuntos={...(actuales.dependientePunto??{})};
+            const nextFotos={...(actuales.dependienteFotos??{})};
+            const nextNombres={...(actuales.dependienteNombres??{})};
+            const filtrar=(list?:string[]) => (list??[]).filter(n=>key(n)!==key(oldName)&&key(n)!==key(newName));
+            delete nextPuntos[oldName]; delete nextPuntos[newName];
+            delete nextFotos[oldName]; delete nextNombres[oldName];
+            if(data.punto && data.punto!=="ambos") nextPuntos[newName]=data.punto;
+            if(data.foto) nextFotos[newName]=data.foto; else delete nextFotos[newName];
+            nextNombres[newName]={nombres:data.nombres!,apellidos:data.apellidos!};
             updateSettings({
-              dependientePunto: nextPuntos,
-              dependienteFotos: nextFotos,
-              dependientesInactivos: nextInactivos,
-            } as any);
-
-            pushSettings().catch((er) => toast.error(er.message));
+              dependientePunto:nextPuntos,dependienteFotos:nextFotos,dependienteNombres:nextNombres,
+              dependientesAmbosPuntos:[...filtrar(actuales.dependientesAmbosPuntos),...(data.punto==="ambos"?[newName]:[])],
+              dependientesInactivos:[...filtrar(actuales.dependientesInactivos),...(data.inactivo?[newName]:[])],
+              dependientesPermisoCobrar:[...filtrar(actuales.dependientesPermisoCobrar),...(data.permisoCobrar?[newName]:[])],
+            });
+            await pushSettings();
             toast.success("Dependiente guardado");
             setDepEditing(null);
           }}
@@ -445,42 +411,33 @@ export default function Usuarios() {
               setDepEditing(null);
             }
           }}
-          onOpenPinModal={(u) => setPinUser(u)}
-          onCrearPin={(nombre) => setNuevoPinNombre(nombre)}
         />
       )}
     </div>
   );
 }
 
-function EditarDependienteModal({
-  dep,
-  users,
-  onClose,
-  onSave,
-  onDelete,
-  onOpenPinModal,
-  onCrearPin,
-}: {
-  dep: {
-    nombreOriginal: string;
-    nombre: string;
-    punto?: PuntoVenta;
-    foto?: string;
-    inactivo: boolean;
-  };
-  users: PinUser[];
-  onClose: () => void;
-  onSave: (data: typeof dep) => void;
-  onDelete: (nombre: string) => void;
-  onOpenPinModal: (u: PinUser) => void;
-  onCrearPin: (nombre: string) => void;
+function EditarDependienteModal({dep,users,onClose,onSave,onDelete}:{
+  dep: FormDependiente; users: PinUser[]; onClose:()=>void; onSave:(data:FormDependiente)=>Promise<void>; onDelete:(nombre:string)=>void;
 }) {
-  const { settings, updateSettings } = useCuadreStore();
-  const [form, setForm] = useState({ ...dep });
-  const cuentaPin = users.find(
-    (u) => u.nombre.trim().toLowerCase() === form.nombreOriginal.trim().toLowerCase()
-  );
+  const [form,setForm]=useState<FormDependiente>({...dep});
+  const [nombres,setNombres]=useState(dep.nombres ?? dep.nombre.split(" ")[0] ?? "");
+  const [apellidos,setApellidos]=useState(dep.apellidos ?? dep.nombre.split(" ").slice(1).join(" "));
+  const [pin,setPin]=useState("");
+  const [confirmPin,setConfirmPin]=useState("");
+  const [guardando,setGuardando]=useState(false);
+  const cuentaPin=users.find(u=>u.nombre.trim().toLowerCase()===dep.nombreOriginal.trim().toLowerCase());
+  const nombreCompleto=[nombres.trim(),apellidos.trim()].filter(Boolean).join(" ");
+  const guardar=async()=>{
+    if(!nombres.trim()||!apellidos.trim()) return toast.error("Completa nombre y apellidos.");
+    if(!cuentaPin||pin||confirmPin) {
+      if(!/^\d{6}$/.test(pin)||pin!==confirmPin) return toast.error("Confirma un PIN de seis dígitos que coincida.");
+    }
+    setGuardando(true);
+    try{await onSave({...form,nombre:nombreCompleto,nombres:nombres.trim(),apellidos:apellidos.trim(),pin:pin||undefined});}
+    catch(e){toast.error(e instanceof Error?e.message:"No se pudo completar el guardado. Revisa la conexión.");}
+    finally{setGuardando(false);}
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -520,16 +477,16 @@ function EditarDependienteModal({
   };
 
   return (
-    <Dialog open={true} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="rounded-2xl max-w-sm">
+    <Dialog open={true} onOpenChange={(v) => !v && !guardando && onClose()}>
+      <DialogContent className="rounded-2xl max-w-sm max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Editar Dependiente</DialogTitle>
+          <DialogTitle>{dep.nombreOriginal ? "Editar dependiente" : "Nuevo dependiente"}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
           {/* Foto */}
           <div className="flex flex-col items-center justify-center gap-2">
-            <Avatar nombre={form.nombre} src={form.foto} size="xl" className="border-2 border-primary/20 shadow-md" />
+            <Avatar nombre={nombreCompleto || "Dependiente"} src={form.foto} size="xl" className="border-2 border-primary/20 shadow-md" />
             <div className="flex items-center gap-3 mt-1">
               <label
                 htmlFor="modal-foto-upload"
@@ -558,42 +515,15 @@ function EditarDependienteModal({
             </div>
           </div>
 
-          {/* Nombre */}
-          <div className="space-y-1">
-            <Label className="text-xs font-semibold">Nombre Completo</Label>
-            <Input
-              value={form.nombre}
-              onChange={(e) => setForm((prev) => ({ ...prev, nombre: e.target.value }))}
-              placeholder="Nombre del dependiente"
-              className="rounded-xl"
-            />
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1"><Label>Nombre(s)</Label><Input value={nombres} onChange={e=>setNombres(e.target.value)} placeholder="Nombre" className="rounded-xl"/></div>
+            <div className="space-y-1"><Label>Apellidos</Label><Input value={apellidos} onChange={e=>setApellidos(e.target.value)} placeholder="Apellidos" className="rounded-xl"/></div>
           </div>
-
-          {/* Gestión de PIN */}
-          <div className="space-y-1 bg-muted/30 p-2.5 rounded-xl border border-border/50">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold flex items-center gap-1">
-                <KeyRound className="h-3.5 w-3.5 text-primary" /> PIN de Acceso
-              </span>
-              {cuentaPin ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-xs rounded-lg"
-                  onClick={() => onOpenPinModal(cuentaPin)}
-                >
-                  Cambiar PIN
-                </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  className="h-7 text-xs rounded-lg gradient-primary"
-                  onClick={() => onCrearPin(form.nombre)}
-                >
-                  <Plus className="h-3 w-3 mr-1" /> Crear PIN
-                </Button>
-              )}
-            </div>
+          <div className="space-y-2 rounded-xl border border-border p-3">
+            <Label className="flex items-center gap-2"><KeyRound className="h-4 w-4"/>{cuentaPin?"Cambiar PIN (opcional)":"Asignar PIN"}</Label>
+            <Input type="password" inputMode="numeric" maxLength={6} autoComplete="new-password" value={pin} onChange={e=>setPin(e.target.value.replace(/\D/g,""))} placeholder="PIN de seis dígitos"/>
+            <Input type="password" inputMode="numeric" maxLength={6} autoComplete="new-password" value={confirmPin} onChange={e=>setConfirmPin(e.target.value.replace(/\D/g,""))} placeholder="Confirmar PIN"/>
+            {cuentaPin&&<p className="text-xs text-muted-foreground">Déjalo vacío para conservar el PIN actual.</p>}
           </div>
 
           {/* Punto de Venta */}
@@ -604,7 +534,7 @@ function EditarDependienteModal({
               onValueChange={(v) =>
                 setForm((prev) => ({
                   ...prev,
-                  punto: v === "ninguno" ? undefined : (v as PuntoVenta),
+                  punto: v === "ninguno" ? undefined : (v as PuntoVenta | "ambos"),
                 }))
               }
             >
@@ -614,7 +544,8 @@ function EditarDependienteModal({
               <SelectContent className="rounded-2xl">
                 <SelectItem value="ninguno">Sin asignar (Por historial)</SelectItem>
                 <SelectItem value="Cafetería">Cafetería</SelectItem>
-                <SelectItem value="Mipyme">Mipyme</SelectItem>
+                <SelectItem value="Mipyme">MiPyME</SelectItem>
+                <SelectItem value="ambos">Ambos puntos de venta</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -646,42 +577,28 @@ function EditarDependienteModal({
                 Acceso para registrar pagos de clientes sin crear deudas ni editar clientes
               </span>
             </div>
-                        <input
-              type="checkbox"
-              checked={(settings.dependientesPermisoCobrar ?? []).some(
-                (n) => n.trim().toLowerCase() === form.nombreOriginal.trim().toLowerCase()
-              )}
-              onChange={(e) => {
-                const checked = e.target.checked;
-                const actuales = settings.dependientesPermisoCobrar ?? [];
-                const filtrados = actuales.filter(
-                  (n) => n.trim().toLowerCase() !== form.nombreOriginal.trim().toLowerCase()
-                );
-                const nuevo = checked ? [...filtrados, form.nombreOriginal] : filtrados;
-                updateSettings({ dependientesPermisoCobrar: nuevo });
-                pushSettings().then(() => toast.success("Permiso sincronizado"))
-                  .catch((error) => toast.error("No se pudo sincronizar el permiso: " + error.message));
-              }}
+            <input type="checkbox" checked={!!form.permisoCobrar} onChange={e=>setForm(prev=>({...prev,permisoCobrar:e.target.checked}))}
               className="h-4 w-4 rounded accent-primary cursor-pointer"
             />
           </div>
 
         <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between pt-2">
-          <Button
+          {dep.nombreOriginal && <Button
             type="button"
             variant="ghost"
+            disabled={guardando}
             onClick={() => onDelete(form.nombreOriginal)}
             className="rounded-xl text-destructive hover:bg-destructive/10 justify-start sm:justify-center"
           >
             <Trash2 className="h-4 w-4 mr-1.5" /> Eliminar
-          </Button>
+          </Button>}
 
           <div className="flex items-center gap-2 justify-end">
-            <Button type="button" variant="outline" onClick={onClose} className="rounded-xl">
+            <Button type="button" variant="outline" disabled={guardando} onClick={onClose} className="rounded-xl">
               Cancelar
             </Button>
-            <Button type="button" onClick={() => onSave(form)} className="rounded-xl gradient-primary">
-              Guardar
+            <Button type="button" disabled={guardando} onClick={()=>void guardar()} className="rounded-xl gradient-primary">
+              {guardando?"Guardando…":"Guardar"}
             </Button>
           </div>
         </DialogFooter>
