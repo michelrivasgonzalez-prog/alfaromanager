@@ -16,6 +16,7 @@ import {
   Pencil,
   History,
   ChevronDown,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,9 @@ import BarcodeScanner from "@/components/BarcodeScanner";
 import EditarProductoDialog, { type EdicionCatalogo } from "@/components/catalogo/EditarProductoDialog";
 import CodigosProductoDialog from "@/components/catalogo/CodigosProductoDialog";
 import ProductoTarjeta from "@/components/catalogo/ProductoTarjeta";
+import AsistenteCatalogoDialog from "@/components/catalogo/AsistenteCatalogoDialog";
+import BuscarIdentidadProducto from "@/components/catalogo/BuscarIdentidadProducto";
+import { fotoPendiente, codigoPendiente } from "@/lib/asistenteCatalogo";
 import { subirFotoProducto, borrarFotoProducto } from "@/lib/fotoCatalogo";
 import { buscarDuplicadoCatalogo, buscarPorCodigo, codigosAdicionalesValidos, esCodigoBarrasValido, limpiarCodigoBarras, normalizarNombreProducto } from "@/lib/codigosBarras";
 import {
@@ -50,6 +54,8 @@ export default function Productos() {
   const categorias = useCuadreStore((s) => s.settings.categorias ?? []);
   const fileRef = useRef<HTMLInputElement>(null);
   const [nuevoOpen, setNuevoOpen] = useState(false);
+  const [asistenteOpen,setAsistenteOpen]=useState(false);
+  const [volverAsistente,setVolverAsistente]=useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [herramientasAbiertas, setHerramientasAbiertas] = useState(false);
   const [kardex, setKardex] = useState<string | null>(null);
@@ -544,6 +550,7 @@ export default function Productos() {
             </Button>
           </div>
         </div>
+        <button type="button" onClick={()=>setAsistenteOpen(true)} className="flex w-full items-center gap-3 rounded-2xl border border-primary/25 bg-card p-3 text-left shadow-soft"><Sparkles className="h-7 w-7 shrink-0 text-primary"/><span className="min-w-0 flex-1"><span className="block text-sm font-bold">Asistente inteligente del catálogo</span><span className="block text-xs text-muted-foreground">{productosPunto.filter(p=>tieneExistencia(p)&&fotoPendiente(p)).length} sin foto · {productosPunto.filter(p=>tieneExistencia(p)&&codigoPendiente(p)).length} sin código · Disponibles</span></span><ChevronDown className="h-4 w-4 -rotate-90"/></button>
         {productosPunto.length === 0 && (
           <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center">
             <Package className="mx-auto mb-2 h-7 w-7 text-muted-foreground" />
@@ -580,13 +587,18 @@ export default function Productos() {
           </Fragment>
         ))}
       </div>
+      <AsistenteCatalogoDialog open={asistenteOpen} onClose={()=>setAsistenteOpen(false)} items={productosPunto} existencias={existencias} punto={punto}
+        onEditar={id=>{setAsistenteOpen(false);setVolverAsistente(true);setEditandoProductoId(id);}}
+        onNuevo={()=>{setAsistenteOpen(false);setNuevo({nombre:"",precio:0,costo:0,categoria:"",codigoBarras:""});setNuevoOpen(true);}}
+        onEscanear={()=>{setAsistenteOpen(false);setScannerDestino("buscar");}}/>
       <EditarProductoDialog
         producto={catalogo.find((p) => p.id === editandoProductoId) ?? null}
         categorias={categorias}
-        onClose={() => setEditandoProductoId(null)}
+        onClose={() => {setEditandoProductoId(null);if(volverAsistente)setAsistenteOpen(true);setVolverAsistente(false);}}
         onGuardar={guardarEdicion}
         onCodigos={(id) => {
           setEditandoProductoId(null);
+          setVolverAsistente(false);
           setCodigosProductoId(id);
         }}
         onEliminar={(item) => { void eliminarProducto(item); }}
@@ -661,7 +673,8 @@ export default function Productos() {
           <DialogHeader>
             <DialogTitle>Nuevo producto en {punto}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="max-h-[70dvh] overflow-y-auto space-y-3">
+            <BuscarIdentidadProducto codigo={nuevo.codigoBarras} nombre={nuevo.nombre} onElegir={c=>setNuevo(v=>({...v,nombre:c.nombre,codigoBarras:c.codigo||v.codigoBarras,categoria:c.categoria||v.categoria}))}/>
             <label className="block text-xs">
               <span className="text-muted-foreground">Nombre</span>
               <Input
@@ -821,6 +834,7 @@ export default function Productos() {
             Código detectado: <strong className="font-mono">{codigoPendiente}</strong>.
             Puedes asociarlo a una ficha existente, como un nuevo sabor, sin duplicar el inventario.
           </p>
+          <BuscarIdentidadProducto codigo={codigoPendiente??""} onElegir={c=>{setNuevo({nombre:c.nombre,precio:0,costo:0,categoria:c.categoria||"",codigoBarras:codigoPendiente??""});setCodigoPendiente(null);setNuevoOpen(true);}}/>
           <label className="space-y-1 text-xs">
             <span>Identificar variante (opcional)</span>
             <Input value={etiquetaAsociar} placeholder="Ej. Naranja, Rosas, Violetas"

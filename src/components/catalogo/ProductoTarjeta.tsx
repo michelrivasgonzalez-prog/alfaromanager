@@ -3,6 +3,7 @@ import { ChevronRight, History, Package, Pencil, ScanBarcode } from "lucide-reac
 import { Button } from "@/components/ui/button";
 import type { CatalogoItem } from "@/store/cuadreStore";
 import { codigosDeProducto } from "@/lib/codigosBarras";
+import { fuenteFoto } from "@/lib/fotoCatalogo";
 
 const dinero = (n: number) => Number(n || 0).toLocaleString("es-ES", {
   minimumFractionDigits: 0, maximumFractionDigits: 2,
@@ -42,6 +43,7 @@ export default function ProductoTarjeta({
         <div className="min-w-0 flex-1">
           <h3 className="break-words text-sm font-semibold leading-snug">{producto.nombre}</h3>
           <p className="mt-1 text-[11px] text-muted-foreground">{producto.categoria || "Sin categoría"}</p>
+          {fuenteFoto(producto.fotoUrl)&&<a className="text-[10px] text-muted-foreground underline" href={fuenteFoto(producto.fotoUrl)} target="_blank" rel="noreferrer">Foto: Open Facts · CC BY-SA · adaptada</a>}
           <div className={"mt-2 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium " +
             (tieneExistencia ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" :
               "bg-muted text-muted-foreground")}>

@@ -1,5 +1,21 @@
 import { supabase } from "@/integrations/supabase/client";
 import { ensureCloudSession } from "@/lib/cloudBootstrap";
+import type { Candidato } from "@/lib/asistenteCatalogo";
+const fuentesFoto = new WeakMap<File,string>();
+export function fuenteFoto(url?:string){try{const raw=new URLSearchParams(new URL(url||"").hash.slice(1)).get("fuente");if(!raw)return undefined;const u=new URL(raw);return u.protocol==="https:"&&["world.openfoodfacts.org","world.openbeautyfacts.org"].includes(u.hostname)?u.href:undefined;}catch{return undefined;}}
+export function copiarFuenteFoto(origen:File,destino:File){const fuente=fuentesFoto.get(origen);if(fuente)fuentesFoto.set(destino,fuente);}
+export async function importarFotoCandidata(c:Candidato):Promise<File>{
+  if(!c.foto)throw new Error("No hay fotografía disponible.");
+  const u=new URL(c.foto), base=new URL(import.meta.env.VITE_SUPABASE_URL);
+  const local=u.origin===base.origin&&u.pathname.startsWith("/storage/v1/object/public/catalogo-fotos/");
+  const externo=u.protocol==="https:"&&["images.openfoodfacts.org","images.openbeautyfacts.org","static.openfoodfacts.org","static.openbeautyfacts.org"].includes(u.hostname);
+  if(!local&&!externo)throw new Error("Fotografía externa no autorizada. Descárgala con permiso y súbela manualmente.");
+  if(externo&&!window.confirm("¿Usar esta foto de Open Facts? Se conservará el crédito y licencia CC BY-SA en la ficha."))throw new Error("Importación cancelada.");
+  const res=await fetch(u.href,{credentials:"omit",referrerPolicy:"no-referrer",signal:AbortSignal.timeout(15000)});if(!res.ok)throw new Error("No se pudo descargar la fotografía.");
+  const blob=await res.blob();if(blob.size>8*1024*1024||!["image/jpeg","image/png","image/webp"].includes(blob.type))throw new Error("Formato o tamaño de foto no compatible.");
+  const file=new File([blob],"foto-producto",{type:blob.type});
+  const fuente=local?fuenteFoto(c.foto):c.enlace;if(fuente)fuentesFoto.set(file,fuente);return file;
+}
 
 const BUCKET = "catalogo-fotos";
 const MAX_ORIGEN = 8 * 1024 * 1024;
@@ -64,7 +80,9 @@ export async function subirFotoProducto(productoId: string, file: File): Promise
     upsert: false,
   });
   if (error) throw new Error("No se pudo subir la fotografía: " + error.message);
-  return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+  const url=supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+  const fuente=fuentesFoto.get(file);
+  return fuente?url+"#"+new URLSearchParams({fuente}).toString():url;
 }
 
 /** Solo borra imágenes creadas dentro de nuestro bucket, nunca URLs externas. */
