@@ -29,7 +29,7 @@ import CodigosProductoDialog from "@/components/catalogo/CodigosProductoDialog";
 import ProductoTarjeta from "@/components/catalogo/ProductoTarjeta";
 import AsistenteCatalogoDialog from "@/components/catalogo/AsistenteCatalogoDialog";
 import BuscarIdentidadProducto from "@/components/catalogo/BuscarIdentidadProducto";
-import { fotoPendiente, codigoPendiente } from "@/lib/asistenteCatalogo";
+import { fotoPendiente, codigoPendiente as faltaCodigoProducto } from "@/lib/asistenteCatalogo";
 import { subirFotoProducto, borrarFotoProducto, importarFotoCandidata, copiarFuenteFoto } from "@/lib/fotoCatalogo";
 import { buscarDuplicadoCatalogo, buscarPorCodigo, codigosAdicionalesValidos, esCodigoBarrasValido, limpiarCodigoBarras, normalizarNombreProducto } from "@/lib/codigosBarras";
 import {
@@ -556,7 +556,7 @@ export default function Productos() {
             </Button>
           </div>
         </div>
-        <button type="button" onClick={()=>setAsistenteOpen(true)} className="flex w-full items-center gap-3 rounded-2xl border border-primary/25 bg-card p-3 text-left shadow-soft"><Sparkles className="h-7 w-7 shrink-0 text-primary"/><span className="min-w-0 flex-1"><span className="block text-sm font-bold">Asistente inteligente del catálogo</span><span className="block text-xs text-muted-foreground">{productosPunto.filter(p=>tieneExistencia(p)&&fotoPendiente(p)).length} sin foto · {productosPunto.filter(p=>tieneExistencia(p)&&codigoPendiente(p)).length} sin código · Disponibles</span></span><ChevronDown className="h-4 w-4 -rotate-90"/></button>
+        <button type="button" onClick={()=>setAsistenteOpen(true)} className="flex w-full items-center gap-3 rounded-2xl border border-primary/25 bg-card p-3 text-left shadow-soft"><Sparkles className="h-7 w-7 shrink-0 text-primary"/><span className="min-w-0 flex-1"><span className="block text-sm font-bold">Asistente inteligente del catálogo</span><span className="block text-xs text-muted-foreground">{productosPunto.filter(p=>tieneExistencia(p)&&fotoPendiente(p)).length} sin foto · {productosPunto.filter(p=>tieneExistencia(p)&&faltaCodigoProducto(p)).length} sin código · Disponibles</span></span><ChevronDown className="h-4 w-4 -rotate-90"/></button>
         {productosPunto.length === 0 && (
           <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center">
             <Package className="mx-auto mb-2 h-7 w-7 text-muted-foreground" />
