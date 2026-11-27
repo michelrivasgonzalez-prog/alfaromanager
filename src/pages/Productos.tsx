@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useCuadreStore, PUNTOS, PuntoVenta, type CatalogoItem } from "@/store/cuadreStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,7 +30,7 @@ import ProductoTarjeta from "@/components/catalogo/ProductoTarjeta";
 import AsistenteCatalogoDialog from "@/components/catalogo/AsistenteCatalogoDialog";
 import BuscarIdentidadProducto from "@/components/catalogo/BuscarIdentidadProducto";
 import { fotoPendiente, codigoPendiente } from "@/lib/asistenteCatalogo";
-import { subirFotoProducto, borrarFotoProducto } from "@/lib/fotoCatalogo";
+import { subirFotoProducto, borrarFotoProducto, importarFotoCandidata, copiarFuenteFoto } from "@/lib/fotoCatalogo";
 import { buscarDuplicadoCatalogo, buscarPorCodigo, codigosAdicionalesValidos, esCodigoBarrasValido, limpiarCodigoBarras, normalizarNombreProducto } from "@/lib/codigosBarras";
 import {
   Dialog,
@@ -54,6 +54,12 @@ export default function Productos() {
   const categorias = useCuadreStore((s) => s.settings.categorias ?? []);
   const fileRef = useRef<HTMLInputElement>(null);
   const [nuevoOpen, setNuevoOpen] = useState(false);
+  const [fotoNuevo,setFotoNuevo]=useState<File|null>(null);
+  const [originalNuevo,setOriginalNuevo]=useState<File|null>(null);
+  const [previewNuevo,setPreviewNuevo]=useState("");
+  const [procesandoNuevo,setProcesandoNuevo]=useState("");
+  useEffect(()=>{if(!fotoNuevo){setPreviewNuevo("");return;}const url=URL.createObjectURL(fotoNuevo);setPreviewNuevo(url);return()=>URL.revokeObjectURL(url);},[fotoNuevo]);
+  useEffect(()=>{if(!nuevoOpen){setFotoNuevo(null);setOriginalNuevo(null);}},[nuevoOpen]);
   const [asistenteOpen,setAsistenteOpen]=useState(false);
   const [volverAsistente,setVolverAsistente]=useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -668,13 +674,18 @@ export default function Productos() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={nuevoOpen} onOpenChange={setNuevoOpen}>
+      <Dialog open={nuevoOpen} onOpenChange={v=>{if(!procesandoNuevo)setNuevoOpen(v);}}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Nuevo producto en {punto}</DialogTitle>
           </DialogHeader>
           <div className="max-h-[70dvh] overflow-y-auto space-y-3">
-            <BuscarIdentidadProducto codigo={nuevo.codigoBarras} nombre={nuevo.nombre} onElegir={c=>setNuevo(v=>({...v,nombre:c.nombre,codigoBarras:c.codigo||v.codigoBarras,categoria:c.categoria||v.categoria}))}/>
+            <BuscarIdentidadProducto codigo={nuevo.codigoBarras} nombre={nuevo.nombre} onElegir={c=>{if(procesandoNuevo)return;setNuevo(v=>({...v,nombre:c.nombre,codigoBarras:c.codigo||v.codigoBarras,categoria:c.categoria&&(!categorias.length||categorias.includes(c.categoria))?c.categoria:v.categoria}));}} onFoto={async c=>{if(procesandoNuevo)return;setProcesandoNuevo("Importando fotografía…");try{setFotoNuevo(await importarFotoCandidata(c));setOriginalNuevo(null);}finally{setProcesandoNuevo("");}}}/>
+            <div className="space-y-2 rounded-xl border p-3">
+              <div className="flex items-center gap-3">{previewNuevo&&<img src={previewNuevo} alt="Vista previa" className="h-20 w-20 rounded-lg object-contain bg-muted"/>}<label className="text-sm font-medium">Foto opcional<input type="file" accept="image/jpeg,image/png,image/webp" disabled={!!procesandoNuevo} className="block w-full text-xs" onChange={ev=>{const file=ev.target.files?.[0];if(file){setFotoNuevo(file);setOriginalNuevo(null);}ev.target.value="";}}/></label></div>
+              {fotoNuevo&&<div className="flex flex-wrap gap-2"><Button type="button" variant="outline" disabled={!!procesandoNuevo||!!originalNuevo} onClick={async()=>{if(!fotoNuevo||procesandoNuevo)return;const base=fotoNuevo;setProcesandoNuevo("Preparando fotografía…");try{const {quitarFondoProducto}=await import("@/lib/fondoProducto");const recorte=await quitarFondoProducto(base,setProcesandoNuevo);copiarFuenteFoto(base,recorte);setOriginalNuevo(base);setFotoNuevo(recorte);}catch(err){toast.error(err instanceof Error?err.message:"No se pudo recortar");}finally{setProcesandoNuevo("");}}}><Sparkles className="mr-1 h-4 w-4"/>{procesandoNuevo||"Quitar fondo con IA"}</Button>{originalNuevo&&<Button type="button" variant="ghost" disabled={!!procesandoNuevo} onClick={()=>{setFotoNuevo(originalNuevo);setOriginalNuevo(null);}}>Original</Button>}<Button type="button" variant="ghost" disabled={!!procesandoNuevo} onClick={()=>{setFotoNuevo(null);setOriginalNuevo(null);}}>Quitar foto</Button></div>}
+              <p className="text-xs text-muted-foreground">La IA recorta el producto; revisa la vista previa. Se guardará a 320 px sobre fondo blanco.</p>
+            </div>
             <label className="block text-xs">
               <span className="text-muted-foreground">Nombre</span>
               <Input
@@ -738,12 +749,14 @@ export default function Productos() {
             </label>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setNuevoOpen(false)}>
+            <Button variant="outline" disabled={!!procesandoNuevo} onClick={() => setNuevoOpen(false)}>
               Cancelar
             </Button>
             <Button
               className="gradient-primary text-primary-foreground"
+              disabled={!!procesandoNuevo}
               onClick={async () => {
+                if(procesandoNuevo)return;
                 const nombre = nuevo.nombre.trim();
                 const codigo = limpiarCodigoBarras(nuevo.codigoBarras);
                 if (!nombre) {
@@ -770,15 +783,20 @@ export default function Productos() {
                   (c.punto ?? "Cafetería") === punto &&
                   normalizarNombreProducto(c.nombre) === normalizarNombreProducto(nombre)
                 );
+                let subida: string|undefined;
+                setProcesandoNuevo("Guardando producto…");
                 try {
-                  if (last) await pushCatalogItem(last);
+                  if(!last)throw new Error("No se pudo preparar la ficha.");
+                  if(fotoNuevo){subida=await subirFotoProducto(last.id,fotoNuevo);updateCatalogItem(last.id,{fotoUrl:subida});}
+                  await pushCatalogItem({...last,...(subida?{fotoUrl:subida}:{})});
                   toast.success('Producto "' + nombre + '" registrado');
                   setNuevo({ nombre: "", precio: 0, costo: 0, categoria: "", codigoBarras: "" });
                   setNuevoOpen(false);
                 } catch (e: any) {
                   if (last) removeCatalogItem(last.id);
+                  if(subida)await borrarFotoProducto(subida);
                   toast.error(e?.message ?? "No se pudo guardar el producto en Supabase");
-                }
+                }finally{setProcesandoNuevo("");}
               }}
             >
               Agregar producto

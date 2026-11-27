@@ -7,10 +7,10 @@ import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/NumberInput";
 import type { CatalogoItem } from "@/store/cuadreStore";
 import BuscarIdentidadProducto from "@/components/catalogo/BuscarIdentidadProducto";
-import { codigosDeProducto } from "@/lib/codigosBarras";
+import { codigosDeProducto, esCodigoBarrasValido } from "@/lib/codigosBarras";
 import { importarFotoCandidata, copiarFuenteFoto, fuenteFoto } from "@/lib/fotoCatalogo";
 
-export type EdicionCatalogo = Pick<CatalogoItem, "nombre" | "precio" | "costo" | "categoria">;
+export type EdicionCatalogo = Pick<CatalogoItem, "nombre" | "precio" | "costo" | "categoria" | "codigoBarras">;
 
 type Props = {
   producto: CatalogoItem | null;
@@ -44,6 +44,7 @@ export default function EditarProductoDialog({
       precio: producto.precio,
       costo: producto.costo,
       categoria: producto.categoria,
+      codigoBarras: producto.codigoBarras,
     });
     operacion.current++;
     setFoto(null);
@@ -52,7 +53,7 @@ export default function EditarProductoDialog({
     setProcesando("");
     setIdentificar(false);
     setQuitarFoto(false);
-  }, [producto?.id, producto?.nombre, producto?.precio, producto?.costo, producto?.categoria]);
+  }, [producto?.id, producto?.nombre, producto?.precio, producto?.costo, producto?.categoria,producto?.codigoBarras]);
 
   useEffect(() => {
     if (!foto) {
@@ -92,7 +93,7 @@ export default function EditarProductoDialog({
       const guardado = await onGuardar(
         producto.id,
         { nombre, precio: datos.precio, costo: datos.costo,
-          categoria: datos.categoria?.trim() || undefined },
+          categoria: datos.categoria?.trim() || undefined, codigoBarras: datos.codigoBarras },
         foto,
         quitarFoto,
       );
@@ -154,7 +155,7 @@ export default function EditarProductoDialog({
           {imagen&&<div className="space-y-2 rounded-xl border p-3"><Button type="button" variant="outline" className="w-full" disabled={ocupado||recortada} onClick={()=>void mejorar()}><Sparkles className="mr-2 h-4 w-4"/>{procesando||"Quitar fondo y recortar con IA"}</Button>{recortada&&<Button type="button" variant="ghost" className="w-full" disabled={ocupado} onClick={()=>{setFoto(original);setOriginal(null);setRecortada(false);}}><Undo2 className="mr-2 h-4 w-4"/>Volver a la original</Button>}<p className="text-xs text-muted-foreground">IA local U²-Net-p. La primera vez descarga el modelo y el motor. Revisa el recorte antes de guardar; el fondo final será blanco.</p></div>}
           {producto.fotoUrl&&fuenteFoto(producto.fotoUrl)&&<a className="text-xs underline" href={fuenteFoto(producto.fotoUrl)} target="_blank" rel="noreferrer">Foto: colaboradores de Open Facts · CC BY-SA · adaptada</a>}
           <Button type="button" variant="outline" className="w-full" disabled={ocupado} onClick={()=>setIdentificar(v=>!v)}><Sparkles className="mr-2 h-4 w-4"/>Identificar / buscar fotografía</Button>
-          {identificar&&<BuscarIdentidadProducto codigo={codigosDeProducto(producto)[0]||""} nombre={producto.nombre} excluir={producto.id} onElegir={c=>{if(ocupado)return;if(c.nombre!==datos.nombre&&!window.confirm("¿Usar el nombre sugerido? Cambiar un nombre puede separar el historial si no comparte código. Si es otra mercancía, crea otra ficha."))return;setDatos(v=>({...v,nombre:c.nombre,categoria:c.categoria||v.categoria}));}} onFoto={async c=>{if(ocupado)return;setProcesando("Importando fotografía…");try{const file=await importarFotoCandidata(c);setFoto(file);setOriginal(null);setRecortada(false);setQuitarFoto(false);}finally{setProcesando("");}}}/>}
+          {identificar&&<BuscarIdentidadProducto codigo={codigosDeProducto(producto)[0]||""} nombre={producto.nombre} excluir={producto.id} seleccionIndividual permitirCodigo={!codigosDeProducto(producto).length&&!datos.codigoBarras} onElegir={(c,campo)=>{if(ocupado)return;if(campo==="nombre"){if(c.nombre!==datos.nombre&&!window.confirm("¿Usar el nombre sugerido? Cambiar un nombre puede separar el historial si no comparte código. Si es otra mercancía, crea otra ficha."))return;setDatos(v=>({...v,nombre:c.nombre}));}else if(campo==="categoria"&&c.categoria){if(categorias.length&&!categorias.includes(c.categoria)){toast.info("La categoría sugerida no está configurada. Selecciona una categoría existente.");return;}setDatos(v=>({...v,categoria:c.categoria}));}else if(campo==="codigo"&&!codigosDeProducto(producto).length&&esCodigoBarrasValido(c.codigo)){if(window.confirm("Comprueba que el código "+c.codigo+" coincide con el envase físico. ¿Asociarlo al guardar?"))setDatos(v=>({...v,codigoBarras:c.codigo}));}}} onFoto={async c=>{if(ocupado)return;setProcesando("Importando fotografía…");try{const file=await importarFotoCandidata(c);setFoto(file);setOriginal(null);setRecortada(false);setQuitarFoto(false);}finally{setProcesando("");}}}/>}
           <label className="block space-y-1.5 text-xs font-medium">
             Nombre del producto
             <Input value={datos.nombre} disabled={ocupado} autoFocus={false}
@@ -194,6 +195,7 @@ export default function EditarProductoDialog({
                   placeholder="Sin categoría" className="h-11 rounded-xl" />}
           </label>
 
+          {datos.codigoBarras!==producto.codigoBarras&&<p className="text-xs text-primary">Código pendiente de guardar: {datos.codigoBarras}</p>}
           <Button type="button" variant="outline" className="w-full rounded-xl"
             disabled={ocupado}
             onClick={() => onCodigos(producto.id)}>

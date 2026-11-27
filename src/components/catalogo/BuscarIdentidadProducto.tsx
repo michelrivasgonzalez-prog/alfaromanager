@@ -6,8 +6,9 @@ import {buscarCodigoAbierto,candidatosLocales,enlaceGoogle,type Candidato} from 
 import {esCodigoBarrasValido,limpiarCodigoBarras} from "@/lib/codigosBarras";
 import {useCuadreStore} from "@/store/cuadreStore";
 import {toast} from "sonner";
-type Props={codigo?:string;nombre?:string;excluir?:string;onElegir?:(c:Candidato)=>void;onEscanear?:()=>void;onFoto?:(c:Candidato)=>Promise<void>};
-export default function BuscarIdentidadProducto({codigo="",nombre="",excluir,onElegir,onEscanear,onFoto}:Props){
+export type CampoSugerido="nombre"|"categoria"|"codigo"|"todos";
+type Props={codigo?:string;nombre?:string;excluir?:string;onElegir?:(c:Candidato,campo:CampoSugerido)=>void;onEscanear?:()=>void;onFoto?:(c:Candidato)=>Promise<void>;seleccionIndividual?:boolean;permitirCodigo?:boolean};
+export default function BuscarIdentidadProducto({codigo="",nombre="",excluir,onElegir,onEscanear,onFoto,seleccionIndividual=false,permitirCodigo=false}:Props){
   const catalogo=useCuadreStore(s=>s.catalogo);
   const [texto,setTexto]=useState(codigo||nombre);
   const [resultados,setResultados]=useState<Candidato[]>([]);
@@ -40,7 +41,7 @@ export default function BuscarIdentidadProducto({codigo="",nombre="",excluir,onE
     {ocupado&&<p role="status" className="text-xs text-muted-foreground">Consultando bases abiertas…</p>}{estado&&<p className="text-xs text-muted-foreground">{estado}</p>}
     {resultados.map((c,i)=><div key={c.fuente+c.codigo+i} className="space-y-2 rounded-lg border bg-card p-2">
       <div className="flex gap-3">{c.foto&&<img src={c.foto} alt="Referencia del producto" loading="lazy" referrerPolicy="no-referrer" className="h-16 w-16 shrink-0 rounded-lg object-contain"/>}<div className="min-w-0"><p className="break-words text-sm font-semibold">{c.nombre}</p><p className="text-xs text-muted-foreground">{[c.marca,c.cantidad,c.codigo].filter(Boolean).join(" · ")}</p><p className="text-xs text-muted-foreground">{c.fuente} · {esCodigoBarrasValido(limpiarCodigoBarras(texto))?"Código coincidente":"Referencia por nombre"}</p>{c.enlace&&<a href={c.enlace} target="_blank" rel="noreferrer" className="text-xs underline text-primary">Fuente original · ODbL / fotos CC BY-SA</a>}</div></div>
-      <div className="flex flex-wrap gap-2">{onElegir&&<Button type="button" size="sm" variant="outline" onClick={()=>onElegir(c)}>Usar datos sugeridos</Button>}{onFoto&&c.foto&&<Button type="button" size="sm" variant="outline" disabled={fotoOcupada} onClick={async()=>{setFotoOcupada(true);try{await onFoto(c);}catch(e){toast.error(e instanceof Error?e.message:"No se pudo importar la foto");}finally{setFotoOcupada(false);}}}>Seleccionar foto</Button>}</div>
+      <div className="flex flex-wrap gap-2">{onElegir&&(seleccionIndividual?<><Button type="button" size="sm" variant="outline" onClick={()=>onElegir(c,"nombre")}>Usar nombre</Button>{c.categoria&&<Button type="button" size="sm" variant="outline" onClick={()=>onElegir(c,"categoria")}>Usar categoría: {c.categoria}</Button>}{permitirCodigo&&c.codigo&&<Button type="button" size="sm" variant="outline" onClick={()=>onElegir(c,"codigo")}>Usar código</Button>}</>:<Button type="button" size="sm" variant="outline" onClick={()=>onElegir(c,"todos")}>Usar datos sugeridos</Button>)}{onFoto&&c.foto&&<Button type="button" size="sm" variant="outline" disabled={fotoOcupada} onClick={async()=>{setFotoOcupada(true);try{await onFoto(c);}catch(e){toast.error(e instanceof Error?e.message:"No se pudo importar la foto");}finally{setFotoOcupada(false);}}}>Seleccionar foto</Button>}</div>
     </div>)}
   </section>;
 }
