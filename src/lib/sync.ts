@@ -485,7 +485,7 @@ async function upsertCatalogItems(items: CatalogoItem[]) {
 
 export async function deleteCatalogItem(id: string) {
   await ensureCloudSession();
-  const { error } = await (supabase as any).from("catalogo").delete().eq("id", id);
+  const { error } = await (supabase as any).from("catalogo").update({ deleted_at: new Date().toISOString() }).eq("id", id);
   if (error) throw error;
 }
 
@@ -508,22 +508,11 @@ export async function deleteCuadreRemote(id: string) {
 }
 
 /**
- * Sube todo el catálogo local y borra en la nube los productos que ya no
- * existen localmente (evita duplicados tras renombrar o eliminar productos).
+ * La ausencia de un UUID en una copia local no autoriza eliminarlo en la nube.
+ * Las bajas se realizan exclusivamente mediante deleteCatalogItem.
  */
 export async function pushAllCatalogo() {
   await ensureCloudSession();
   const local = useCuadreStore.getState().catalogo;
   await upsertCatalogItems(local);
-  const { data: remote, error } = await (supabase as any).from("catalogo").select("id");
-  if (error) throw error;
-  const localIds = new Set(local.map((c) => c.id));
-  const sobrantes = (remote ?? []).map((r: any) => r.id).filter((id: string) => !localIds.has(id));
-  if (sobrantes.length > 0) {
-    const { error: delError } = await (supabase as any)
-      .from("catalogo")
-      .delete()
-      .in("id", sobrantes);
-    if (delError) throw delError;
-  }
 }
