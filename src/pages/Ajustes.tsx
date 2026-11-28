@@ -672,7 +672,7 @@ export default function Ajustes() {
         <div className="space-y-3 border-t border-border/60 bg-muted/10 p-3">
       <div className="rounded-2xl border border-border bg-card p-4 shadow-soft space-y-3">
         <Row label="Cuadres en historial" value={String(history.length)} />
-        <Row label="Versión" value="1.1.0" />
+        <Row label="Versión" value={mostrarCompilacion(COMPILACION_INSTALADA)} />
       </div>
 
       {isAdmin && (
