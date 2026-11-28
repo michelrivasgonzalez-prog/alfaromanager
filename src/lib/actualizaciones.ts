@@ -32,10 +32,7 @@ export function mostrarCompilacion(valor: string | null | undefined): string {
   if (!valor) return "Desconocida";
   const fecha = new Date(valor);
   if (Number.isNaN(fecha.getTime())) return valor.slice(0, 30);
-  return fecha.toLocaleString("es-ES", {
-    year: "numeric", month: "short", day: "2-digit",
-    hour: "2-digit", minute: "2-digit",
-  });
+  return `v${fecha.toISOString().slice(0, 10).replace(/-/g, ".")}.${fecha.toISOString().slice(11, 23).replace(/[:.]/g, "")}`;
 }
 
 /** Devuelve true si el servidor ofrece un build distinto al que está abierto. */
@@ -89,8 +86,8 @@ export const useActualizacionesStore = create<EstadoPwa>((set, get) => ({
         set({
           compilacionRemota,
           ultimoChequeo: Date.now(),
-          disponible: nueva || get().disponible,
-          estado: nueva || get().disponible ? "disponible" : "actualizada",
+          disponible: nueva,
+          estado: nueva ? "disponible" : "actualizada",
           mensaje: null,
           avisoDescartado: nueva && esVersionDistintaAAnterior ? false : get().avisoDescartado,
         });
