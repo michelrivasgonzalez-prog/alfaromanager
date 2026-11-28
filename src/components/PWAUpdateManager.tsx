@@ -19,7 +19,7 @@ export default function PWAUpdateManager() {
   const { disponible, compilacionRemota, avisoDescartado, marcarDisponible,
     verificar, descartarAviso } = useActualizacionesStore();
   const [actualizando, setActualizando] = useState(false);
-  const { needRefresh: [esperandoSW], updateServiceWorker } = useRegisterSW({
+  const { needRefresh: [esperandoSW] } = useRegisterSW({
     immediate: true,
     onNeedRefresh() {
       useActualizacionesStore.getState().marcarDisponible();
@@ -93,19 +93,45 @@ export default function PWAUpdateManager() {
         toast.error("El navegador aún no tiene registrado el servicio de actualización. Vuelve a abrir la aplicación instalada.");
         return;
       }
-      if (!reg.waiting) await reg.update();
-      if (!reg.waiting) {
-        toast.info("La nueva versión está preparándose. Pulsa «Buscar actualizaciones» en Ajustes e inténtalo otra vez.");
-        return;
+      await reg.update();
+      // update() puede terminar antes de que el worker termine de instalarse.
+      const limite = Date.now() + 60_000;
+      while (!reg.waiting && Date.now() < limite) {
+        await new Promise<void>((resolve) => window.setTimeout(resolve, 250));
       }
-      await updateServiceWorker(true);
-      // Workbox recargará cuando el SW nuevo controle la página.
+      const worker = reg.waiting;
+      if (!worker) {
+        throw new Error("La descarga de la actualización no terminó. Inténtalo nuevamente.");
+      }
+      // Escuchar antes de activar para no perder controllerchange en Safari.
+      await new Promise<void>((resolve, reject) => {
+        const anterior = navigator.serviceWorker.controller;
+        const limpiar = () => {
+          window.clearTimeout(timer);
+          navigator.serviceWorker.removeEventListener("controllerchange", cambio);
+        };
+        const cambio = () => {
+          if (navigator.serviceWorker.controller &&
+              navigator.serviceWorker.controller !== anterior) {
+            limpiar();
+            resolve();
+          }
+        };
+        const timer = window.setTimeout(() => {
+          limpiar();
+          reject(new Error("No se pudo confirmar la activación. Inténtalo nuevamente."));
+        }, 30_000);
+        navigator.serviceWorker.addEventListener("controllerchange", cambio);
+        worker.postMessage({ type: "SKIP_WAITING" });
+        cambio();
+      });
+      window.location.reload();
     } catch (e: any) {
       toast.error(e?.message ?? "No se pudo activar la nueva versión.");
     } finally {
       setActualizando(false);
     }
-  }, [actualizando, updateServiceWorker]);
+  }, [actualizando]);
 
   useEffect(() => {
     const onApply = () => { void actualizar(); };
